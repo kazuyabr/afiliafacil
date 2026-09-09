@@ -1,0 +1,19 @@
+services:
+  app:
+    build: .
+    ports:
+      - "9876:9876"
+    volumes:
+      - ./data:/app/data
+      - ./pages:/app/pages
+      - ./uploads:/app/uploads
+    environment:
+      - DOCKER=true
+      # Preencha suas credenciais aqui (ou via .env)
+      - PIX_KEY=
+      - PIX_NAME=AfiliaFacil
+      - PIX_CITY=SAO PAULO
+      - STRIPE_SECRET_KEY=sk_test_XXXXXXXXXX
+      - STRIPE_WEBHOOK_SECRET=whsec_XXXXXXXXXX
+      - CHECKOUT_DRIVER=pix
+    container_name: afiliafacil

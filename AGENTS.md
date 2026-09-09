@@ -1,0 +1,90 @@
+# AfiliaFacil
+
+Plataforma completa para afiliados: clonador de páginas, pressel, player de vídeo, pixel, back redirect, cookie de afiliado, domínios, integrações e assinaturas com PIX/Stripe. Concorrente direto da Afiliaze (afiliaze.com.br).
+
+## Stack
+
+- **PHP 8.2** (sem framework, sem composer)
+- **Docker** — built-in PHP server, porta **9876** (única do projeto; verificar antes se está livre: `netstat -an | Select-String ":9876"`)
+- Dados em JSON (`data/`), páginas geradas em `pages/`, sem banco de dados
+
+## Como rodar
+
+```powershell
+docker-compose down; docker-compose up -d --build
+# http://localhost:9876
+```
+
+## Credenciais padrão (admin dono)
+
+- E-mail: `admin@afiliafacil.com`
+- Senha: `admin123`
+- Plano do admin: `premium` (acesso total, sem limites)
+
+Admin cria novos usuários via registro (`/register`), que inicia como `trial` com `trial_days` configurável em Admin → Configurações (padrão 3 dias).
+
+## Planos (valores espelhados da Afiliaze)
+
+| Plano | Mensal | Trimestral | Semestral | Anual | Recursos |
+|---|---|---|---|---|---|
+| Trial | grátis 3d | — | — | — | 1 página, clonador |
+| VSL | R$ 79 | R$ 159 | R$ 267 | R$ 468 | player+delay, 1 página, 1 domínio |
+| Essencial | R$ 119 | R$ 237 | R$ 402 | R$ 679 | clonador+pressel+player+pixel+cookie+backredirect, 5 páginas, 2 domínios |
+| Master | R$ 149 | R$ 297 | R$ 492 | R$ 838 | tudo ilimitado + integrações, 10 domínios |
+
+Definição central em `lib/Plans.php` — limites (max_pages/max_domains/features) aplicados via gating no backend (ex.: `api/clone.php`). Plano `trial_expired` bloqueia features e força upgrade.
+
+## Pagamentos
+
+- **Gateway ativo**: `CHECKOUT_DRIVER` (env) ou `checkout_driver` em `data/settings.json` (pix | stripe), configurável em Admin → Configurações
+- **PIX estático**: QR Code (BR Code EMV + CRC16 gerado em `lib/Checkout.php`); usuário paga → pagamento fica `pending` → **admin aprova manualmente** em `/admin/pay.php` (botão verde confirma e ativa o plano)
+- **Stripe**: Checkout Session (mode payment, BRL) → webhook `/webhook/stripe.php` valida assinatura HMAC (STRIPE_WEBHOOK_SECRET) e aprova automaticamente em `checkout.session.completed`
+- Chaves de teste: `STRIPE_SECRET_KEY=sk_test_*`, `STRIPE_WEBHOOK_SECRET=whsec_*`, `PIX_KEY` — preenchidas via docker-compose environment (placeholders no repo)
+
+## Estrutura
+
+```
+afiliafacil/
+├── index.php            # login
+├── landing.php          # landing page pública (/) — hero, features, planos, FAQ
+├── register.php         # cadastro com trial
+├── planos.php           # re-direciona para /#plans
+├── router.php           # rotas (PHP built-in server)
+├── lib/
+│   ├── Auth.php         # sessão, registro, syncPlan (trial expiração), isAdmin
+│   ├── Config.php       # paths (Docker preferido: getenv DOCKER)
+│   ├── Settings.php     # settings.json (trial_days, checkout_driver, chaves)
+│   ├── Plans.php        # definição de planos/limites/preços
+│   ├── Payments.php     # payments.json (criar/aprovar/rejeitar/listar)
+│   ├── Checkout.php     # PIX payload EMV/CRC16 + Stripe Checkout Session
+│   ├── PageManager.php  # CRUD páginas (JSON + arquivos index.html em pages/<id>/)
+│   ├── Cloner.php       # clonador (usa AssetProcessor + detecta/substitui CTAs)
+│   ├── AssetProcessor.php # rewriteForPreview (proxy) / rewriteForZip (proxy local)
+│   └── ZipBuilder.php   # ZIP index.html + proxy.php local (mesmo comportamento do preview)
+├── admin/
+│   ├── index.php        # dashboard
+│   ├── pages.php        # minhas páginas (CRUD, filtros)
+│   ├── clone.php        # clonar por URL ou HTML
+│   ├── plan.php         # meus planos + assinatura (PIX/Stripe)
+│   ├── pay.php          # aprovação de PIX pendente (só admin)
+│   ├── settings.php     # tema + sistema (só admin)
+│   ├── pressel.php video.php pixel.php backredirect.php cookie.php domains.php integrations.php
+│   └── api/             # clone.php, pages.php, checkout.php (JSON)
+├── webhook/stripe.php   # webhook Stripe (HMAC-SHA256)
+└── assets/              # css (app + theme-light/dark), js
+```
+
+## Notas de arquitetura
+
+- **Preview vs ZIP**: ambos usam `AssetProcessor::rewriteForPreview()` / `rewriteForZip()` → URLs reescritas para `proxy.php?url=...` — o ZIP inclui um `proxy.php` local próprio. NÃO mudar a abordagem do preview (funciona perfeitamente como está).
+- **Conexão CTA**: clones identificam CTAs (`<a>`/`<button>`) e substituem pelo link de afiliado informado na clonagem.
+- **Trial**: `Auth::syncPlan()` rodado em `requireAuth()` marca `trial_expired` quando `trial_until` passa; `Plans::get('trial_expired')` bloqueia tudo.
+- **Temas**: `data-theme` no `<html>` + `theme-light.css`/`theme-dark.css` (CSS variables). Cookie `theme` na landing, sessão no admin.
+
+## Fluxo principal testado
+
+1. Landing → `/register` (trial 3 dias, auto-login)
+2. `/admin/clone.php` → clona URL/HTML (limite do plano aplicado)
+3. `/admin/plan.php` → escolhe plano → PIX (QR + copia e cola) ou Stripe (redirect p/ checkout)
+4. PIX: admin aprova em `/admin/pay.php` → plano ativado; Stripe: webhook ativa automaticamente
+5. Página publicada/preview via `proxy.php`, ZIP baixável self-contained

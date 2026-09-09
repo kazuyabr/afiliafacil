@@ -1,0 +1,9 @@
+data/
+pages/
+uploads/
+*.log
+.env
+.DS_Store
+Thumbs.db
+vendor/
+node_modules/
