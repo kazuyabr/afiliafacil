@@ -94,6 +94,8 @@ afiliafacil/
 ## Editor de páginas clonadas (branch feature/editor-ide)
 
 - `admin/editor.php` — IDE interno (CodeMirror CDN) fullscreen com sidebar de arquivos (`index.html`, `custom.css`), preview iframe recarregável e histórico de revisões
+- **Folding**: CodeMirror `foldGutter` + addons `foldcode/foldgutter/xml-fold/brace-fold` (CDN) — setas ▶/▼ no gutter (fold/expand) e placeholder `↔` na linha dobrada; ajuda a navegar tags grandes nos clones
+- **Tema no editor**: botão toggle (lua/sol) no header — alterna `data-theme` + `cmEditor.setOption('theme', ...)` (default ↔ material-darker) instantaneamente, persiste localStorage + sessão (mesmo padrão do painel)
 - **Preview = Inspector** (`preview.php?inspector=1`): script injetado (só com flag + autenticado) que faz hover/click destacarem o elemento e enviarem `postMessage {type:'af-inspect'}` com selector único → editor.js localiza o snippet no código e **seleciona a TAG DE ABERTURA no CodeMirror** (busca em cascata: tagSnippet exato → âncora única `id=` → `class=` → `src=` → texto do elemento; seleção capada a 300 chars para data URIs). **Clique normal = inspector (bloqueia interação real)**; **CTRL/CMD+Click = interage**; botão "Interagir" liga/desliga. Não confundir com preview.php sem `?inspector=1` (sem script, usada no zip/site).
 - `admin/api/editor.php` — `get` / `save` / `restore?rev=` (JSON); `save` grava snapshot prévio em `pages/<id>/revisions/<timestamp>.html` e salva via `PageManager::update`
 - Gating: feature `editor` **somente planos pagos** (Essencial/Master) — trial não tem editor

@@ -18,7 +18,10 @@ document.addEventListener('DOMContentLoaded', function () {
         theme: cfg.cmTheme || 'default',
         lineWrapping: true,
         tabSize: 2,
-        indentUnit: 2
+        indentUnit: 2,
+        foldGutter: true,
+        gutters: ['CodeMirror-foldgutter', 'CodeMirror-linenumbers'],
+        foldOptions: { scanUp: false, hint: CodeMirror.fold.auto }
     });
 
     editorStatus('Carregando...');
@@ -212,6 +215,32 @@ function toggleInteract() {
     if (frame && frame.contentWindow) {
         frame.contentWindow.postMessage({ type: 'af-set-mode', interactive: !interactive }, '*');
     }
+}
+
+function toggleEditorTheme() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+
+    if (cmEditor) {
+        cmEditor.setOption('theme', next === 'dark' ? 'material-darker' : 'default');
+    }
+
+    const btn = document.getElementById('themeToggleBtn');
+    if (btn) {
+        const icon = btn.querySelector('i');
+        if (icon) icon.className = 'fas fa-' + (next === 'dark' ? 'sun' : 'moon');
+    }
+
+    fetch('/admin/settings.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'theme=' + next
+    });
+
+    editorStatus('Tema ' + (next === 'dark' ? 'escuro' : 'claro') + ' ativado');
 }
 
 function saveHtml() {

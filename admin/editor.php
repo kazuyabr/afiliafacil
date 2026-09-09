@@ -36,6 +36,7 @@ $cmTheme = $theme === 'dark' ? 'material-darker' : 'default';
     <link rel="stylesheet" href="/assets/css/app.css">
     <link rel="stylesheet" href="/assets/css/editor.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/fold/foldgutter.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/<?= $cmTheme ?>.min.css">
 </head>
 <body>
@@ -49,6 +50,9 @@ $cmTheme = $theme === 'dark' ? 'material-darker' : 'default';
                 </div>
             </div>
             <div class="editor-actions">
+                <button class="btn btn-sm btn-outline theme-toggle" onclick="toggleEditorTheme()" id="themeToggleBtn" title="Alternar tema claro/escuro">
+                    <i class="fas fa-<?= $theme === 'dark' ? 'sun' : 'moon' ?>"></i>
+                </button>
                 <button class="btn btn-sm btn-outline" onclick="toggleInteract()" id="interactBtn" title="Clique normal = inspector · CTRL+Click = interage. Ative para interagir sempre."><i class="fas fa-crosshairs"></i> Interagir</button>
                 <button class="btn btn-sm btn-outline" onclick="iframeRefresh()" title="Recarregar preview"><i class="fas fa-sync"></i></button>
                 <button class="btn btn-sm btn-outline" onclick="openPreview()" title="Abrir preview em nova aba"><i class="fas fa-external-link-alt"></i></button>
@@ -97,6 +101,10 @@ $cmTheme = $theme === 'dark' ? 'material-darker' : 'default';
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/fold/foldcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/fold/foldgutter.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/fold/xml-fold.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/fold/brace-fold.min.js"></script>
     <script src="/assets/js/editor.js"></script>
     <script>
         window.EDITOR_INIT = {

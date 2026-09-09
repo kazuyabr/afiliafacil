@@ -81,3 +81,25 @@
     text-transform: uppercase; letter-spacing: .05em;
 }
 .editor-preview iframe { flex: 1; border: none; background: #fff; width: 100%; }
+
+.editor-code .CodeMirror-foldgutter { width: 16px; }
+.editor-code .CodeMirror-foldgutter-open,
+.editor-code .CodeMirror-foldgutter-folded { cursor: pointer; color: var(--text-secondary); font-size: .85em; }
+.editor-code .CodeMirror-foldgutter-open:hover,
+.editor-code .CodeMirror-foldgutter-folded:hover { color: var(--accent); }
+.editor-code .CodeMirror-foldgutter-folded::after { content: "▶"; }
+.editor-code .CodeMirror-foldgutter-open::after { content: "▼"; }
+.editor-code .cm-fold-placeholder {
+    background: var(--accent-light);
+    border: 1px dashed var(--accent);
+    color: var(--accent);
+    font-size: .72rem;
+    padding: 1px 8px;
+    border-radius: 3px;
+    margin: 0 4px;
+    cursor: pointer;
+}
+.editor-code .cm-s-default .CodeMirror-gutters { background: var(--bg-primary); border-right: 1px solid var(--border-color); }
+body[data-theme="dark"] .editor-code .cm-s-material-darker .CodeMirror-gutters { background: var(--bg-primary); }
+body[data-theme="dark"] .editor-code .CodeMirror-foldgutter { color: var(--text-secondary); }
+.editor-shell .theme-toggle.active { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
