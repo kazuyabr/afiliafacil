@@ -8,8 +8,7 @@ services:
       - ./pages:/app/pages
       - ./uploads:/app/uploads
     env_file:
-      - path: .env
-        required: false
+      - .env
     environment:
       - DOCKER=true
       - CHECKOUT_DRIVER=pix
