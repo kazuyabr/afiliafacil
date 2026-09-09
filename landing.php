@@ -15,6 +15,7 @@ $theme = isset($_COOKIE['theme']) ? $_COOKIE['theme'] : 'light';
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="/assets/css/theme-light.css">
+    <link rel="stylesheet" href="/assets/css/theme-dark.css">
     <link rel="stylesheet" href="/assets/css/app.css">
     <style>
         .lp-header { position: fixed; top: 0; left: 0; right: 0; height: 64px; background: rgba(255,255,255,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border-color); z-index: 100; }

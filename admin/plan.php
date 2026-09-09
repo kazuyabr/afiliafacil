@@ -34,7 +34,8 @@ if (isset($_GET['plan']) && isset($_GET['cycle'])) {
     <title>Meu Plano - AfiliaFacil</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="/assets/css/theme-<?= $theme ?>.css">
+    <link rel="stylesheet" href="/assets/css/theme-light.css">
+    <link rel="stylesheet" href="/assets/css/theme-dark.css">
     <link rel="stylesheet" href="/assets/css/app.css">
     <style>
         .plan-card { border: 2px solid var(--border-color); border-radius: var(--radius-lg); padding: 24px; text-align: center; }
