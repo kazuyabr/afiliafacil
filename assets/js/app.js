@@ -19,8 +19,16 @@ function toggleTheme() {
 
 (function() {
     const saved = localStorage.getItem('theme');
-    if (saved) {
-        document.documentElement.setAttribute('data-theme', saved);
+    if (!saved) return;
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    if (saved !== current) {
+        html.setAttribute('data-theme', saved);
+        fetch('/admin/settings.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'theme=' + saved
+        });
     }
 })();
 

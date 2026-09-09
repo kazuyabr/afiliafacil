@@ -26,6 +26,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     editorStatus('Carregando...');
 
+    applyThemeFromStorage();
+
     fetch('/admin/api/editor.php?action=get&id=' + cfg.pageId)
         .then(r => r.json())
         .then(data => {
@@ -214,6 +216,33 @@ function toggleInteract() {
     const interactive = btn && btn.classList.contains('active');
     if (frame && frame.contentWindow) {
         frame.contentWindow.postMessage({ type: 'af-set-mode', interactive: !interactive }, '*');
+    }
+}
+
+function applyThemeFromStorage() {
+    const saved = localStorage.getItem('theme');
+    if (!saved) return;
+
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    html.setAttribute('data-theme', saved);
+
+    if (cmEditor && saved !== current) {
+        cmEditor.setOption('theme', saved === 'dark' ? 'material-darker' : 'default');
+    }
+
+    const btn = document.getElementById('themeToggleBtn');
+    if (btn) {
+        const icon = btn.querySelector('i');
+        if (icon) icon.className = 'fas fa-' + (saved === 'dark' ? 'sun' : 'moon');
+    }
+
+    if (saved !== current) {
+        fetch('/admin/settings.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'theme=' + saved
+        });
     }
 }
 
