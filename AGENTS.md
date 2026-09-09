@@ -69,8 +69,9 @@ afiliafacil/
 │   ├── plan.php         # meus planos + assinatura (PIX/Stripe)
 │   ├── pay.php          # aprovação de PIX pendente (só admin)
 │   ├── settings.php     # tema + sistema (só admin)
+│   ├── editor.php       # IDE interno paginas clonadas (feature editor)
 │   ├── pressel.php video.php pixel.php backredirect.php cookie.php domains.php integrations.php
-│   └── api/             # clone.php, pages.php, checkout.php (JSON)
+│   └── api/             # clone.php, pages.php, checkout.php, editor.php (JSON)
 ├── webhooks/stripe.php  # webhook Stripe (HMAC-SHA256) - rota /webhooks/stripe
 └── assets/              # css (app + theme-light/dark), js
 ```
@@ -80,7 +81,7 @@ afiliafacil/
 - **Preview vs ZIP**: ambos usam `AssetProcessor::rewriteForPreview()` / `rewriteForZip()` → URLs reescritas para `proxy.php?url=...` — o ZIP inclui um `proxy.php` local próprio. NÃO mudar a abordagem do preview (funciona perfeitamente como está).
 - **Conexão CTA**: clones identificam CTAs (`<a>`/`<button>`) e substituem pelo link de afiliado informado na clonagem.
 - **Trial**: `Auth::syncPlan()` rodado em `requireAuth()` marca `trial_expired` quando `trial_until` passa; `Plans::get('trial_expired')` bloqueia tudo.
-- **Temas**: `data-theme` no `<html>` + `theme-light.css`/`theme-dark.css` (CSS variables). Cookie `theme` na landing, sessão no admin.
+- **Temas**: `data-theme` no `<html>` decide o tema — `theme-light.css` escopa `:root, [data-theme="light"]` e `theme-dark.css` escopa `[data-theme="dark"]`; **ambos os CSS são sempre carregados** (dark por último, vence por ordem quando `data-theme="dark"`). `app.js` (toggleTheme) alterna `data-theme` instantaneamente e persiste via localStorage + sessão (POST theme= em settings.php). NUNCA usar link dinâmico `theme-<?= $theme ?>.css` — quebrou o toggle antes.
 
 ## Fluxo principal testado
 
@@ -89,3 +90,10 @@ afiliafacil/
 3. `/admin/plan.php` → escolhe plano → PIX (QR + copia e cola) ou Stripe (redirect p/ checkout)
 4. PIX: admin aprova em `/admin/pay.php` → plano ativado; Stripe: webhook ativa automaticamente
 5. Página publicada/preview via `proxy.php`, ZIP baixável self-contained
+
+## Editor de páginas clonadas (branch feature/editor-ide)
+
+- `admin/editor.php` — IDE interno (CodeMirror CDN) fullscreen com sidebar de arquivos (`index.html`, `custom.css`), preview iframe recarregável e histórico de revisões
+- `admin/api/editor.php` — `get` / `save` / `restore?rev=` (JSON); `save` grava snapshot prévio em `pages/<id>/revisions/<timestamp>.html` e salva via `PageManager::update`
+- Gating: feature `editor` **somente planos pagos** (Essencial/Master) — trial não tem editor
+- `pages.php?action=edit&id=` abre o formulário de metadados (nome, status, domínio, link afiliado) com botão "Editar Código Online"
