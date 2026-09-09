@@ -49,9 +49,10 @@ $cmTheme = $theme === 'dark' ? 'material-darker' : 'default';
                 </div>
             </div>
             <div class="editor-actions">
+                <button class="btn btn-sm btn-outline" onclick="toggleInteract()" id="interactBtn" title="Clique normal = inspector · CTRL+Click = interage. Ative para interagir sempre."><i class="fas fa-crosshairs"></i> Interagir</button>
                 <button class="btn btn-sm btn-outline" onclick="iframeRefresh()" title="Recarregar preview"><i class="fas fa-sync"></i></button>
                 <button class="btn btn-sm btn-outline" onclick="openPreview()" title="Abrir preview em nova aba"><i class="fas fa-external-link-alt"></i></button>
-                <button class="btn btn-sm btn-outline" onclick="restoreLast()" title="Restaurar última revisão"><i class="fas fa-history"></i> Revisões</button>
+                <button class="btn btn-sm btn-outline" onclick="toggleRevisions()" title="Restaurar última revisão"><i class="fas fa-history"></i> Revisões</button>
                 <a href="/admin/pages.php?action=edit&id=<?= $id ?>" class="btn btn-sm btn-outline" title="Voltar ao formulário"><i class="fas fa-arrow-left"></i> Voltar</a>
                 <button class="btn btn-sm btn-success" onclick="saveHtml()" title="Salvar código (Ctrl+S)"><i class="fas fa-save"></i> Salvar</button>
             </div>
@@ -67,6 +68,10 @@ $cmTheme = $theme === 'dark' ? 'material-darker' : 'default';
                     <i class="fab fa-css3-alt" style="color:#1572b6;"></i>
                     <span>custom.css (via HTML)</span>
                 </div>
+
+                <div class="sidebar-sep"></div>
+                <div id="elementPanel" class="element-panel" style="display:none;"></div>
+
                 <div class="sidebar-sep"></div>
                 <button class="btn btn-sm btn-outline btn-full" onclick="toggleRevisions()"><i class="fas fa-history"></i> Revisões</button>
                 <div id="revisionList" class="revision-list" style="display:none;"></div>
@@ -77,8 +82,8 @@ $cmTheme = $theme === 'dark' ? 'material-darker' : 'default';
                     <textarea id="codeEditor"></textarea>
                 </div>
                 <div class="editor-preview">
-                    <div class="preview-bar"><span>Preview</span></div>
-                    <iframe id="previewFrame" src="/admin/preview.php?id=<?= $id ?>" sandbox="allow-scripts allow-same-origin" onload="previewLoaded()"></iframe>
+                    <div class="preview-bar"><span>Preview &middot; clique = <strong>inspector</strong> &middot; CTRL+Click = interagir</span></div>
+                    <iframe id="previewFrame" src="/admin/preview.php?id=<?= $id ?>&inspector=1" sandbox="allow-scripts allow-same-origin allow-popups" onload="previewLoaded()"></iframe>
                 </div>
             </div>
         </div>

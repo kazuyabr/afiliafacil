@@ -94,6 +94,7 @@ afiliafacil/
 ## Editor de páginas clonadas (branch feature/editor-ide)
 
 - `admin/editor.php` — IDE interno (CodeMirror CDN) fullscreen com sidebar de arquivos (`index.html`, `custom.css`), preview iframe recarregável e histórico de revisões
+- **Preview = Inspector** (`preview.php?inspector=1`): script injetado (só com flag + autenticado) que faz hover/click destacarem o elemento e enviarem `postMessage {type:'af-inspect'}` com selector único → editor.js localiza o snippet no código e **seleciona o trecho no CodeMirror** + scroll + painel lateral do elemento. **Clique normal = inspector (bloqueia interação real)**; **CTRL/CMD+Click = interage** (links/vídeos); botão "Interagir" liga/desliga o modo interativo. Não confundir com preview.php sem `?inspector=1` (sem script, usada no zip/site).
 - `admin/api/editor.php` — `get` / `save` / `restore?rev=` (JSON); `save` grava snapshot prévio em `pages/<id>/revisions/<timestamp>.html` e salva via `PageManager::update`
 - Gating: feature `editor` **somente planos pagos** (Essencial/Master) — trial não tem editor
 - `pages.php?action=edit&id=` abre o formulário de metadados (nome, status, domínio, link afiliado) com botão "Editar Código Online"

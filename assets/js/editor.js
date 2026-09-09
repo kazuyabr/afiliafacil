@@ -1,6 +1,11 @@
 let cmEditor = null;
 let dirty = false;
 
+function editorStatus(msg) {
+    const el = document.getElementById('editorStatus');
+    if (el) el.textContent = msg;
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     const cfg = window.EDITOR_INIT || {};
     const textarea = document.getElementById('codeEditor');
@@ -16,24 +21,24 @@ document.addEventListener('DOMContentLoaded', function () {
         indentUnit: 2
     });
 
-    window.editorStatus('Carregando...');
+    editorStatus('Carregando...');
 
     fetch('/admin/api/editor.php?action=get&id=' + cfg.pageId)
         .then(r => r.json())
         .then(data => {
             if (data.success) {
                 cmEditor.setValue(data.page.html || '');
-                window.editorStatus('Pronto — ' + (data.page.html.length / 1024).toFixed(1) + ' KB');
+                editorStatus('Pronto — ' + (data.page.html.length / 1024).toFixed(1) + ' KB');
                 renderRevisions(data.revisions || []);
             } else {
-                window.editorStatus('Erro: ' + (data.error || 'desconhecido'));
+                editorStatus('Erro: ' + (data.error || 'desconhecido'));
             }
         })
-        .catch(err => window.editorStatus('Erro de conexão'));
+        .catch(err => editorStatus('Erro de conexão'));
 
     cmEditor.on('change', () => {
         dirty = true;
-        window.editorStatus('Salvar para aplicar (Ctrl+S)');
+        editorStatus('Salvar para aplicar (Ctrl+S)');
     });
 
     document.addEventListener('keydown', function (e) {
@@ -43,11 +48,130 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    window.editorStatus = function (msg) {
-        const el = document.getElementById('editorStatus');
-        if (el) el.textContent = msg;
-    };
+    window.addEventListener('message', onInspectorMessage);
 });
+
+function onInspectorMessage(e) {
+    const data = e.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'af-inspect') {
+        selectElementInCode(data);
+    } else if (data.type === 'af-mode') {
+        const btn = document.getElementById('interactBtn');
+        if (btn) {
+            btn.classList.toggle('active', data.interactive);
+            btn.innerHTML = data.interactive
+                ? '<i class="fas fa-hand-pointer"></i> Interagindo'
+                : '<i class="fas fa-crosshairs"></i> Interagir';
+        }
+    }
+}
+
+function selectElementInCode(info) {
+    const html = cmEditor.getValue();
+    let found = null;
+
+    if (info.snippet && info.snippet.length < 3000 && info.snippet.length > 0) {
+        const idx = html.indexOf(info.snippet);
+        if (idx >= 0) {
+            found = { start: idx, end: idx + info.snippet.length };
+        }
+    }
+
+    if (!found && info.selector) {
+        found = locateBySelectorInCode(html, info.selector);
+    }
+
+    if (!found && info.tag) {
+        const re = new RegExp('<\\s*' + escapeRegExp(info.tag) + '[^>]*>', 'i');
+        const m = re.exec(html);
+        if (m) found = { start: m.index, end: m.index + m[0].length };
+    }
+
+    if (!found) {
+        editorStatus('Elemento não localizado no código — salve e recarregue');
+        updateElementPanel(info, false);
+        return;
+    }
+
+    const startLine = countLinesBefore(html, found.start);
+    const endLine = countLinesBefore(html, found.end);
+    const startCh = found.start - (startLine > 0 ? html.lastIndexOf('\n', found.start - 1) + 1 : 0);
+    const endCh = found.end - (endLine > 0 ? html.lastIndexOf('\n', found.end - 1) + 1 : 0);
+
+    cmEditor.setSelection({ line: startLine, ch: startCh }, { line: endLine, ch: endCh });
+    cmEditor.scrollIntoView({ line: startLine, ch: startCh }, { line: endLine, ch: endCh });
+    cmEditor.focus();
+
+    updateElementPanel(info, true);
+    editorStatus('Selecionado: ' + (info.selector || info.tag || 'elemento'));
+}
+
+function locateBySelectorInCode(html, selector) {
+    if (selector.startsWith('#') && /^#[\w-]+$/.test(selector)) {
+        const re = new RegExp('[^\\w-]*\\b(?:class|id)?[^>]*\\sclass?|\\sid=\\s*["\']' + escapeRegExp(selector.replace('#', '')) + '["\']', 'i');
+        const m = re.exec(html);
+        if (m) return { start: m.index, end: m.index + m[0].length };
+    }
+    if (selector.startsWith('.')) {
+        const re = new RegExp('class="[^"]*\\b' + escapeRegExp(selector.replace('.', '')) + '\\b[^"]*"', 'i');
+        const m = re.exec(html);
+        if (m) return { start: m.index, end: m.index + m[0].length };
+    }
+    return null;
+}
+
+function countLinesBefore(text, pos) {
+    return text.substring(0, pos).split('\n').length - 1;
+}
+
+function escapeRegExp(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function updateElementPanel(info, located) {
+    const panel = document.getElementById('elementPanel');
+    if (!panel) return;
+    panel.style.display = 'block';
+    panel.innerHTML = '';
+
+    const meta = document.createElement('div');
+    meta.className = 'element-meta';
+    meta.innerHTML =
+        '<span class="el-tag">' + (info.tag || '?') + '</span> ' +
+        '<code class="el-selector">' + (info.selector || '—') + '</code>';
+    panel.appendChild(meta);
+
+    const rows = [];
+    if (info.text) rows.push(['texto', info.text]);
+    if (info.src) rows.push(['src', info.src]);
+    if (info.href) rows.push(['href', info.href]);
+    if (rows.length) {
+        const list = document.createElement('div');
+        list.className = 'element-attrs';
+        rows.forEach(([k, v]) => {
+            const row = document.createElement('div');
+            row.className = 'element-attr-row';
+            row.innerHTML = '<span class="k">' + k + '</span><span class="v">' + (v.length > 60 ? v.slice(0, 60) + '…' : v) + '</span>';
+            list.appendChild(row);
+        });
+        panel.appendChild(list);
+    }
+
+    const status = document.createElement('div');
+    status.className = 'element-status ' + (located ? 'ok' : 'warn');
+    status.textContent = located ? '✔ Localizado no código' : '⚠ Não localizado no código';
+    panel.appendChild(status);
+}
+
+function toggleInteract() {
+    const frame = document.getElementById('previewFrame');
+    const btn = document.getElementById('interactBtn');
+    const interactive = btn && btn.classList.contains('active');
+    if (frame && frame.contentWindow) {
+        frame.contentWindow.postMessage({ type: 'af-set-mode', interactive: !interactive }, '*');
+    }
+}
 
 function saveHtml() {
     const cfg = window.EDITOR_INIT || {};
@@ -55,7 +179,7 @@ function saveHtml() {
     const original = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
-    window.editorStatus('Salvando...');
+    editorStatus('Salvando...');
 
     const body = new URLSearchParams();
     body.append('action', 'save');
@@ -71,17 +195,17 @@ function saveHtml() {
         .then(data => {
             if (data.success) {
                 dirty = false;
-                window.editorStatus('Salvo às ' + new Date().toLocaleTimeString());
+                editorStatus('Salvo às ' + new Date().toLocaleTimeString());
                 showToast('Código salvo com sucesso!', 'success');
                 iframeRefresh();
                 loadRevisions();
             } else {
-                window.editorStatus('Erro: ' + (data.error || 'desconhecido'));
+                editorStatus('Erro: ' + (data.error || 'desconhecido'));
                 showToast(data.error || 'Erro ao salvar', 'error');
             }
         })
         .catch(err => {
-            window.editorStatus('Erro de conexão');
+            editorStatus('Erro de conexão');
             showToast('Erro de conexão: ' + err.message, 'error');
         })
         .finally(() => {
@@ -93,7 +217,7 @@ function saveHtml() {
 function iframeRefresh() {
     const frame = document.getElementById('previewFrame');
     if (frame) {
-        frame.src = frame.src.split('?')[0] + '?id=' + (window.EDITOR_INIT.pageId) + '&r=' + Date.now();
+        frame.src = frame.src.split('?')[0] + '?id=' + (window.EDITOR_INIT.pageId) + '&inspector=1&r=' + Date.now();
     }
 }
 
@@ -102,7 +226,12 @@ function openPreview() {
 }
 
 function previewLoaded() {
-    document.getElementById('previewFrame').contentWindow.focus();
+    const frame = document.getElementById('previewFrame');
+    if (frame && frame.contentWindow) {
+        const btn = document.getElementById('interactBtn');
+        const interactive = btn && btn.classList.contains('active');
+        frame.contentWindow.postMessage({ type: 'af-set-mode', interactive: !!interactive }, '*');
+    }
 }
 
 function loadRevisions() {
@@ -122,7 +251,6 @@ function renderRevisions(revisions) {
         item.addEventListener('click', () => confirmRestore(rev.file));
         list.appendChild(item);
     });
-    list.style.display = 'block';
 }
 
 function toggleRevisions() {
