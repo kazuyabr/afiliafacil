@@ -1,0 +1,57 @@
+.editor-shell {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+    z-index: 1000;
+}
+.editor-header {
+    height: 56px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    flex-shrink: 0;
+}
+.editor-title { display: flex; align-items: center; gap: 10px; }
+.editor-title .logo {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+}
+.editor-title strong { display: block; font-size: .9rem; }
+.editor-title small { display: block; color: var(--text-secondary); font-size: .7rem; }
+.editor-actions { display: flex; gap: 6px; }
+
+.editor-body { flex: 1; display: flex; min-height: 0; }
+.editor-sidebar {
+    width: 190px; flex-shrink: 0; background: var(--bg-primary);
+    border-right: 1px solid var(--border-color); overflow-y: auto; padding: 10px;
+}
+.sidebar-file {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    border-radius: var(--radius); font-size: .85rem; cursor: pointer; margin-bottom: 2px;
+}
+.sidebar-file.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+.sidebar-file.disabled { opacity: .5; cursor: not-allowed; }
+.sidebar-sep { border-top: 1px solid var(--border-color); margin: 10px 0; }
+.revision-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.revision-item {
+    font-size: .7rem; font-family: monospace; padding: 8px; border: 1px solid var(--border-color);
+    border-radius: var(--radius); cursor: pointer; color: var(--text-secondary);
+}
+.revision-item:hover { border-color: var(--accent); color: var(--text-primary); }
+
+.editor-panes { flex: 1; display: flex; min-width: 0; }
+.editor-code { flex: 1; min-width: 0; border-right: 1px solid var(--border-color); }
+.editor-code .CodeMirror { height: 100%; font-size: 13px; }
+.editor-preview { width: 42%; min-width: 320px; display: flex; flex-direction: column; }
+.preview-bar {
+    height: 32px; background: var(--bg-primary); border-bottom: 1px solid var(--border-color);
+    display: flex; align-items: center; padding: 0 10px; font-size: .75rem; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: .05em;
+}
+.editor-preview iframe { flex: 1; border: none; background: #fff; width: 100%; }
