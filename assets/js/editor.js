@@ -71,21 +71,20 @@ function selectElementInCode(info) {
     const html = cmEditor.getValue();
     let found = null;
 
-    if (info.snippet && info.snippet.length < 3000 && info.snippet.length > 0) {
-        const idx = html.indexOf(info.snippet);
-        if (idx >= 0) {
-            found = { start: idx, end: idx + info.snippet.length };
-        }
+    if (info.tagSnippet && info.tagSnippet.length < 1500) {
+        found = findInCode(html, info.tagSnippet);
     }
-
-    if (!found && info.selector) {
-        found = locateBySelectorInCode(html, info.selector);
+    if (!found && info.snippet && info.snippet.length < 3000) {
+        found = findInCode(html, info.snippet);
     }
-
-    if (!found && info.tag) {
-        const re = new RegExp('<\\s*' + escapeRegExp(info.tag) + '[^>]*>', 'i');
-        const m = re.exec(html);
-        if (m) found = { start: m.index, end: m.index + m[0].length };
+    if (!found && info.tagSnippet) {
+        found = findUniqueAttrAnchor(html, info.tagSnippet);
+    }
+    if (!found && info.snippet) {
+        found = findUniqueAttrAnchor(html, info.snippet);
+    }
+    if (!found && info.text) {
+        found = findTextAnchor(html, info.text);
     }
 
     if (!found) {
@@ -107,18 +106,60 @@ function selectElementInCode(info) {
     editorStatus('Selecionado: ' + (info.selector || info.tag || 'elemento'));
 }
 
-function locateBySelectorInCode(html, selector) {
-    if (selector.startsWith('#') && /^#[\w-]+$/.test(selector)) {
-        const re = new RegExp('[^\\w-]*\\b(?:class|id)?[^>]*\\sclass?|\\sid=\\s*["\']' + escapeRegExp(selector.replace('#', '')) + '["\']', 'i');
-        const m = re.exec(html);
-        if (m) return { start: m.index, end: m.index + m[0].length };
+function findInCode(html, needle) {
+    if (!needle || needle.length < 4) return null;
+    const idx = html.indexOf(needle);
+    if (idx < 0) return null;
+    return { start: idx, end: idx + needle.length };
+}
+
+function findUniqueAttrAnchor(html, snippet) {
+    let m;
+
+    m = /id\s*=\s*["']([^"']+)["']/.exec(snippet);
+    if (m) {
+        const re = new RegExp('\\sid\\s*=\\s*["\']' + escapeRegExp(m[1]) + '["\']', 'gi');
+        const matches = [...html.matchAll(re)];
+        if (matches.length === 1) return expandToTagOpen(html, matches[0].index);
     }
-    if (selector.startsWith('.')) {
-        const re = new RegExp('class="[^"]*\\b' + escapeRegExp(selector.replace('.', '')) + '\\b[^"]*"', 'i');
-        const m = re.exec(html);
-        if (m) return { start: m.index, end: m.index + m[0].length };
+
+    m = /class\s*=\s*["']([^"']+)["']/.exec(snippet);
+    if (m) {
+        const re = new RegExp('class\\s*=\\s*["\']' + escapeRegExp(m[1]) + '["\']', 'gi');
+        const matches = [...html.matchAll(re)];
+        if (matches.length === 1) return expandToTagOpen(html, matches[0].index);
     }
+
+    m = /src\s*=\s*["']([^"']+)["']/.exec(snippet);
+    if (m) {
+        const re = new RegExp('src\\s*=\\s*["\']' + escapeRegExp(m[1]) + '["\']', 'gi');
+        const matches = [...html.matchAll(re)];
+        if (matches.length === 1) return expandToTagOpen(html, matches[0].index);
+    }
+
     return null;
+}
+
+function findTextAnchor(html, text) {
+    const needle = text.slice(0, 40).trim();
+    if (!needle) return null;
+    const idx = html.indexOf(needle);
+    if (idx < 0) return null;
+    return expandToTagOpen(html, idx);
+}
+
+function expandToTagOpen(html, pos) {
+    const start = html.lastIndexOf('<', pos);
+    if (start < 0) return null;
+    let end = html.indexOf('>', pos);
+    if (end < 0) end = start + 1;
+    end = end + 1;
+    if (end - start > 300) {
+        const nl = html.indexOf('\n', start);
+        const newlineBound = nl > 0 && nl - start < 300 ? nl : start;
+        end = Math.max(start + 1, newlineBound > start ? newlineBound : start + 300);
+    }
+    return { start: start, end: end };
 }
 
 function countLinesBefore(text, pos) {

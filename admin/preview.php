@@ -99,12 +99,20 @@ if ($isInspector) {
         }
         if (!el || el === document.body || el === document.documentElement) return;
 
+        if (hoverEl) hoverEl.style.outline = '';
+
+        var snippet = el.outerHTML || '';
+        var tagSnippet = '';
+        if (snippet) {
+            var closeIdx = snippet.indexOf('>');
+            tagSnippet = closeIdx >= 0 ? snippet.slice(0, closeIdx + 1) : snippet;
+            if (tagSnippet.length > 1500) tagSnippet = tagSnippet.slice(0, 1500);
+            if (snippet.length > 3000) snippet = snippet.slice(0, 3000);
+        }
+
         if (selectedEl) selectedEl.style.outline = '';
         selectedEl = el;
         outline(el, 'rgba(13,110,253,.9)', 2);
-
-        var snippet = el.outerHTML || '';
-        if (snippet.length > 3000) snippet = snippet.slice(0, 3000);
 
         send({
             type: 'af-inspect',
@@ -113,7 +121,8 @@ if ($isInspector) {
             text: (el.innerText || '').slice(0, 200),
             src: el.getAttribute ? (el.getAttribute('src') || '') : '',
             href: el.getAttribute ? (el.getAttribute('href') || '') : '',
-            snippet: snippet
+            snippet: snippet,
+            tagSnippet: tagSnippet
         });
     }, true);
 
