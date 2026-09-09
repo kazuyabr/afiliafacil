@@ -38,7 +38,8 @@ Definição central em `lib/Plans.php` — limites (max_pages/max_domains/featur
 
 - **Gateway ativo**: `CHECKOUT_DRIVER` (env) ou `checkout_driver` em `data/settings.json` (pix | stripe), configurável em Admin → Configurações
 - **PIX estático**: QR Code (BR Code EMV + CRC16 gerado em `lib/Checkout.php`); usuário paga → pagamento fica `pending` → **admin aprova manualmente** em `/admin/pay.php` (botão verde confirma e ativa o plano)
-- **Stripe**: Checkout Session (mode payment, BRL) → webhook `/webhook/stripe.php` valida assinatura HMAC (STRIPE_WEBHOOK_SECRET) e aprova automaticamente em `checkout.session.completed`
+- **Stripe**: Checkout Session (mode payment, BRL) → webhook em **`/webhooks/stripe`** (pasta `webhooks/stripe.php`, clean URL) que valida assinatura HMAC (STRIPE_WEBHOOK_SECRET) e aprova automaticamente em `checkout.session.completed`
+  - Endpoint para configurar no painel do Stripe: `https://SEU-DOMINIO/webhooks/stripe` (eventos: `checkout.session.completed`, `checkout.session.async_payment_succeeded`)
 - Chaves de teste: `STRIPE_SECRET_KEY=sk_test_*`, `STRIPE_WEBHOOK_SECRET=whsec_*`, `PIX_KEY` — preenchidas via docker-compose environment (placeholders no repo)
 
 ## Estrutura
@@ -70,7 +71,7 @@ afiliafacil/
 │   ├── settings.php     # tema + sistema (só admin)
 │   ├── pressel.php video.php pixel.php backredirect.php cookie.php domains.php integrations.php
 │   └── api/             # clone.php, pages.php, checkout.php (JSON)
-├── webhook/stripe.php   # webhook Stripe (HMAC-SHA256)
+├── webhooks/stripe.php  # webhook Stripe (HMAC-SHA256) - rota /webhooks/stripe
 └── assets/              # css (app + theme-light/dark), js
 ```
 
