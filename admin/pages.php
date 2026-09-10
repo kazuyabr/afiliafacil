@@ -213,7 +213,7 @@ if ($action === 'new') {
                                     </thead>
                                     <tbody>
                                         <?php foreach (array_reverse($pages) as $p): ?>
-                                        <tr data-status="<?= $p['status'] ?>" data-type="<?= $p['type'] ?>">
+                                        <tr data-id="<?= $p['id'] ?>" data-status="<?= $p['status'] ?>" data-type="<?= $p['type'] ?>">
                                             <td>
                                                 <strong><?= htmlspecialchars($p['name']) ?></strong>
                                                 <?php if ($p['source_domain']): ?>
@@ -251,24 +251,64 @@ if ($action === 'new') {
     </div>
     <script src="/assets/js/app.js"></script>
     <script>
+    let currentFilter = 'all';
+
+    function applyFilter(filter) {
+        currentFilter = filter;
+        document.querySelectorAll('#pagesTable tbody tr').forEach(row => {
+            if (filter === 'all') { row.style.display = ''; return; }
+            const match = row.dataset.status === filter || row.dataset.type === filter;
+            row.style.display = match ? '' : 'none';
+        });
+    }
+
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            const filter = btn.dataset.filter;
-            document.querySelectorAll('#pagesTable tbody tr').forEach(row => {
-                if (filter === 'all') { row.style.display = ''; return; }
-                const match = row.dataset.status === filter || row.dataset.type === filter;
-                row.style.display = match ? '' : 'none';
-            });
+            applyFilter(btn.dataset.filter);
         });
     });
+
     function deletePage(id) {
         if (!confirm('Tem certeza que deseja excluir esta página?')) return;
+        const row = document.querySelector('#pagesTable tr[data-id="' + id + '"]');
         fetch('/admin/api/pages.php?action=delete&id=' + id, { method: 'POST' })
             .then(r => r.json())
-            .then(d => { if (d.success) location.reload(); else alert(d.error || 'Erro ao excluir'); });
+            .then(d => {
+                if (d.success) {
+                    if (row) {
+                        row.style.transition = 'opacity .25s';
+                        row.style.opacity = '0';
+                        setTimeout(() => { row.remove(); if (!document.querySelector('#pagesTable tbody tr')) location.reload(); }, 250);
+                    }
+                    showToast('Página excluída', 'success');
+                } else {
+                    showToast(d.error || 'Erro ao excluir', 'error');
+                }
+            })
+            .catch(() => location.reload());
     }
+
+    async function refreshPagesTable() {
+        if (document.getElementById('editPageForm')) return;
+        const curBody = document.querySelector('#pagesTable tbody');
+        if (!curBody) return;
+        try {
+            const resp = await fetch('/admin/pages.php', { headers: { 'X-Requested-With': 'fetch' } });
+            const html = await resp.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const newBody = doc.querySelector('#pagesTable tbody');
+            if (newBody && newBody.innerHTML !== curBody.innerHTML) {
+                curBody.innerHTML = newBody.innerHTML;
+                applyFilter(currentFilter);
+            }
+        } catch (e) { }
+    }
+
+    setInterval(refreshPagesTable, 15000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshPagesTable(); });
+
     const editForm = document.getElementById('editPageForm');
     if (editForm) {
         editForm.addEventListener('submit', async (e) => {

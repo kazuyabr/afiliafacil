@@ -38,6 +38,8 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **"Otimizar mídias (R2)"** na edição da página: converte data URIs existentes → R2 (`lib/MediaOptimizer.php`, cria revisão antes)
 - Delete da página remove `clones/<pageId>/` no R2 (`api/pages.php`)
 
+- **Tempo real nas tabelas**: Minhas Páginas e Pagamentos (admin) fazem polling de 15s (fetch + DOMParser substitui o tbody se mudou) + refresh ao voltar para a aba (`visibilitychange`) + ações otimistas (delete remove a linha com fade, sem F5)
+
 ## Como rodar
 
 ```powershell
@@ -132,6 +134,7 @@ afiliafacil/
 ## Editor de páginas clonadas (branch feature/editor-ide)
 
 - `admin/editor.php` — IDE interno (CodeMirror CDN) fullscreen com sidebar de arquivos (`index.html`, `custom.css`), preview iframe recarregável e histórico de revisões
+- **Busca**: Ctrl+F (busca persistente), Ctrl+G/Shift+Ctrl+G (próximo/anterior), Ctrl+H (substituir), Alt+G (ir para linha) — addons dialog/search/searchcursor/jump-to-line, dialog estilizado nos temas
 - **Folding**: CodeMirror `foldGutter` + addons `foldcode/foldgutter/xml-fold/brace-fold` (CDN) — setas ▶/▼ no gutter (fold/expand) e placeholder `↔` na linha dobrada; ajuda a navegar tags grandes nos clones
 - **Tema no editor**: botão toggle (lua/sol) no header — alterna `data-theme` + `cmEditor.setOption('theme', ...)` (default ↔ material-darker) instantaneamente, persiste localStorage + sessão (mesmo padrão do painel)
 - **Preview = Inspector** (`preview.php?inspector=1`): script injetado (só com flag + autenticado) que faz hover/click destacarem o elemento e enviarem `postMessage {type:'af-inspect'}` com selector único → editor.js localiza o snippet no código e **seleciona a TAG DE ABERTURA no CodeMirror** (busca em cascata: tagSnippet exato → âncora única `id=` → `class=` → `src=` → texto do elemento; seleção capada a 300 chars para data URIs). **Clique normal = inspector (bloqueia interação real)**; **CTRL/CMD+Click = interage**; botão "Interagir" liga/desliga. Não confundir com preview.php sem `?inspector=1` (sem script, usada no zip/site).

@@ -69,7 +69,7 @@ $theme = $_SESSION['theme'] ?? 'light';
                         <div class="table-wrapper">
                             <table class="table">
                                 <thead><tr><th>#</th><th>Usuário</th><th>Plano</th><th>Ciclo</th><th>Valor</th><th>Referência</th><th>Data</th><th>Ações</th></tr></thead>
-                                <tbody>
+                                <tbody id="pendingTableBody">
                                     <?php foreach ($pending as $p): ?>
                                     <tr>
                                         <td><?= $p['id'] ?></td>
@@ -131,5 +131,22 @@ $theme = $_SESSION['theme'] ?? 'light';
         </div>
     </div>
     <script src="/assets/js/app.js"></script>
+    <script>
+    async function refreshPayments() {
+        try {
+            const resp = await fetch('/admin/pay.php', { headers: { 'X-Requested-With': 'fetch' } });
+            const html = await resp.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            ['pendingTableBody', 'historyTableBody'].forEach(id => {
+                const cur = document.getElementById(id);
+                const next = doc.getElementById(id);
+                if (cur && next && cur.innerHTML !== next.innerHTML) cur.innerHTML = next.innerHTML;
+            });
+        } catch (e) { }
+    }
+
+    setInterval(refreshPayments, 15000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshPayments(); });
+    </script>
 </body>
 </html>

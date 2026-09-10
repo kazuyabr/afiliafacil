@@ -127,3 +127,41 @@
 [data-theme="dark"] .editor-code .cm-s-material-darker .CodeMirror-gutters { background: var(--bg-primary); }
 [data-theme="dark"] .editor-code .CodeMirror-foldgutter { color: var(--text-secondary); }
 .editor-shell .theme-toggle.active { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+
+.editor-shell .CodeMirror-dialog {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 8px 12px;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: .85rem;
+}
+.editor-shell .CodeMirror-dialog-top { border-bottom: 1px solid var(--border-color); }
+.editor-shell .CodeMirror-dialog input {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: .85rem;
+    outline: none;
+}
+.editor-shell .CodeMirror-dialog input:focus { border-color: var(--accent); }
+.editor-shell .CodeMirror-dialog button {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: .8rem;
+    margin-left: 4px;
+}
+.editor-shell .CodeMirror-dialog button:hover { border-color: var(--accent); color: var(--accent); }
+.editor-shell .CodeMirror-search-hint { color: var(--text-secondary); }
+.editor-shell .CodeMirror-search-match {
+    background: rgba(255, 193, 7, .35);
+    border-top: 1px solid rgba(255, 193, 7, .6);
+    border-bottom: 1px solid rgba(255, 193, 7, .6);
+}

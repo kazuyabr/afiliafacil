@@ -21,7 +21,19 @@ document.addEventListener('DOMContentLoaded', function () {
         indentUnit: 2,
         foldGutter: true,
         gutters: ['CodeMirror-foldgutter', 'CodeMirror-linenumbers'],
-        foldOptions: { scanUp: false, hint: CodeMirror.fold.auto }
+        foldOptions: { scanUp: false, hint: CodeMirror.fold.auto },
+        extraKeys: {
+            'Ctrl-F': 'findPersistent',
+            'Cmd-F': 'findPersistent',
+            'Ctrl-G': 'findNext',
+            'Cmd-G': 'findNext',
+            'Shift-Ctrl-G': 'findPrev',
+            'Shift-Cmd-G': 'findPrev',
+            'Ctrl-H': 'replace',
+            'Cmd-Alt-F': 'replace',
+            'Shift-Ctrl-F': 'replace',
+            'Alt-G': 'jumpToLine'
+        }
     });
 
     editorStatus('Carregando...');
