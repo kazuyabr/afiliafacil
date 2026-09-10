@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/AssetProcessor.php';
 require_once __DIR__ . '/SafePcre.php';
+require_once __DIR__ . '/CloneValidator.php';
 
 class Cloner
 {
@@ -34,6 +35,8 @@ class Cloner
 
         $html = SafePcre::replace('/[\x{FEFF}]/u', '', $html);
 
+        $validation = CloneValidator::validate($html);
+
         return [
             'html' => $html,
             'original_size' => $originalSize,
@@ -43,6 +46,8 @@ class Cloner
             'affiliate_link' => $affiliateLink,
             'source_domain' => $sourceDomain,
             'failed_assets' => $failedAssets,
+            'validation' => $validation,
+            'cloner_version' => CloneValidator::CLONER_VERSION,
             'created_at' => date('Y-m-d H:i:s'),
         ];
     }

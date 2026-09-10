@@ -268,6 +268,7 @@ class AssetProcessor
                 $rewritten = '';
                 foreach (self::splitSrcset($srcset) as $part) {
                     $part = trim($part);
+                    if (self::isInvalidSrcsetEntry($part)) continue;
                     if (!preg_match('/^(\S+)(\s+\S+)?$/', $part, $pm)) continue;
                     $url = $pm[1];
                     $dpr = $pm[2] ?? '';
@@ -279,7 +280,11 @@ class AssetProcessor
                         $rewritten .= $part . ', ';
                     }
                 }
-                $tag = str_replace($ssm[0], 'srcset=' . $ssm[1] . rtrim($rewritten, ', ') . $ssm[1], $tag);
+                if ($rewritten === '') {
+                    $tag = str_replace($ssm[0], '', $tag);
+                } else {
+                    $tag = str_replace($ssm[0], 'srcset=' . $ssm[1] . rtrim($rewritten, ', ') . $ssm[1], $tag);
+                }
             }
             return $tag;
         }, $html);
@@ -445,6 +450,7 @@ class AssetProcessor
                 $newParts = [];
                 foreach ($parts as $part) {
                     $part = trim($part);
+                    if (self::isInvalidSrcsetEntry($part)) continue;
                     if (preg_match('/^(\S+)(\s+\S+)?$/', $part, $pm)) {
                         if (strpos($pm[1], 'data:') === 0) {
                             $newParts[] = $part;
@@ -455,7 +461,11 @@ class AssetProcessor
                         }
                     }
                 }
-                $tag = str_replace($ssm[0], 'srcset=' . $ssm[1] . implode(', ', $newParts) . $ssm[1], $tag);
+                if (empty($newParts)) {
+                    $tag = str_replace($ssm[0], '', $tag);
+                } else {
+                    $tag = str_replace($ssm[0], 'srcset=' . $ssm[1] . implode(', ', $newParts) . $ssm[1], $tag);
+                }
             }
 
             return $tag;
@@ -627,6 +637,7 @@ class AssetProcessor
             foreach ($parts as $part) {
                 $part = trim($part);
                 if ($part === '') continue;
+                if (self::isInvalidSrcsetEntry($part)) continue;
                 if (!preg_match('/^(\S+)(\s+\S+)?$/', $part, $pm)) continue;
                 $url = $pm[1];
                 $descriptor = $pm[2] ?? '';
@@ -636,8 +647,21 @@ class AssetProcessor
                 $local = $this->downloadAsset($resolved);
                 $out[] = ($local ?: $resolved) . $descriptor;
             }
+            if (empty($out)) return '';
             return 'srcset=' . $quote . implode(', ', $out) . $quote;
         }, $html);
+    }
+
+    public static function isInvalidSrcsetEntry(string $entry): bool
+    {
+        if (preg_match('/^data:[a-z+\/-]+;base64,\s*$/i', $entry)) return true;
+
+        $url = preg_split('/\s+/', $entry)[0] ?? '';
+        if ($url === '') return true;
+
+        if (preg_match('/^[A-Za-z0-9+\/=]{60,}$/', $url)) return true;
+
+        return false;
     }
 
     public static function splitSrcset(string $srcset): array

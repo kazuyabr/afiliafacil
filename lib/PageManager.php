@@ -56,6 +56,7 @@ class PageManager
             'affiliate_link' => $data['affiliate_link'] ?? '',
             'source_domain' => $data['source_domain'] ?? '',
             'failed_assets' => $data['failed_assets'] ?? [],
+            'cloner_version' => $data['cloner_version'] ?? '',
             'views' => 0,
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
@@ -73,6 +74,7 @@ class PageManager
                 'affiliate_link' => $page['affiliate_link'],
                 'source_domain' => $page['source_domain'],
                 'failed_assets' => $page['failed_assets'],
+                'cloner_version' => $page['cloner_version'],
                 'views' => 0,
                 'created_at' => $page['created_at'],
                 'updated_at' => $page['updated_at'],
@@ -99,7 +101,7 @@ class PageManager
         if (!$page) return null;
 
         $fields = [];
-        foreach (['name', 'status', 'domain', 'affiliate_link', 'source_domain', 'slug', 'type', 'user_id'] as $field) {
+        foreach (['name', 'status', 'domain', 'affiliate_link', 'source_domain', 'slug', 'type', 'user_id', 'failed_assets', 'cloner_version'] as $field) {
             if (array_key_exists($field, $data)) $fields[$field] = $data[$field];
         }
         $fields['updated_at'] = date('Y-m-d H:i:s');
@@ -218,6 +220,7 @@ class PageManager
             'affiliate_link' => $model->affiliate_link,
             'source_domain' => $model->source_domain,
             'failed_assets' => $model->failed_assets ?? [],
+            'cloner_version' => $model->cloner_version ?? '',
             'views' => (int)$model->views,
             'created_at' => (string)$model->created_at,
             'updated_at' => (string)$model->updated_at,

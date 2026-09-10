@@ -42,8 +42,62 @@ switch ($action) {
     case 'clone_html':
         cloneByHtml();
         break;
+    case 'reclone':
+        reclonePage();
+        break;
     default:
         echo json_encode(['error' => 'Ação inválida']);
+}
+
+function reclonePage(): void
+{
+    $id = (int)($_POST['id'] ?? 0);
+    $userId = (int)(Auth::user()['id'] ?? 0);
+
+    $pm = new PageManager();
+    $page = $pm->get($id);
+    if (!$page) {
+        echo json_encode(['error' => 'Página não encontrada']);
+        return;
+    }
+    if ((int)$page['user_id'] !== $userId && !Auth::isAdmin()) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Sem acesso a esta página']);
+        return;
+    }
+    if (empty($page['source_domain'])) {
+        echo json_encode(['error' => 'Página sem domínio de origem para re-clonar']);
+        return;
+    }
+
+    $sourceUrl = 'https://' . $page['source_domain'] . '/';
+    $cloner = new Cloner();
+    $fetchResult = $cloner->fetchUrl($sourceUrl);
+    if (!$fetchResult['success']) {
+        echo json_encode(['error' => 'Não foi possível buscar a origem: ' . ($fetchResult['error'] ?? 'erro')]);
+        return;
+    }
+
+    $storageConfig = loadUserStorage($userId);
+    $result = $cloner->process($fetchResult['html'], $page['affiliate_link'] ?? '', 'url', $storageConfig, 'clones/' . $id);
+
+    $revDir = Config::getPagesDir() . '/' . $id . '/revisions';
+    if (!is_dir($revDir)) mkdir($revDir, 0777, true);
+    file_put_contents($revDir . '/' . date('Ymd_His') . '.html', $page['html'] ?? '');
+
+    $pm->update($id, [
+        'html' => $result['html'],
+        'failed_assets' => $result['failed_assets'] ?? [],
+        'cloner_version' => $result['cloner_version'] ?? '',
+    ]);
+
+    echo json_encode([
+        'success' => true,
+        'id' => $id,
+        'failed_assets' => count($result['failed_assets'] ?? []),
+        'validation' => $result['validation'] ?? [],
+        'processed_size' => $result['processed_size'] ?? 0,
+    ]);
 }
 
 function cloneByUrl(): void
@@ -134,6 +188,7 @@ function processAndSave(string $html, string $affiliateLink, string $sourceUrlOr
         'html' => $result['html'],
         'source_domain' => $sourceDomain,
         'failed_assets' => $result['failed_assets'] ?? [],
+        'cloner_version' => $result['cloner_version'] ?? '',
         'affiliate_link' => $affiliateLink,
         'status' => 'active',
     ]);
@@ -150,6 +205,7 @@ function processAndSave(string $html, string $affiliateLink, string $sourceUrlOr
         'ctas_found' => count($result['ctas'] ?? []),
         'original_size' => $result['original_size'] ?? 0,
         'processed_size' => $result['processed_size'] ?? 0,
+        'validation' => $result['validation'] ?? [],
     ]);
 }
 

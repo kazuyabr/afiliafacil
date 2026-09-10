@@ -3,6 +3,7 @@ require_once __DIR__ . '/../lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/PageManager.php';
 require_once Config::getLibDir() . '/Plans.php';
+require_once Config::getLibDir() . '/CloneValidator.php';
 
 Auth::requireAuth();
 
@@ -62,12 +63,26 @@ if ($action === 'new') {
                                 <?php if ($editPage['affiliate_link']): ?> · <i class="fas fa-link"></i> <?= htmlspecialchars($editPage['affiliate_link']) ?><?php endif; ?>
                             </p>
                         </div>
-                        <div style="display:flex;gap:8px;">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
                             <a href="/admin/pages.php" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Voltar</a>
                             <a href="/admin/preview.php?id=<?= $editPage['id'] ?>" target="_blank" class="btn btn-outline"><i class="fas fa-eye"></i> Preview</a>
                             <a href="/admin/download.php?id=<?= $editPage['id'] ?>" class="btn btn-outline"><i class="fas fa-download"></i> ZIP</a>
+                            <?php if (!empty($editPage['source_domain'])): ?>
+                            <button type="button" class="btn btn-outline" onclick="reclonePage(<?= $editPage['id'] ?>)" id="recloneBtn" title="Baixa a origem novamente e reprocessa com a versão atual do clonador"><i class="fas fa-sync-alt"></i> Re-clonar</button>
+                            <?php endif; ?>
                         </div>
                     </div>
+
+                    <?php
+                    $pageClonerVersion = $editPage['cloner_version'] ?? '';
+                    if ($pageClonerVersion !== '' && version_compare($pageClonerVersion, CloneValidator::CLONER_VERSION, '<')):
+                    ?>
+                    <div class="alert alert-warning" style="margin-bottom:24px;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Clone antigo (v<?= htmlspecialchars($pageClonerVersion) ?>)</strong> — esta página foi clonada com uma versão anterior do clonador (atual: v<?= CloneValidator::CLONER_VERSION ?>).
+                        Podem existir mídias quebradas. Use <strong>Re-clonar</strong> para corrigir.
+                    </div>
+                    <?php endif; ?>
 
                     <?php
                     $failedAssets = $editPage['failed_assets'] ?? [];
@@ -347,6 +362,33 @@ if ($action === 'new') {
             .then(r => r.json())
             .then(d => { if (d.success) { showToast('Revisão restaurada!', 'success'); setTimeout(() => location.reload(), 1200); } else alert(d.error || 'Erro ao restaurar'); });
     }
+    async function reclonePage(id) {
+        if (!confirm('Re-clonar esta página a partir da origem? O HTML atual será salvo como revisão antes.')) return;
+        const btn = document.getElementById('recloneBtn');
+        const original = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Re-clonando...';
+        try {
+            const body = new URLSearchParams({ action: 'reclone', id });
+            const resp = await fetch('/admin/api/clone.php', { method: 'POST', body });
+            const data = await resp.json();
+            if (data.success) {
+                const problems = (data.validation || []).length + (data.failed_assets || 0);
+                showToast(problems === 0
+                    ? 'Re-clonagem concluída sem problemas!'
+                    : 'Re-clonagem concluída com ' + problems + ' aviso(s) — veja o relatório.', problems === 0 ? 'success' : 'warning');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Erro ao re-clonar', 'error');
+            }
+        } catch (err) {
+            showToast('Erro de conexão: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    }
+
     async function optimizeMedia(id) {
         const btn = document.getElementById('optimizeBtn');
         if (!confirm('Converter as mídias base64 desta página para o seu R2? (Uma revisão será criada antes.)')) return;
