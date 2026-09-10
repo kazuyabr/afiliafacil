@@ -30,8 +30,14 @@ services:
       - DB_HOST=db
       - DB_PORT=5432
       - DB_DATABASE=afiliafacil
-      - DB_USERNAME=afiliafacil
-      - DB_PASSWORD=change-me
+      # Runtime usa a role restrita (criada pelo bin/migrate.php, sem DDL)
+      - DB_USERNAME=afiliafacil_app
+      - DB_PASSWORD=${DB_APP_PASSWORD:-change-me}
+      # Migracoes usam o owner
+      - DB_MIGRATION_USER=afiliafacil
+      - DB_MIGRATION_PASSWORD=change-me
+      - DB_APP_USER=afiliafacil_app
+      - DB_APP_PASSWORD=${DB_APP_PASSWORD:-change-me}
     depends_on:
       db:
         condition: service_healthy

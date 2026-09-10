@@ -8,14 +8,32 @@ if (!Database::isConfigured()) {
     exit(0);
 }
 
+$migrationDb = Database::config(true);
+
+function migrationPing(array $db): bool
+{
+    try {
+        $dsn = $db['driver'] === 'mysql'
+            ? "mysql:host={$db['host']};port={$db['port']};dbname={$db['database']}"
+            : "pgsql:host={$db['host']};port={$db['port']};dbname={$db['database']}";
+        new PDO($dsn, $db['username'], $db['password'], [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_TIMEOUT => 3,
+        ]);
+        return true;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 $attempts = 0;
-while (!Database::ping() && $attempts < 30) {
+while (!migrationPing($migrationDb) && $attempts < 30) {
     $attempts++;
     echo "[migrate] aguardando banco de dados... ($attempts/30)\n";
     sleep(2);
 }
 
-if (!Database::ping()) {
+if (!migrationPing($migrationDb)) {
     echo "[migrate] ERRO: banco de dados indisponivel\n";
     exit(1);
 }
@@ -53,5 +71,53 @@ try {
     exit(1);
 }
 
+try {
+    createAppRole();
+} catch (Throwable $e) {
+    echo "[migrate] ERRO role app: " . $e->getMessage() . "\n";
+    exit(1);
+}
+
 echo "[migrate] concluido\n";
 exit(0);
+
+function createAppRole(): void
+{
+    $db = Database::config(true);
+    $appUser = getenv('DB_APP_USER') ?: 'afiliafacil_app';
+    $appPass = getenv('DB_APP_PASSWORD') ?: 'change-me';
+
+    if ($db['driver'] === 'mysql') {
+        $dsn = "mysql:host={$db['host']};port={$db['port']};dbname={$db['database']}";
+    } else {
+        $dsn = "pgsql:host={$db['host']};port={$db['port']};dbname={$db['database']}";
+    }
+
+    $pdo = new PDO($dsn, $db['username'], $db['password'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+
+    if ($db['driver'] === 'mysql') {
+        $pdo->exec("CREATE USER IF NOT EXISTS '" . $appUser . "'@'%' IDENTIFIED BY '" . $appPass . "'");
+        $pdo->exec("GRANT SELECT, INSERT, UPDATE, DELETE ON `{$db['database']}`.* TO '" . $appUser . "'@'%'");
+        echo "[migrate] role MySQL '$appUser' criada/atualizada\n";
+        return;
+    }
+
+    $ident = '"' . str_replace('"', '""', $appUser) . '"';
+    $exists = $pdo->query("SELECT 1 FROM pg_roles WHERE rolname = " . $pdo->quote($appUser))->fetchColumn();
+
+    if (!$exists) {
+        $pdo->exec("CREATE ROLE {$ident} LOGIN PASSWORD " . $pdo->quote($appPass));
+        echo "[migrate] role Postgres '$appUser' criada\n";
+    } else {
+        $pdo->exec("ALTER ROLE {$ident} LOGIN PASSWORD " . $pdo->quote($appPass));
+        echo "[migrate] role Postgres '$appUser' atualizada\n";
+    }
+
+    $pdo->exec("GRANT USAGE ON SCHEMA public TO {$ident}");
+    $pdo->exec("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {$ident}");
+    $pdo->exec("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {$ident}");
+    $pdo->exec("REVOKE CREATE ON SCHEMA public FROM {$ident}");
+    $pdo->exec("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {$ident}");
+    $pdo->exec("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO {$ident}");
+    echo "[migrate] grants aplicados (sem DDL) para '$appUser'\n";
+}

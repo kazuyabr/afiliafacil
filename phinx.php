@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/lib/Database.php';
 
-$db = Database::config();
+$db = Database::config(true);
 
 return [
     'paths' => [

@@ -6,37 +6,54 @@ class Database
 {
     private static bool $initialized = false;
     private static bool $available = false;
-    private static ?array $config = null;
+    private static array $configs = [];
 
-    public static function config(): array
+    public static function config(bool $forMigration = false): array
     {
-        if (self::$config !== null) return self::$config;
+        $key = $forMigration ? 'migration' : 'app';
+        if (!empty(self::$configs[$key])) return self::$configs[$key];
 
         $url = getenv('DATABASE_URL');
         if ($url) {
             $parts = parse_url($url);
             $scheme = $parts['scheme'] ?? 'pgsql';
             $driver = str_starts_with($scheme, 'mysql') ? 'mysql' : 'pgsql';
-            return self::$config = [
+
+            $user = $parts['user'] ?? '';
+            $pass = $parts['pass'] ?? '';
+            if ($forMigration) {
+                $user = getenv('DB_MIGRATION_USER') ?: $user;
+                $pass = getenv('DB_MIGRATION_PASSWORD') ?: $pass;
+            }
+
+            return self::$configs[$key] = [
                 'driver' => $driver,
                 'host' => $parts['host'] ?? '127.0.0.1',
                 'port' => $parts['port'] ?? ($driver === 'mysql' ? 3306 : 5432),
                 'database' => ltrim($parts['path'] ?? '', '/'),
-                'username' => $parts['user'] ?? '',
-                'password' => $parts['pass'] ?? '',
+                'username' => $user,
+                'password' => $pass,
                 'charset' => $driver === 'mysql' ? 'utf8mb4' : 'utf8',
                 'prefix' => '',
             ];
         }
 
         $driver = getenv('DB_CONNECTION') ?: 'pgsql';
-        return self::$config = [
+
+        $user = getenv('DB_USERNAME') ?: 'afiliafacil_app';
+        $pass = getenv('DB_PASSWORD') ?: '';
+        if ($forMigration) {
+            $user = getenv('DB_MIGRATION_USER') ?: (getenv('DB_USERNAME') ?: 'afiliafacil');
+            $pass = getenv('DB_MIGRATION_PASSWORD') ?: (getenv('DB_PASSWORD') ?: '');
+        }
+
+        return self::$configs[$key] = [
             'driver' => $driver,
             'host' => getenv('DB_HOST') ?: '127.0.0.1',
             'port' => (int)(getenv('DB_PORT') ?: ($driver === 'mysql' ? 3306 : 5432)),
             'database' => getenv('DB_DATABASE') ?: 'afiliafacil',
-            'username' => getenv('DB_USERNAME') ?: 'afiliafacil',
-            'password' => getenv('DB_PASSWORD') ?: '',
+            'username' => $user,
+            'password' => $pass,
             'charset' => $driver === 'mysql' ? 'utf8mb4' : 'utf8',
             'prefix' => '',
         ];

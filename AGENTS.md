@@ -40,6 +40,13 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 
 - **Tempo real nas tabelas**: Minhas Páginas e Pagamentos (admin) fazem polling de 15s (fetch + DOMParser substitui o tbody se mudou) + refresh ao voltar para a aba (`visibilitychange`) + ações otimistas (delete remove a linha com fade, sem F5)
 
+## Segurança
+
+- **Isolamento de dados (app)**: `Auth::canAccessPage()`/`requirePageAccess()` — páginas só são acessíveis pelo dono ou admin (aplicado em pages/preview/download/editor/APIs); listagem e stats filtradas por usuário (`PageManager::listByUser`)
+- **Roles Postgres (least privilege)**: runtime conecta com `afiliafacil_app` (sem DDL — só DML + sequences); migrações usam o owner via `DB_MIGRATION_USER`/`DB_MIGRATION_PASSWORD`. A role é criada/atualizada no boot por `bin/migrate.php` (`DB_APP_USER`/`DB_APP_PASSWORD`)
+- **Produção**: use `DATABASE_URL` com `sslmode=require` e senhas fortes via secrets (nunca os defaults de dev)
+- RLS não implementado (decisão de escopo — isolamento é feito na app + role restrita)
+
 ## Como rodar
 
 ```powershell
