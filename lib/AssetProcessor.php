@@ -211,9 +211,9 @@ class AssetProcessor
         return SafePcre::replaceCallback('/<link\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
             $tag = $m[0];
             $attrs = $m[1];
-            if (preg_match('/href=["\']([^"\']+)["\']/i', $attrs, $hm)) {
-                if (self::shouldProxyUrl($hm[1], $sourceDomain)) {
-                    $tag = str_replace($hm[0], 'href="' . self::proxyUrlZip($hm[1], $baseUrl) . '"', $tag);
+            if (preg_match('/href=(["\'])([^"\']+)\1/i', $attrs, $hm)) {
+                if (self::shouldProxyUrl($hm[2], $sourceDomain)) {
+                    $tag = str_replace($hm[0], 'href=' . $hm[1] . self::proxyUrlZip($hm[2], $baseUrl) . $hm[1], $tag);
                 }
             }
             return $tag;
@@ -225,18 +225,18 @@ class AssetProcessor
         $html = SafePcre::replaceCallback('/<img\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
             $tag = $m[0];
             $attrs = $m[1];
-            if (preg_match('/src=["\']([^"\']+)["\']/i', $attrs, $sm)) {
-                if (self::shouldProxyUrl($sm[1], $sourceDomain)) {
-                    $tag = str_replace($sm[0], 'src="' . self::proxyUrlZip($sm[1], $baseUrl) . '"', $tag);
+            if (preg_match('/\bsrc=(["\'])([^"\']+)\1/i', $attrs, $sm)) {
+                if (self::shouldProxyUrl($sm[2], $sourceDomain)) {
+                    $tag = str_replace($sm[0], 'src=' . $sm[1] . self::proxyUrlZip($sm[2], $baseUrl) . $sm[1], $tag);
                 }
             }
-            if (preg_match('/data-original-src=["\']([^"\']+)["\']/i', $attrs, $dm)) {
-                if (self::shouldProxyUrl($dm[1], $sourceDomain)) {
-                    $tag = str_replace($dm[0], 'data-original-src="' . self::proxyUrlZip($dm[1], $baseUrl) . '"', $tag);
+            if (preg_match('/data-original-src=(["\'])([^"\']+)\1/i', $attrs, $dm)) {
+                if (self::shouldProxyUrl($dm[2], $sourceDomain)) {
+                    $tag = str_replace($dm[0], 'data-original-src=' . $dm[1] . self::proxyUrlZip($dm[2], $baseUrl) . $dm[1], $tag);
                 }
             }
-            if (preg_match('/srcset=["\']([^"\']+)["\']/i', $attrs, $ssm)) {
-                $srcset = $ssm[1];
+            if (preg_match('/srcset=(["\'])([^"\']+)\1/i', $attrs, $ssm)) {
+                $srcset = $ssm[2];
                 $rewritten = SafePcre::replaceCallback('/(\S+)(\s+\S+)?,?/', function($part) use ($baseUrl, $sourceDomain) {
                     $url = trim($part[1]);
                     if (empty($url)) return $part[0];
@@ -246,7 +246,7 @@ class AssetProcessor
                     }
                     return $part[0];
                 }, $srcset);
-                $tag = str_replace($ssm[0], 'srcset="' . rtrim($rewritten, ',') . '"', $tag);
+                $tag = str_replace($ssm[0], 'srcset=' . $ssm[1] . rtrim($rewritten, ',') . $ssm[1], $tag);
             }
             return $tag;
         }, $html);
@@ -255,71 +255,49 @@ class AssetProcessor
 
     private static function rewriteScriptTagsZip(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return SafePcre::replaceCallback('/<script\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
-            $tag = $m[0];
-            $attrs = $m[1];
-            if (preg_match('/src=["\']([^"\']+)["\']/i', $attrs, $sm)) {
-                if (self::shouldProxyUrl($sm[1], $sourceDomain)) {
-                    $tag = str_replace($sm[0], 'src="' . self::proxyUrlZip($sm[1], $baseUrl) . '"', $tag);
-                }
+        return SafePcre::replaceCallback('/<script\b([^>]*?)src=(["\'])([^"\']+)\2([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+            $src = $m[3];
+            if (self::shouldProxyUrl($src, $sourceDomain)) {
+                return '<script' . $m[1] . 'src=' . $m[2] . self::proxyUrlZip($src, $baseUrl) . $m[2] . $m[4] . '>';
             }
-            return $tag;
+            return $m[0];
         }, $html);
     }
 
     private static function rewriteSourceTagsZip(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return SafePcre::replaceCallback('/<source\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
-            $tag = $m[0];
-            $attrs = $m[1];
-            if (preg_match('/src=["\']([^"\']+)["\']/i', $attrs, $sm)) {
-                if (self::shouldProxyUrl($sm[1], $sourceDomain)) {
-                    $tag = str_replace($sm[0], 'src="' . self::proxyUrlZip($sm[1], $baseUrl) . '"', $tag);
-                }
+        return SafePcre::replaceCallback('/<source\b([^>]*?)src=(["\'])([^"\']+)\2([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+            $src = $m[3];
+            if (self::shouldProxyUrl($src, $sourceDomain)) {
+                return '<source' . $m[1] . 'src=' . $m[2] . self::proxyUrlZip($src, $baseUrl) . $m[2] . $m[4] . '>';
             }
-            if (preg_match('/srcset=["\']([^"\']+)["\']/i', $attrs, $ssm)) {
-                $srcset = $ssm[1];
-                $rewritten = SafePcre::replaceCallback('/(\S+)(\s+\S+)?,?/', function($part) use ($baseUrl, $sourceDomain) {
-                    $url = trim($part[1]);
-                    if (empty($url)) return $part[0];
-                    if (self::shouldProxyUrl($url, $sourceDomain)) {
-                        $dpr = $part[2] ?? '';
-                        return self::proxyUrlZip($url, $baseUrl) . $dpr . ',';
-                    }
-                    return $part[0];
-                }, $srcset);
-                $tag = str_replace($ssm[0], 'srcset="' . rtrim($rewritten, ',') . '"', $tag);
-            }
-            return $tag;
+            return $m[0];
         }, $html);
     }
 
     private static function rewriteMetaTagsZip(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return SafePcre::replaceCallback('/<meta\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
-            $tag = $m[0];
-            $attrs = $m[1];
-            if (preg_match('/content=["\']([^"\']+)["\']/i', $attrs, $cm)) {
-                $content = $cm[1];
-                if (preg_match('/\.(jpg|jpeg|png|gif|webp|ico)/i', $content) && self::shouldProxyUrl($content, $sourceDomain)) {
-                    $tag = str_replace($cm[0], 'content="' . self::proxyUrlZip($content, $baseUrl) . '"', $tag);
-                }
+        return SafePcre::replaceCallback('/<meta\b([^>]*?)content=(["\'])([^"\']*\.(?:jpg|jpeg|png|gif|webp|ico)[^"\']*)\2([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+            $content = $m[3];
+            if (self::shouldProxyUrl($content, $sourceDomain)) {
+                return '<meta' . $m[1] . 'content=' . $m[2] . self::proxyUrlZip($content, $baseUrl) . $m[2] . $m[4] . '>';
             }
-            return $tag;
+            return $m[0];
         }, $html);
     }
 
     private static function rewriteInlineCssUrlsZip(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return SafePcre::replaceCallback('/style=["\']([^"\']+)["\']/i', function($m) use ($baseUrl, $sourceDomain) {
-            $css = $m[1];
+        return SafePcre::replaceCallback('/style=(["\'])([^"\']*)\1/i', function($m) use ($baseUrl, $sourceDomain) {
+            $quote = $m[1];
+            $css = $m[2];
             $css = SafePcre::replaceCallback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($u) use ($baseUrl, $sourceDomain) {
                 if (self::shouldProxyUrl($u[1], $sourceDomain)) {
-                    return 'url("' . self::proxyUrlZip($u[1], $baseUrl) . '")';
+                    return 'url(' . self::proxyUrlZip($u[1], $baseUrl) . ')';
                 }
                 return $u[0];
             }, $css);
-            return 'style="' . $css . '"';
+            return 'style=' . $quote . $css . $quote;
         }, $html);
     }
 
@@ -330,7 +308,7 @@ class AssetProcessor
             $css = $m[2];
             $css = SafePcre::replaceCallback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($u) use ($baseUrl, $sourceDomain) {
                 if (self::shouldProxyUrl($u[1], $sourceDomain)) {
-                    return 'url("' . self::proxyUrlZip($u[1], $baseUrl) . '")';
+                    return 'url(' . self::proxyUrlZip($u[1], $baseUrl) . ')';
                 }
                 return $u[0];
             }, $css);
@@ -396,11 +374,10 @@ class AssetProcessor
             $tag = $m[0];
             $attrs = $m[1];
 
-            if (preg_match('/href=["\']([^"\']+)["\']/i', $attrs, $hm)) {
-                $href = $hm[1];
-                if (self::shouldProxyUrl($href, $sourceDomain)) {
-                    $proxied = self::proxyUrl($href, $baseUrl);
-                    $tag = str_replace($hm[0], 'href="' . $proxied . '"', $tag);
+            if (preg_match('/href=(["\'])([^"\']+)\1/i', $attrs, $hm)) {
+                if (self::shouldProxyUrl($hm[2], $sourceDomain)) {
+                    $proxied = self::proxyUrl($hm[2], $baseUrl);
+                    $tag = str_replace($hm[0], 'href=' . $hm[1] . $proxied . $hm[1], $tag);
                 }
             }
             return $tag;
@@ -413,32 +390,24 @@ class AssetProcessor
             $tag = $m[0];
             $attrs = $m[1];
 
-            if (preg_match('/src=["\']([^"\']+)["\']/i', $attrs, $sm)) {
-                $src = $sm[1];
-                if (self::shouldProxyUrl($src, $sourceDomain)) {
-                    $proxied = self::proxyUrl($src, $baseUrl);
-                    $tag = str_replace($sm[0], 'src="' . $proxied . '"', $tag);
+            if (preg_match('/\bsrc=(["\'])([^"\']+)\1/i', $attrs, $sm)) {
+                if (self::shouldProxyUrl($sm[2], $sourceDomain)) {
+                    $proxied = self::proxyUrl($sm[2], $baseUrl);
+                    $tag = str_replace($sm[0], 'src=' . $sm[1] . $proxied . $sm[1], $tag);
                 }
             }
 
-            if (preg_match('/data-original-src=["\']([^"\']+)["\']/i', $attrs, $dm)) {
-                $src = $dm[1];
-                if (self::shouldProxyUrl($src, $sourceDomain)) {
-                    $proxied = self::proxyUrl($src, $baseUrl);
-                    $tag = str_replace($dm[0], 'src="' . $proxied . '"', $tag);
+            foreach (['data-original-src', 'data-lazy-src'] as $lazyAttr) {
+                if (preg_match('/' . $lazyAttr . '=(["\'])([^"\']+)\1/i', $attrs, $dm)) {
+                    if (self::shouldProxyUrl($dm[2], $sourceDomain)) {
+                        $proxied = self::proxyUrl($dm[2], $baseUrl);
+                        $tag = str_replace($dm[0], $lazyAttr . '=' . $dm[1] . $proxied . $dm[1], $tag);
+                    }
                 }
             }
 
-            if (preg_match('/data-lazy-src=["\']([^"\']+)["\']/i', $attrs, $dm)) {
-                $src = $dm[1];
-                if (self::shouldProxyUrl($src, $sourceDomain)) {
-                    $proxied = self::proxyUrl($src, $baseUrl);
-                    $tag = str_replace($dm[0], 'src="' . $proxied . '"', $tag);
-                }
-            }
-
-            if (preg_match('/srcset=["\']([^"\']+)["\']/i', $attrs, $ssm)) {
-                $srcset = $ssm[1];
+            if (preg_match('/srcset=(["\'])([^"\']+)\1/i', $attrs, $ssm)) {
+                $srcset = $ssm[2];
                 $parts = preg_split('/\s*,\s*/', $srcset);
                 $newParts = [];
                 foreach ($parts as $part) {
@@ -451,7 +420,7 @@ class AssetProcessor
                         }
                     }
                 }
-                $tag = str_replace($ssm[0], 'srcset="' . implode(', ', $newParts) . '"', $tag);
+                $tag = str_replace($ssm[0], 'srcset=' . $ssm[1] . implode(', ', $newParts) . $ssm[1], $tag);
             }
 
             return $tag;
@@ -462,11 +431,11 @@ class AssetProcessor
 
     private static function rewriteScriptTags(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return SafePcre::replaceCallback('/<script\b([^>]*?)src=["\']([^"\']+)["\']([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
-            $src = $m[2];
+        return SafePcre::replaceCallback('/<script\b([^>]*?)src=(["\'])([^"\']+)\2([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+            $src = $m[3];
             if (self::shouldProxyUrl($src, $sourceDomain)) {
                 $proxied = self::proxyUrl($src, $baseUrl);
-                return '<script' . $m[1] . 'src="' . $proxied . '"' . $m[3] . '>';
+                return '<script' . $m[1] . 'src=' . $m[2] . $proxied . $m[2] . $m[4] . '>';
             }
             return $m[0];
         }, $html);
@@ -474,11 +443,11 @@ class AssetProcessor
 
     private static function rewriteSourceTags(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return SafePcre::replaceCallback('/<source\b([^>]*?)src=["\']([^"\']+)["\']([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
-            $src = $m[2];
+        return SafePcre::replaceCallback('/<source\b([^>]*?)src=(["\'])([^"\']+)\2([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+            $src = $m[3];
             if (self::shouldProxyUrl($src, $sourceDomain)) {
                 $proxied = self::proxyUrl($src, $baseUrl);
-                return '<source' . $m[1] . 'src="' . $proxied . '"' . $m[3] . '>';
+                return '<source' . $m[1] . 'src=' . $m[2] . $proxied . $m[2] . $m[4] . '>';
             }
             return $m[0];
         }, $html);
@@ -486,11 +455,11 @@ class AssetProcessor
 
     private static function rewriteMetaTags(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return SafePcre::replaceCallback('/<meta\b([^>]*?)content=["\']([^"\']*\.(?:jpg|jpeg|png|gif|webp|ico)[^"\']*)["\']([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
-            $url = $m[2];
+        return SafePcre::replaceCallback('/<meta\b([^>]*?)content=(["\'])([^"\']*\.(?:jpg|jpeg|png|gif|webp|ico)[^"\']*)\2([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+            $url = $m[3];
             if (self::shouldProxyUrl($url, $sourceDomain)) {
                 $proxied = self::proxyUrl($url, $baseUrl);
-                return '<meta' . $m[1] . 'content="' . $proxied . '"' . $m[3] . '>';
+                return '<meta' . $m[1] . 'content=' . $m[2] . $proxied . $m[2] . $m[4] . '>';
             }
             return $m[0];
         }, $html);
@@ -498,16 +467,17 @@ class AssetProcessor
 
     private static function rewriteInlineCssUrls(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return SafePcre::replaceCallback('/style=["\']([^"\']*)["\']/i', function($m) use ($baseUrl, $sourceDomain) {
-            $style = $m[1];
+        return SafePcre::replaceCallback('/style=(["\'])([^"\']*)\1/i', function($m) use ($baseUrl, $sourceDomain) {
+            $quote = $m[1];
+            $style = $m[2];
             $rewritten = SafePcre::replaceCallback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($um) use ($baseUrl, $sourceDomain) {
                 $url = $um[1];
                 if (self::shouldProxyUrl($url, $sourceDomain)) {
-                    return 'url("' . self::proxyUrl($url, $baseUrl) . '")';
+                    return 'url(' . self::proxyUrl($url, $baseUrl) . ')';
                 }
                 return $um[0];
             }, $style);
-            return 'style="' . $rewritten . '"';
+            return 'style=' . $quote . $rewritten . $quote;
         }, $html);
     }
 
@@ -519,7 +489,7 @@ class AssetProcessor
             $rewritten = SafePcre::replaceCallback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($um) use ($baseUrl, $sourceDomain) {
                 $url = $um[1];
                 if (self::shouldProxyUrl($url, $sourceDomain)) {
-                    return 'url("' . self::proxyUrl($url, $baseUrl) . '")';
+                    return 'url(' . self::proxyUrl($url, $baseUrl) . ')';
                 }
                 return $um[0];
             }, $css);
@@ -529,9 +499,13 @@ class AssetProcessor
 
     private static function fixLazyLoadingForPreview(string $html): string
     {
-        $html = SafePcre::replace('/data-original-src=["\']([^"\']+)["\']/i', 'src="$1"', $html);
-        $html = SafePcre::replace('/data-lazy-src=["\']([^"\']+)["\']/i', 'src="$1"', $html);
-        $html = SafePcre::replace('/loading="lazy"/i', 'loading="eager"', $html);
+        $html = SafePcre::replaceCallback('/data-original-src=(["\'])([^"\']+)\1/i', function($m) {
+            return 'src=' . $m[1] . $m[2] . $m[1];
+        }, $html);
+        $html = SafePcre::replaceCallback('/data-lazy-src=(["\'])([^"\']+)\1/i', function($m) {
+            return 'src=' . $m[1] . $m[2] . $m[1];
+        }, $html);
+        $html = SafePcre::replace('/loading=["\']lazy["\']/i', 'loading="eager"', $html);
         return $html;
     }
 

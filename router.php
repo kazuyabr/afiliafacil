@@ -14,6 +14,7 @@ $routes = [
     '/login' => '/login.php',
     '/register' => '/register.php',
     '/planos' => '/planos.php',
+    '/proxy.php' => '/proxy.php',
     '/webhooks/stripe' => '/webhooks/stripe.php',
     '/admin/' => '/admin/index.php',
     '/admin/index.php' => '/admin/index.php',

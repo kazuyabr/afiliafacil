@@ -78,6 +78,8 @@ afiliafacil/
 
 ## Notas de arquitetura
 
+- **proxy.php**: obrigatório na raiz (rota `/proxy.php` no router) — o preview e o ZIP reescrevem TODOS os assets para `proxy.php?url=...`; sem ele tudo retorna 404. Versão do ZIP é gerada por `ZipBuilder::getProxyScript()`.
+- **Preservação de aspas nas reescritas**: as funções `rewrite*` do `AssetProcessor` capturam o tipo de aspas original (`href=(["'])(...)\1`) e reusam na substituição — NUNCA forçar aspas duplas (quebrava JS inline tipo `x("<div style='...'>")` do jQuery UI → SyntaxError). `url()` em CSS é emitido sem quotes.
 - **PCRE seguro**: `lib/SafePcre.php` — TODO uso de `preg_replace`/`preg_replace_callback` no clonador/preview/ZIP passa por `SafePcre::replace`/`SafePcre::replaceCallback` (retorna o subject original quando o PCRE estoura backtrack/JIT limit — evita TypeError fatal em páginas com `<style>` gigantes) + `SafePcre::bootstrap()` eleva limites (`pcre.backtrack_limit=50M`, `pcre.jit=0`). Nunca voltar a usar preg_* direto nesses fluxos.
 
 - **Preview vs ZIP**: ambos usam `AssetProcessor::rewriteForPreview()` / `rewriteForZip()` → URLs reescritas para `proxy.php?url=...` — o ZIP inclui um `proxy.php` local próprio. NÃO mudar a abordagem do preview (funciona perfeitamente como está).
