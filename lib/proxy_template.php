@@ -39,7 +39,8 @@ if ($ext === 'css' || ($contentType && strpos($contentType, 'text/css') !== fals
     $cssDir = substr($cssDir, 0, strrpos($cssDir, '/'));
     $baseUrl = parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST) . $cssDir . '/';
 
-    $content = preg_replace_callback('/url\(\s*[\'"]?([^\'")]+)[\'"]?\s*\)/i', function($m) use ($baseUrl) {
+    $cssOriginal = $content;
+    $content = @preg_replace_callback('/url\(\s*[\'"]?([^\'")]+)[\'"]?\s*\)/i', function($m) use ($baseUrl) {
         $resourceUrl = $m[1];
         if (strpos($resourceUrl, 'data:') === 0) return $m[0];
         if (strpos($resourceUrl, '//') === 0) $resourceUrl = 'https:' . $resourceUrl;
@@ -47,6 +48,7 @@ if ($ext === 'css' || ($contentType && strpos($contentType, 'text/css') !== fals
         $proxied = '/proxy.php?url=' . urlencode($resourceUrl);
         return 'url("' . $proxied . '")';
     }, $content);
+    if ($content === null) $content = $cssOriginal;
 
     $contentType = 'text/css';
 }

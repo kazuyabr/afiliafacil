@@ -1,11 +1,13 @@
 <?php
 
 require_once __DIR__ . '/AssetProcessor.php';
+require_once __DIR__ . '/SafePcre.php';
 
 class ZipBuilder
 {
     public function buildHtmlZip(string $html, string $jobId, array $metadata = []): string
     {
+        SafePcre::bootstrap();
         if (!class_exists('ZipArchive')) {
             throw new RuntimeException('Extensao ZipArchive nao disponivel');
         }
@@ -223,7 +225,7 @@ echo $response;
     {
         $counter = 0;
 
-        $html = preg_replace_callback('/url\([\'"]data:([^;]+);base64,([A-Za-z0-9+\/=]+)[\'"]\)/i', function($m) use ($assetsDir, &$counter) {
+        $html = SafePcre::replaceCallback('/url\([\'"]data:([^;]+);base64,([A-Za-z0-9+\/=]+)[\'"]\)/i', function($m) use ($assetsDir, &$counter) {
             $mime = $m[1];
             $data = base64_decode($m[2]);
             if ($data === false) return $m[0];
@@ -236,9 +238,9 @@ echo $response;
             return "url('assets/{$filename}')";
         }, $html);
 
-        $html = preg_replace_callback('/<style[^>]*>(.*?)<\/style>/is', function($m) use ($assetsDir, &$counter) {
+        $html = SafePcre::replaceCallback('/<style[^>]*>(.*?)<\/style>/is', function($m) use ($assetsDir, &$counter) {
             $css = $m[1];
-            $css = preg_replace_callback('/url\([\'"]data:([^;]+);base64,([A-Za-z0-9+\/=]+)[\'"]\)/i', function($mm) use ($assetsDir, &$counter) {
+            $css = SafePcre::replaceCallback('/url\([\'"]data:([^;]+);base64,([A-Za-z0-9+\/=]+)[\'"]\)/i', function($mm) use ($assetsDir, &$counter) {
                 $mime = $mm[1];
                 $data = base64_decode($mm[2]);
                 if ($data === false) return $mm[0];
@@ -261,7 +263,7 @@ echo $response;
     {
         $counter = 0;
 
-        $html = preg_replace_callback('/<style[^>]*data-cloned="true"[^>]*>(.*?)<\/style>/is', function($m) use ($assetsDir, &$counter) {
+        $html = SafePcre::replaceCallback('/<style[^>]*data-cloned="true"[^>]*>(.*?)<\/style>/is', function($m) use ($assetsDir, &$counter) {
             $css = $m[1];
             $filename = 'style_' . (++$counter) . '.css';
             $filepath = $assetsDir . DIRECTORY_SEPARATOR . $filename;

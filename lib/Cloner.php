@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/AssetProcessor.php';
+require_once __DIR__ . '/SafePcre.php';
 
 class Cloner
 {
@@ -17,6 +18,7 @@ class Cloner
 
     public function process(string $html, string $affiliateLink, string $mode = 'paste'): array
     {
+        SafePcre::bootstrap();
         $originalSize = strlen($html);
 
         $sourceDomain = $this->extractDomain($html);
@@ -28,7 +30,7 @@ class Cloner
         $html = $this->detectAndReplaceCtas($html, $affiliateLink);
         $html = $this->removeTrackingScripts($html);
 
-        $html = preg_replace('/[\x{FEFF}]/u', '', $html);
+        $html = SafePcre::replace('/[\x{FEFF}]/u', '', $html);
 
         return [
             'html' => $html,
@@ -48,7 +50,7 @@ class Cloner
     {
         $ctas = [];
 
-        $html = preg_replace_callback('/<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)<\/a>/is', function($m) use ($affiliateLink, &$ctas) {
+        $html = SafePcre::replaceCallback('/<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)<\/a>/is', function($m) use ($affiliateLink, &$ctas) {
             $href = $m[1];
             $content = $m[2];
             $fullTag = $m[0];
@@ -89,7 +91,7 @@ class Cloner
             return $newTag;
         }, $html);
 
-        $html = preg_replace_callback('/<button[^>]*>(.*?)<\/button>/is', function($m) use ($affiliateLink, &$ctas) {
+        $html = SafePcre::replaceCallback('/<button[^>]*>(.*?)<\/button>/is', function($m) use ($affiliateLink, &$ctas) {
             $content = $m[1];
             $fullTag = $m[0];
 
@@ -135,10 +137,10 @@ class Cloner
         ];
 
         foreach ($trackingPatterns as $pattern) {
-            $html = preg_replace($pattern, '', $html);
+            $html = SafePcre::replace($pattern, '', $html);
         }
 
-        $html = preg_replace_callback('/<script[^>]*>(.*?)<\/script>/is', function($m) {
+        $html = SafePcre::replaceCallback('/<script[^>]*>(.*?)<\/script>/is', function($m) {
             $content = $m[1];
             $inlinePatterns = [
                 '/window\.dataLayer\s*=\s*window\.dataLayer\s*\|\|\s*\[\];\s*function\s+gtag\s*\(\)/s',

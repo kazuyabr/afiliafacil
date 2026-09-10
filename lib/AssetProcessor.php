@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/SafePcre.php';
+
 class AssetProcessor
 {
     private string $sourceDomain;
@@ -10,12 +12,14 @@ class AssetProcessor
 
     public function __construct(string $sourceDomain)
     {
+        SafePcre::bootstrap();
         $this->sourceDomain = $sourceDomain;
         $this->baseUrl = "https://{$sourceDomain}";
     }
 
     public function processHtml(string $html): string
     {
+        SafePcre::bootstrap();
         $html = $this->fixLazyLoading($html);
         $html = $this->downloadAndInlineCss($html);
         $html = $this->downloadAndInlineScripts($html);
@@ -81,7 +85,7 @@ class AssetProcessor
 
             $path = parse_url($resolved, PHP_URL_PATH);
             $basename = basename($path);
-            $basename = preg_replace('/[^a-zA-Z0-9._-]/', '_', $basename);
+            $basename = SafePcre::replace('/[^a-zA-Z0-9._-]/', '_', $basename);
             if (empty($basename) || $basename === '_') $basename = md5($url) . '.bin';
 
             $safeName = $basename;
@@ -100,7 +104,7 @@ class AssetProcessor
         foreach ($urlMap as $original => $local) {
             if ($original === $local) continue;
             $escaped = preg_quote($original, '/');
-            $html = preg_replace('#' . $escaped . '#', $local, $html);
+            $html = SafePcre::replace('#' . $escaped . '#', $local, $html);
         }
 
         return $html;
@@ -113,7 +117,7 @@ class AssetProcessor
             $css = file_get_contents($cssFile);
             $rewritten = false;
 
-            $css = preg_replace_callback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($m) use ($assetsDir, &$rewritten) {
+            $css = SafePcre::replaceCallback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($m) use ($assetsDir, &$rewritten) {
                 $url = $m[1];
                 if (strpos($url, 'data:') === 0 || strpos($url, '#') === 0) return $m[0];
 
@@ -121,7 +125,7 @@ class AssetProcessor
 
                 $path = parse_url($resolved, PHP_URL_PATH);
                 $basename = basename($path);
-                $basename = preg_replace('/[^a-zA-Z0-9._-]/', '_', $basename);
+                $basename = SafePcre::replace('/[^a-zA-Z0-9._-]/', '_', $basename);
                 if (empty($basename) || $basename === '_') $basename = md5($url) . '.bin';
 
                 $existingFile = null;
@@ -152,6 +156,7 @@ class AssetProcessor
 
     public static function rewriteForPreview(string $html, string $sourceDomain): string
     {
+        SafePcre::bootstrap();
         if (empty($sourceDomain)) return $html;
 
         $baseUrl = "https://{$sourceDomain}";
@@ -171,6 +176,7 @@ class AssetProcessor
 
     public static function rewriteForZip(string $html, string $sourceDomain): string
     {
+        SafePcre::bootstrap();
         if (empty($sourceDomain)) return $html;
 
         $baseUrl = "https://{$sourceDomain}";
@@ -202,7 +208,7 @@ class AssetProcessor
 
     private static function rewriteLinkTagsZip(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return preg_replace_callback('/<link\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+        return SafePcre::replaceCallback('/<link\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
             $tag = $m[0];
             $attrs = $m[1];
             if (preg_match('/href=["\']([^"\']+)["\']/i', $attrs, $hm)) {
@@ -216,7 +222,7 @@ class AssetProcessor
 
     private static function rewriteImgTagsZip(string $html, string $baseUrl, string $sourceDomain): string
     {
-        $html = preg_replace_callback('/<img\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+        $html = SafePcre::replaceCallback('/<img\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
             $tag = $m[0];
             $attrs = $m[1];
             if (preg_match('/src=["\']([^"\']+)["\']/i', $attrs, $sm)) {
@@ -231,7 +237,7 @@ class AssetProcessor
             }
             if (preg_match('/srcset=["\']([^"\']+)["\']/i', $attrs, $ssm)) {
                 $srcset = $ssm[1];
-                $rewritten = preg_replace_callback('/(\S+)(\s+\S+)?,?/', function($part) use ($baseUrl, $sourceDomain) {
+                $rewritten = SafePcre::replaceCallback('/(\S+)(\s+\S+)?,?/', function($part) use ($baseUrl, $sourceDomain) {
                     $url = trim($part[1]);
                     if (empty($url)) return $part[0];
                     if (self::shouldProxyUrl($url, $sourceDomain)) {
@@ -249,7 +255,7 @@ class AssetProcessor
 
     private static function rewriteScriptTagsZip(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return preg_replace_callback('/<script\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+        return SafePcre::replaceCallback('/<script\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
             $tag = $m[0];
             $attrs = $m[1];
             if (preg_match('/src=["\']([^"\']+)["\']/i', $attrs, $sm)) {
@@ -263,7 +269,7 @@ class AssetProcessor
 
     private static function rewriteSourceTagsZip(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return preg_replace_callback('/<source\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+        return SafePcre::replaceCallback('/<source\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
             $tag = $m[0];
             $attrs = $m[1];
             if (preg_match('/src=["\']([^"\']+)["\']/i', $attrs, $sm)) {
@@ -273,7 +279,7 @@ class AssetProcessor
             }
             if (preg_match('/srcset=["\']([^"\']+)["\']/i', $attrs, $ssm)) {
                 $srcset = $ssm[1];
-                $rewritten = preg_replace_callback('/(\S+)(\s+\S+)?,?/', function($part) use ($baseUrl, $sourceDomain) {
+                $rewritten = SafePcre::replaceCallback('/(\S+)(\s+\S+)?,?/', function($part) use ($baseUrl, $sourceDomain) {
                     $url = trim($part[1]);
                     if (empty($url)) return $part[0];
                     if (self::shouldProxyUrl($url, $sourceDomain)) {
@@ -290,7 +296,7 @@ class AssetProcessor
 
     private static function rewriteMetaTagsZip(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return preg_replace_callback('/<meta\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+        return SafePcre::replaceCallback('/<meta\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
             $tag = $m[0];
             $attrs = $m[1];
             if (preg_match('/content=["\']([^"\']+)["\']/i', $attrs, $cm)) {
@@ -305,9 +311,9 @@ class AssetProcessor
 
     private static function rewriteInlineCssUrlsZip(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return preg_replace_callback('/style=["\']([^"\']+)["\']/i', function($m) use ($baseUrl, $sourceDomain) {
+        return SafePcre::replaceCallback('/style=["\']([^"\']+)["\']/i', function($m) use ($baseUrl, $sourceDomain) {
             $css = $m[1];
-            $css = preg_replace_callback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($u) use ($baseUrl, $sourceDomain) {
+            $css = SafePcre::replaceCallback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($u) use ($baseUrl, $sourceDomain) {
                 if (self::shouldProxyUrl($u[1], $sourceDomain)) {
                     return 'url("' . self::proxyUrlZip($u[1], $baseUrl) . '")';
                 }
@@ -319,10 +325,10 @@ class AssetProcessor
 
     private static function rewriteStyleTagsZip(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return preg_replace_callback('/<style\b([^>]*)>(.*?)<\/style>/is', function($m) use ($baseUrl, $sourceDomain) {
+        return SafePcre::replaceCallback('/<style\b([^>]*)>(.*?)<\/style>/is', function($m) use ($baseUrl, $sourceDomain) {
             $attrs = $m[1];
             $css = $m[2];
-            $css = preg_replace_callback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($u) use ($baseUrl, $sourceDomain) {
+            $css = SafePcre::replaceCallback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($u) use ($baseUrl, $sourceDomain) {
                 if (self::shouldProxyUrl($u[1], $sourceDomain)) {
                     return 'url("' . self::proxyUrlZip($u[1], $baseUrl) . '")';
                 }
@@ -386,7 +392,7 @@ class AssetProcessor
 
     private static function rewriteLinkTags(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return preg_replace_callback('/<link\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+        return SafePcre::replaceCallback('/<link\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
             $tag = $m[0];
             $attrs = $m[1];
 
@@ -403,7 +409,7 @@ class AssetProcessor
 
     private static function rewriteImgTags(string $html, string $baseUrl, string $sourceDomain): string
     {
-        $html = preg_replace_callback('/<img\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+        $html = SafePcre::replaceCallback('/<img\b([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
             $tag = $m[0];
             $attrs = $m[1];
 
@@ -456,7 +462,7 @@ class AssetProcessor
 
     private static function rewriteScriptTags(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return preg_replace_callback('/<script\b([^>]*?)src=["\']([^"\']+)["\']([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+        return SafePcre::replaceCallback('/<script\b([^>]*?)src=["\']([^"\']+)["\']([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
             $src = $m[2];
             if (self::shouldProxyUrl($src, $sourceDomain)) {
                 $proxied = self::proxyUrl($src, $baseUrl);
@@ -468,7 +474,7 @@ class AssetProcessor
 
     private static function rewriteSourceTags(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return preg_replace_callback('/<source\b([^>]*?)src=["\']([^"\']+)["\']([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+        return SafePcre::replaceCallback('/<source\b([^>]*?)src=["\']([^"\']+)["\']([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
             $src = $m[2];
             if (self::shouldProxyUrl($src, $sourceDomain)) {
                 $proxied = self::proxyUrl($src, $baseUrl);
@@ -480,7 +486,7 @@ class AssetProcessor
 
     private static function rewriteMetaTags(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return preg_replace_callback('/<meta\b([^>]*?)content=["\']([^"\']*\.(?:jpg|jpeg|png|gif|webp|ico)[^"\']*)["\']([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
+        return SafePcre::replaceCallback('/<meta\b([^>]*?)content=["\']([^"\']*\.(?:jpg|jpeg|png|gif|webp|ico)[^"\']*)["\']([^>]*)>/i', function($m) use ($baseUrl, $sourceDomain) {
             $url = $m[2];
             if (self::shouldProxyUrl($url, $sourceDomain)) {
                 $proxied = self::proxyUrl($url, $baseUrl);
@@ -492,9 +498,9 @@ class AssetProcessor
 
     private static function rewriteInlineCssUrls(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return preg_replace_callback('/style=["\']([^"\']*)["\']/i', function($m) use ($baseUrl, $sourceDomain) {
+        return SafePcre::replaceCallback('/style=["\']([^"\']*)["\']/i', function($m) use ($baseUrl, $sourceDomain) {
             $style = $m[1];
-            $rewritten = preg_replace_callback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($um) use ($baseUrl, $sourceDomain) {
+            $rewritten = SafePcre::replaceCallback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($um) use ($baseUrl, $sourceDomain) {
                 $url = $um[1];
                 if (self::shouldProxyUrl($url, $sourceDomain)) {
                     return 'url("' . self::proxyUrl($url, $baseUrl) . '")';
@@ -507,10 +513,10 @@ class AssetProcessor
 
     private static function rewriteStyleTags(string $html, string $baseUrl, string $sourceDomain): string
     {
-        return preg_replace_callback('/<style\b([^>]*)>(.*?)<\/style>/is', function($m) use ($baseUrl, $sourceDomain) {
+        return SafePcre::replaceCallback('/<style\b([^>]*)>(.*?)<\/style>/is', function($m) use ($baseUrl, $sourceDomain) {
             $attrs = $m[1];
             $css = $m[2];
-            $rewritten = preg_replace_callback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($um) use ($baseUrl, $sourceDomain) {
+            $rewritten = SafePcre::replaceCallback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($um) use ($baseUrl, $sourceDomain) {
                 $url = $um[1];
                 if (self::shouldProxyUrl($url, $sourceDomain)) {
                     return 'url("' . self::proxyUrl($url, $baseUrl) . '")';
@@ -523,33 +529,33 @@ class AssetProcessor
 
     private static function fixLazyLoadingForPreview(string $html): string
     {
-        $html = preg_replace('/data-original-src=["\']([^"\']+)["\']/i', 'src="$1"', $html);
-        $html = preg_replace('/data-lazy-src=["\']([^"\']+)["\']/i', 'src="$1"', $html);
-        $html = preg_replace('/loading="lazy"/i', 'loading="eager"', $html);
+        $html = SafePcre::replace('/data-original-src=["\']([^"\']+)["\']/i', 'src="$1"', $html);
+        $html = SafePcre::replace('/data-lazy-src=["\']([^"\']+)["\']/i', 'src="$1"', $html);
+        $html = SafePcre::replace('/loading="lazy"/i', 'loading="eager"', $html);
         return $html;
     }
 
     private static function addCdnResources(string $html): string
     {
-        $html = preg_replace('#<link[^>]+href=["\'][^"\']*font-awesome[^"\']*["\'][^>]*/?>#i', '', $html);
-        $html = preg_replace('#<link[^>]+href=["\'][^"\']*fontawesome[^"\']*["\'][^>]*/?>#i', '', $html);
-        $html = preg_replace('#<link[^>]+href=["\'][^"\']*\/all\.min\.css[^"\']*["\'][^>]*/?>#i', '', $html);
+        $html = SafePcre::replace('#<link[^>]+href=["\'][^"\']*font-awesome[^"\']*["\'][^>]*/?>#i', '', $html);
+        $html = SafePcre::replace('#<link[^>]+href=["\'][^"\']*fontawesome[^"\']*["\'][^>]*/?>#i', '', $html);
+        $html = SafePcre::replace('#<link[^>]+href=["\'][^"\']*\/all\.min\.css[^"\']*["\'][^>]*/?>#i', '', $html);
 
         $cdn = '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">';
         $googleFonts = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
         $jquery = '<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>';
 
-        $html = preg_replace('/<\/head>/i', "{$cdn}\n{$googleFonts}\n{$jquery}\n</head>", $html, 1);
+        $html = SafePcre::replace('/<\/head>/i', "{$cdn}\n{$googleFonts}\n{$jquery}\n</head>", $html, 1);
 
         return $html;
     }
 
     private function fixLazyLoading(string $html): string
     {
-        $html = preg_replace('/data-original-src="([^"]+)"/i', 'src="$1"', $html);
-        $html = preg_replace('/data-lazy-src="([^"]+)"/i', 'src="$1"', $html);
-        $html = preg_replace('/data-src="([^"]+)"/i', 'src="$1"', $html);
-        $html = preg_replace('/loading="lazy"/i', 'loading="eager"', $html);
+        $html = SafePcre::replace('/data-original-src="([^"]+)"/i', 'src="$1"', $html);
+        $html = SafePcre::replace('/data-lazy-src="([^"]+)"/i', 'src="$1"', $html);
+        $html = SafePcre::replace('/data-src="([^"]+)"/i', 'src="$1"', $html);
+        $html = SafePcre::replace('/loading="lazy"/i', 'loading="eager"', $html);
         return $html;
     }
 
@@ -586,10 +592,10 @@ class AssetProcessor
             $combinedCss .= "\n/* {$resolved} */\n{$cssContent}\n";
         }
 
-        $html = preg_replace('/<link\b[^>]*(?:rel=["\']stylesheet["\'][^>]*href=["\'][^"\']+["\']|href=["\'][^"\']+["\'][^>]*rel=["\']stylesheet["\'][^>]*)\/?>/i', '', $html);
+        $html = SafePcre::replace('/<link\b[^>]*(?:rel=["\']stylesheet["\'][^>]*href=["\'][^"\']+["\']|href=["\'][^"\']+["\'][^>]*rel=["\']stylesheet["\'][^>]*)\/?>/i', '', $html);
 
         if (!empty($combinedCss)) {
-            $html = preg_replace('/<\/head>/i', "<style data-cloned=\"true\">\n{$combinedCss}\n</style>\n</head>", $html, 1);
+            $html = SafePcre::replace('/<\/head>/i', "<style data-cloned=\"true\">\n{$combinedCss}\n</style>\n</head>", $html, 1);
         }
 
         return $html;
@@ -597,7 +603,7 @@ class AssetProcessor
 
     private function rewriteCssUrls(string $css, string $cssDir): string
     {
-        $css = preg_replace_callback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($m) use ($cssDir) {
+        $css = SafePcre::replaceCallback('/url\(\s*[\'"]?([^\'")\s]+)[\'"]?\s*\)/i', function($m) use ($cssDir) {
             $url = $m[1];
             if (strpos($url, 'data:') === 0) return $m[0];
             $fullUrl = $this->resolveRelativeUrl($url, $cssDir);
@@ -608,7 +614,7 @@ class AssetProcessor
             return $m[0];
         }, $css);
 
-        $css = preg_replace_callback('/@import\s+[\'"]([^\'"]+)[\'"]/i', function($m) use ($cssDir) {
+        $css = SafePcre::replaceCallback('/@import\s+[\'"]([^\'"]+)[\'"]/i', function($m) use ($cssDir) {
             $url = $this->resolveRelativeUrl($m[1], $cssDir);
             $content = $this->fetchUrl($url);
             if ($content) {
@@ -667,7 +673,7 @@ class AssetProcessor
 
     private function rewriteImageUrls(string $html): string
     {
-        $html = preg_replace_callback('/<img\b[^>]+src=["\']([^"\']+)["\']/i', function($m) {
+        $html = SafePcre::replaceCallback('/<img\b[^>]+src=["\']([^"\']+)["\']/i', function($m) {
             $url = $m[1];
             if (strpos($url, 'data:') === 0 || strpos($url, '#') === 0) return $m[0];
             $resolved = $this->resolveUrl($url);
@@ -681,18 +687,18 @@ class AssetProcessor
 
     private function fixBackgroundImages(string $html): string
     {
-        return preg_replace_callback('/style=["\']([^"\']*background-image\s*:\s*url\(\s*[\'"]?[^\'")\s]+[\'"]?\s*\)[^"\']*)["\']/i', function($m) {
+        return SafePcre::replaceCallback('/style=["\']([^"\']*background-image\s*:\s*url\(\s*[\'"]?[^\'")\s]+[\'"]?\s*\)[^"\']*)["\']/i', function($m) {
             return $m[0];
         }, $html);
     }
 
     private function addFontAwesomeCdn(string $html): string
     {
-        $html = preg_replace('#<link[^>]+href=["\'][^"\']*font-awesome[^"\']*["\'][^>]*/?>#i', '', $html);
-        $html = preg_replace('#<link[^>]+href=["\'][^"\']*fontawesome[^"\']*["\'][^>]*/?>#i', '', $html);
-        $html = preg_replace('#<link[^>]+href=["\'][^"\']*\/all\.min\.css[^"\']*["\'][^>]*/?>#i', '', $html);
+        $html = SafePcre::replace('#<link[^>]+href=["\'][^"\']*font-awesome[^"\']*["\'][^>]*/?>#i', '', $html);
+        $html = SafePcre::replace('#<link[^>]+href=["\'][^"\']*fontawesome[^"\']*["\'][^>]*/?>#i', '', $html);
+        $html = SafePcre::replace('#<link[^>]+href=["\'][^"\']*\/all\.min\.css[^"\']*["\'][^>]*/?>#i', '', $html);
         $cdn = '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">';
-        $html = preg_replace('/<\/head>/i', "{$cdn}\n</head>", $html, 1);
+        $html = SafePcre::replace('/<\/head>/i', "{$cdn}\n</head>", $html, 1);
         return $html;
     }
 
@@ -700,7 +706,7 @@ class AssetProcessor
     {
         if (preg_match('/fonts\.googleapis\.com/i', $html)) {
             $fontsLink = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
-            $html = preg_replace('/<\/head>/i', "{$fontsLink}\n</head>", $html, 1);
+            $html = SafePcre::replace('/<\/head>/i', "{$fontsLink}\n</head>", $html, 1);
         }
         return $html;
     }

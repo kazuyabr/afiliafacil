@@ -78,6 +78,8 @@ afiliafacil/
 
 ## Notas de arquitetura
 
+- **PCRE seguro**: `lib/SafePcre.php` — TODO uso de `preg_replace`/`preg_replace_callback` no clonador/preview/ZIP passa por `SafePcre::replace`/`SafePcre::replaceCallback` (retorna o subject original quando o PCRE estoura backtrack/JIT limit — evita TypeError fatal em páginas com `<style>` gigantes) + `SafePcre::bootstrap()` eleva limites (`pcre.backtrack_limit=50M`, `pcre.jit=0`). Nunca voltar a usar preg_* direto nesses fluxos.
+
 - **Preview vs ZIP**: ambos usam `AssetProcessor::rewriteForPreview()` / `rewriteForZip()` → URLs reescritas para `proxy.php?url=...` — o ZIP inclui um `proxy.php` local próprio. NÃO mudar a abordagem do preview (funciona perfeitamente como está).
 - **Conexão CTA**: clones identificam CTAs (`<a>`/`<button>`) e substituem pelo link de afiliado informado na clonagem.
 - **Trial**: `Auth::syncPlan()` rodado em `requireAuth()` marca `trial_expired` quando `trial_until` passa; `Plans::get('trial_expired')` bloqueia tudo.
