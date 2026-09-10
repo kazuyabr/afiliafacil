@@ -15,23 +15,27 @@ if (!Auth::check()) {
 }
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
+$userId = (int)(Auth::user()['id'] ?? 0);
+$isAdmin = Auth::isAdmin();
 
 switch ($action) {
     case 'list':
         $pm = new PageManager();
-        echo json_encode(['success' => true, 'pages' => $pm->list()]);
+        $pages = $isAdmin ? $pm->list() : $pm->listByUser($userId);
+        echo json_encode(['success' => true, 'pages' => $pages]);
         break;
 
     case 'get':
         $id = (int)($_GET['id'] ?? 0);
         $pm = new PageManager();
         $page = $pm->get($id);
-        if ($page) {
-            echo json_encode(['success' => true, 'page' => $page]);
-        } else {
+        if (!$page) {
             http_response_code(404);
             echo json_encode(['error' => 'Página não encontrada']);
+            break;
         }
+        Auth::requirePageAccess($page);
+        echo json_encode(['success' => true, 'page' => $page]);
         break;
 
     case 'delete':
@@ -43,7 +47,14 @@ switch ($action) {
         $pm = new PageManager();
         $page = $pm->get($id);
 
-        if ($page && Database::available()) {
+        if (!$page) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Página não encontrada']);
+            break;
+        }
+        Auth::requirePageAccess($page);
+
+        if (Database::available()) {
             try {
                 $storage = \AfiliaFacil\Models\StorageConfig::where('user_id', (int)$page['user_id'])->first();
                 if ($storage && $storage->enabled && $storage->media_mode === 'r2') {
@@ -70,6 +81,14 @@ switch ($action) {
     case 'update':
         $id = (int)($_POST['id'] ?? 0);
         $pm = new PageManager();
+        $existing = $pm->get($id);
+        if (!$existing) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Página não encontrada']);
+            break;
+        }
+        Auth::requirePageAccess($existing);
+
         $data = [];
         if (isset($_POST['name'])) $data['name'] = $_POST['name'];
         if (isset($_POST['status'])) $data['status'] = $_POST['status'];

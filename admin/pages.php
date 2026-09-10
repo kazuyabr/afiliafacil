@@ -8,7 +8,8 @@ require_once Config::getLibDir() . '/CloneValidator.php';
 Auth::requireAuth();
 
 $pm = new PageManager();
-$pages = $pm->list();
+$user = Auth::user();
+$pages = Auth::isAdmin() ? $pm->list() : $pm->listByUser((int)$user['id']);
 $theme = $_SESSION['theme'] ?? 'light';
 
 $action = $_GET['action'] ?? '';
@@ -19,6 +20,10 @@ if ($action === 'edit') {
     if (!$editPage) {
         header('Location: /admin/pages.php');
         exit;
+    }
+    if (!Auth::canAccessPage($editPage)) {
+        http_response_code(403);
+        die('Sem acesso a esta página');
     }
 }
 

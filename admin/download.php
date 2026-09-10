@@ -11,7 +11,13 @@ $id = (int)($_GET['id'] ?? 0);
 $page = $pm->get($id);
 
 if (!$page || empty($page['html'])) {
+    http_response_code(404);
     die('Página não encontrada');
+}
+
+if (!Auth::canAccessPage($page)) {
+    http_response_code(403);
+    die('Sem acesso a esta página');
 }
 
 $zipBuilder = new ZipBuilder();

@@ -32,6 +32,11 @@ function getPageOrFail(int $id): array
         echo json_encode(['error' => 'Página não encontrada']);
         exit;
     }
+    if (!Auth::canAccessPage($page)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Sem acesso a esta página']);
+        exit;
+    }
     return $page;
 }
 

@@ -25,6 +25,27 @@ class PageManager
         return $this->read();
     }
 
+    public function listByUser(int $userId): array
+    {
+        if (Database::available()) {
+            return \AfiliaFacil\Models\Page::where('user_id', $userId)->orderBy('created_at', 'asc')->get()
+                ->map(fn($p) => $this->toArray($p, false))
+                ->all();
+        }
+        return array_values(array_filter($this->read(), fn($p) => ($p['user_id'] ?? 1) === $userId));
+    }
+
+    public function getStatsByUser(int $userId): array
+    {
+        $pages = $this->listByUser($userId);
+        return [
+            'total' => count($pages),
+            'active' => count(array_filter($pages, fn($p) => $p['status'] === 'active')),
+            'draft' => count(array_filter($pages, fn($p) => $p['status'] === 'draft')),
+            'total_views' => array_sum(array_column($pages, 'views')),
+        ];
+    }
+
     public function get(int $id): ?array
     {
         if (Database::available()) {

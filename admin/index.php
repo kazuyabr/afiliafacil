@@ -6,8 +6,8 @@ require_once Config::getLibDir() . '/PageManager.php';
 Auth::requireAuth();
 
 $pm = new PageManager();
-$stats = $pm->getStats();
 $user = Auth::user();
+$stats = Auth::isAdmin() ? $pm->getStats() : $pm->getStatsByUser((int)$user['id']);
 $theme = $_SESSION['theme'] ?? 'light';
 ?>
 <!DOCTYPE html>
@@ -103,7 +103,7 @@ $theme = $_SESSION['theme'] ?? 'light';
                         </div>
                         <div class="card-body">
                             <?php
-                            $pages = $pm->list();
+                            $pages = Auth::isAdmin() ? $pm->list() : $pm->listByUser((int)$user['id']);
                             $recent = array_slice(array_reverse($pages), 0, 5);
                             if (empty($recent)):
                             ?>

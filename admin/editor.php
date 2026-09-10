@@ -19,6 +19,10 @@ if (!$page) {
     header('Location: /admin/pages.php');
     exit;
 }
+if (!Auth::canAccessPage($page)) {
+    http_response_code(403);
+    die('Sem acesso a esta página');
+}
 
 $theme = $_SESSION['theme'] ?? 'light';
 $cmTheme = $theme === 'dark' ? 'material-darker' : 'default';

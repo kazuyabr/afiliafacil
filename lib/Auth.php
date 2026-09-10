@@ -242,6 +242,22 @@ class Auth
         return self::isAdmin();
     }
 
+    public static function canAccessPage(array $page): bool
+    {
+        if (self::isAdmin()) return true;
+        return (int)($page['user_id'] ?? 0) === (int)($_SESSION['user_id'] ?? 0);
+    }
+
+    public static function requirePageAccess(array $page): void
+    {
+        if (!self::canAccessPage($page)) {
+            http_response_code(403);
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode(['error' => 'Sem acesso a esta página']);
+            exit;
+        }
+    }
+
     public static function getUsers(): array
     {
         if (Database::available()) {
