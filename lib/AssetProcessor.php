@@ -8,7 +8,9 @@ class AssetProcessor
     private string $baseUrl;
     private array $downloaded = [];
     private array $cssMap = [];
-    private int $timeout = 15;
+    private array $failed = [];
+    private array $failedAssets = [];
+    private int $timeout = 30;
 
     public function __construct(string $sourceDomain)
     {
@@ -17,13 +19,26 @@ class AssetProcessor
         $this->baseUrl = "https://{$sourceDomain}";
     }
 
+    public function getFailedAssets(): array
+    {
+        return array_values(array_unique($this->failedAssets));
+    }
+
     public function processHtml(string $html): string
     {
         SafePcre::bootstrap();
         $html = $this->fixLazyLoading($html);
         $html = $this->downloadAndInlineCss($html);
+        $html = $this->inlineStyleTagUrls($html);
+        $html = $this->inlineInlineStyleUrls($html);
         $html = $this->downloadAndInlineScripts($html);
         $html = $this->rewriteImageUrls($html);
+        $html = $this->processSrcset($html);
+        $html = $this->processPictureSources($html);
+        $html = $this->processVideoPosters($html);
+        $html = $this->processDataAttributes($html);
+        $html = $this->processSvgImages($html);
+        $html = $this->processLinkAssets($html);
         $html = $this->fixBackgroundImages($html);
         $html = $this->addFontAwesomeCdn($html);
         $html = $this->addGoogleFontsCdn($html);
@@ -50,7 +65,7 @@ class AssetProcessor
 
         preg_match_all('/srcset=["\']([^"\']+)["\']/i', $html, $m);
         foreach ($m[1] ?? [] as $srcset) {
-            $parts = preg_split('/\s*,\s*/', $srcset);
+            $parts = self::splitSrcset($srcset);
             foreach ($parts as $part) {
                 $part = trim($part);
                 if (preg_match('/^(\S+)/', $part, $sm)) $allUrls[] = $sm[1];
@@ -237,16 +252,21 @@ class AssetProcessor
             }
             if (preg_match('/srcset=(["\'])([^"\']+)\1/i', $attrs, $ssm)) {
                 $srcset = $ssm[2];
-                $rewritten = SafePcre::replaceCallback('/(\S+)(\s+\S+)?,?/', function($part) use ($baseUrl, $sourceDomain) {
-                    $url = trim($part[1]);
-                    if (empty($url)) return $part[0];
-                    if (self::shouldProxyUrl($url, $sourceDomain)) {
-                        $dpr = $part[2] ?? '';
-                        return self::proxyUrlZip($url, $baseUrl) . $dpr . ',';
+                $rewritten = '';
+                foreach (self::splitSrcset($srcset) as $part) {
+                    $part = trim($part);
+                    if (!preg_match('/^(\S+)(\s+\S+)?$/', $part, $pm)) continue;
+                    $url = $pm[1];
+                    $dpr = $pm[2] ?? '';
+                    if (strpos($url, 'data:') === 0) {
+                        $rewritten .= $part . ', ';
+                    } elseif (self::shouldProxyUrl($url, $sourceDomain)) {
+                        $rewritten .= self::proxyUrlZip($url, $baseUrl) . $dpr . ', ';
+                    } else {
+                        $rewritten .= $part . ', ';
                     }
-                    return $part[0];
-                }, $srcset);
-                $tag = str_replace($ssm[0], 'srcset=' . $ssm[1] . rtrim($rewritten, ',') . $ssm[1], $tag);
+                }
+                $tag = str_replace($ssm[0], 'srcset=' . $ssm[1] . rtrim($rewritten, ', ') . $ssm[1], $tag);
             }
             return $tag;
         }, $html);
@@ -408,12 +428,14 @@ class AssetProcessor
 
             if (preg_match('/srcset=(["\'])([^"\']+)\1/i', $attrs, $ssm)) {
                 $srcset = $ssm[2];
-                $parts = preg_split('/\s*,\s*/', $srcset);
+                $parts = self::splitSrcset($srcset);
                 $newParts = [];
                 foreach ($parts as $part) {
                     $part = trim($part);
                     if (preg_match('/^(\S+)(\s+\S+)?$/', $part, $pm)) {
-                        if (self::shouldProxyUrl($pm[1], $sourceDomain)) {
+                        if (strpos($pm[1], 'data:') === 0) {
+                            $newParts[] = $part;
+                        } elseif (self::shouldProxyUrl($pm[1], $sourceDomain)) {
                             $newParts[] = self::proxyUrl($pm[1], $baseUrl) . (isset($pm[2]) ? $pm[2] : '');
                         } else {
                             $newParts[] = $part;
@@ -526,11 +548,192 @@ class AssetProcessor
 
     private function fixLazyLoading(string $html): string
     {
-        $html = SafePcre::replace('/data-original-src="([^"]+)"/i', 'src="$1"', $html);
-        $html = SafePcre::replace('/data-lazy-src="([^"]+)"/i', 'src="$1"', $html);
-        $html = SafePcre::replace('/data-src="([^"]+)"/i', 'src="$1"', $html);
-        $html = SafePcre::replace('/loading="lazy"/i', 'loading="eager"', $html);
+        foreach (['data-original-src', 'data-lazy-src', 'data-src', 'data-lazy'] as $attr) {
+            $html = SafePcre::replaceCallback('/' . $attr . '=(["\'])([^"\']+)\1/i', function ($m) {
+                if (strpos($m[2], 'data:') === 0 || strpos($m[2], '#') === 0) return $m[0];
+                if (strpos($m[2], 'url(') === 0) return $m[0];
+                return 'src=' . $m[1] . $m[2] . $m[1];
+            }, $html);
+        }
+        $html = SafePcre::replace('/loading=["\']lazy["\']/i', 'loading="eager"', $html);
         return $html;
+    }
+
+    private function inlineStyleTagUrls(string $html): string
+    {
+        return SafePcre::replaceCallback('/<style\b([^>]*)>(.*?)<\/style>/is', function ($m) {
+            $attrs = $m[1];
+            $css = $this->rewriteCssUrlsInline($m[2]);
+            return '<style' . $attrs . '>' . $css . '</style>';
+        }, $html);
+    }
+
+    private function inlineInlineStyleUrls(string $html): string
+    {
+        return SafePcre::replaceCallback('/style=(["\'])([^"\']*)\1/i', function ($m) {
+            $quote = $m[1];
+            $css = $this->rewriteCssUrlsInline($m[2]);
+            return 'style=' . $quote . $css . $quote;
+        }, $html);
+    }
+
+    private function rewriteCssUrlsInline(string $css): string
+    {
+        $css = SafePcre::replaceCallback('/url\(\s*([\'"]?)([^\'")\s]+)\1\s*\)/i', function ($m) {
+            $url = $m[2];
+            if (strpos($url, 'data:') === 0 || strpos($url, '#') === 0) return $m[0];
+            $resolved = $this->resolveUrl($url);
+            if (strpos($resolved, $this->baseUrl) !== 0) return $m[0];
+            $local = $this->downloadAsset($resolved);
+            if ($local) return 'url(' . $local . ')';
+            return 'url(' . $resolved . ')';
+        }, $css);
+
+        $css = SafePcre::replaceCallback('/image-set\((.*?)\)/is', function ($m) {
+            $inner = $m[1];
+            $inner = SafePcre::replaceCallback('/url\(\s*([\'"]?)([^\'")\s]+)\1\s*\)/i', function ($um) {
+                $url = $um[2];
+                if (strpos($url, 'data:') === 0) return $um[0];
+                $resolved = $this->resolveUrl($url);
+                if (strpos($resolved, $this->baseUrl) !== 0) return $um[0];
+                $local = $this->downloadAsset($resolved);
+                return $local ? 'url(' . $local . ')' : $um[0];
+            }, $inner);
+            return 'image-set(' . $inner . ')';
+        }, $css);
+
+        return $css;
+    }
+
+    private function processSrcset(string $html): string
+    {
+        return SafePcre::replaceCallback('/\bsrcset=(["\'])([^"\']+)\1/i', function ($m) {
+            $quote = $m[1];
+            $parts = self::splitSrcset($m[2]);
+            $out = [];
+            foreach ($parts as $part) {
+                $part = trim($part);
+                if ($part === '') continue;
+                if (!preg_match('/^(\S+)(\s+\S+)?$/', $part, $pm)) continue;
+                $url = $pm[1];
+                $descriptor = $pm[2] ?? '';
+                if (strpos($url, 'data:') === 0) { $out[] = $part; continue; }
+                $resolved = $this->resolveUrl($url);
+                if (strpos($resolved, $this->baseUrl) !== 0) { $out[] = $part; continue; }
+                $local = $this->downloadAsset($resolved);
+                $out[] = ($local ?: $resolved) . $descriptor;
+            }
+            return 'srcset=' . $quote . implode(', ', $out) . $quote;
+        }, $html);
+    }
+
+    public static function splitSrcset(string $srcset): array
+    {
+        $parts = [];
+        $current = '';
+        $inData = false;
+        $len = strlen($srcset);
+
+        for ($i = 0; $i < $len; $i++) {
+            $ch = $srcset[$i];
+
+            if (!$inData && substr($srcset, $i, 5) === 'data:') {
+                $inData = true;
+            }
+
+            if ($ch === ',') {
+                $next = $i + 1 < $len ? $srcset[$i + 1] : ' ';
+                if ($inData && $next !== ' ' && $next !== "\t" && $next !== "\n" && $next !== "\r") {
+                    $current .= $ch;
+                    continue;
+                }
+                $parts[] = trim($current);
+                $current = '';
+                $inData = false;
+                continue;
+            }
+
+            $current .= $ch;
+        }
+
+        if (trim($current) !== '') $parts[] = trim($current);
+        return $parts;
+    }
+
+    private function processPictureSources(string $html): string
+    {
+        return SafePcre::replaceCallback('/<source\b([^>]*?)src=(["\'])([^"\']+)\2([^>]*)>/i', function ($m) {
+            $url = $m[3];
+            if (strpos($url, 'data:') === 0) return $m[0];
+            $resolved = $this->resolveUrl($url);
+            if (strpos($resolved, $this->baseUrl) !== 0) return $m[0];
+            $local = $this->downloadAsset($resolved);
+            if (!$local) return $m[0];
+            return '<source' . $m[1] . 'src=' . $m[2] . $local . $m[2] . $m[4] . '>';
+        }, $html);
+    }
+
+    private function processVideoPosters(string $html): string
+    {
+        return SafePcre::replaceCallback('/\bposter=(["\'])([^"\']+)\1/i', function ($m) {
+            $url = $m[2];
+            if (strpos($url, 'data:') === 0) return $m[0];
+            $resolved = $this->resolveUrl($url);
+            if (strpos($resolved, $this->baseUrl) !== 0) return $m[0];
+            $local = $this->downloadAsset($resolved);
+            if (!$local) return 'poster=' . $m[1] . $resolved . $m[1];
+            return 'poster=' . $m[1] . $local . $m[1];
+        }, $html);
+    }
+
+    private function processDataAttributes(string $html): string
+    {
+        return SafePcre::replaceCallback('/\b(data-(?:bg|background|original|lazy|src|image))=(["\'])([^"\']+)\2/i', function ($m) {
+            $attr = $m[1];
+            $quote = $m[2];
+            $value = $m[3];
+            if (strpos($value, 'data:') === 0 || strpos($value, '#') === 0) return $m[0];
+            if (strpos($value, 'url(') === 0) return $m[0];
+            $resolved = $this->resolveUrl($value);
+            if (strpos($resolved, $this->baseUrl) !== 0) return $m[0];
+            $local = $this->downloadAsset($resolved);
+            if (!$local) return $m[0];
+            return $attr . '=' . $quote . $local . $quote;
+        }, $html);
+    }
+
+    private function processSvgImages(string $html): string
+    {
+        return SafePcre::replaceCallback('/<(?:image|use)\b([^>]*?)(?:xlink:href|href)=(["\'])([^"\']+)\2([^>]*)>/i', function ($m) {
+            $url = $m[3];
+            if (strpos($url, 'data:') === 0 || strpos($url, '#') === 0) return $m[0];
+            $resolved = $this->resolveUrl($url);
+            if (strpos($resolved, $this->baseUrl) !== 0) return $m[0];
+            $local = $this->downloadAsset($resolved);
+            if (!$local) return $m[0];
+            return str_replace($m[3], $local, $m[0]);
+        }, $html);
+    }
+
+    private function processLinkAssets(string $html): string
+    {
+        return SafePcre::replaceCallback('/<link\b([^>]*)>/i', function ($m) {
+            $tag = $m[0];
+            $attrs = $m[1];
+            $isIcon = preg_match('/rel=(["\'])(?:icon|shortcut icon|apple-touch-icon|mask-icon)\1/i', $attrs);
+            $isPreloadAsset = preg_match('/rel=(["\'])preload\1/i', $attrs) && preg_match('/as=(["\'])(?:image|font)\1/i', $attrs);
+            if (!$isIcon && !$isPreloadAsset) return $tag;
+            if (preg_match('/href=(["\'])([^"\']+)\1/i', $attrs, $hm)) {
+                $url = $hm[2];
+                if (strpos($url, 'data:') === 0) return $tag;
+                $resolved = $this->resolveUrl($url);
+                if (strpos($resolved, $this->baseUrl) !== 0) return $tag;
+                $local = $this->downloadAsset($resolved);
+                if (!$local) return $tag;
+                $tag = str_replace($hm[0], 'href=' . $hm[1] . $local . $hm[1], $tag);
+            }
+            return $tag;
+        }, $html);
     }
 
     private function downloadAndInlineCss(string $html): string
@@ -699,25 +902,47 @@ class AssetProcessor
     private function fetchUrl(string $url): ?string
     {
         if (isset($this->downloaded[$url])) return $this->downloaded[$url];
+        if (isset($this->failed[$url])) return null;
 
+        $content = null;
+        for ($attempt = 1; $attempt <= 2 && $content === null; $attempt++) {
+            $content = $this->curlFetch($url);
+        }
+
+        if ($content === null) {
+            $this->failed[$url] = true;
+            $this->failedAssets[] = $url;
+            return null;
+        }
+
+        $this->downloaded[$url] = $content;
+        return $content;
+    }
+
+    private function curlFetch(string $url): ?string
+    {
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS => 3,
+            CURLOPT_MAXREDIRS => 5,
             CURLOPT_TIMEOUT => $this->timeout,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => 0,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            CURLOPT_REFERER => 'https://' . $this->sourceDomain . '/',
+            CURLOPT_HTTPHEADER => [
+                'Accept: */*',
+                'Accept-Language: pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            ],
         ]);
         $content = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
         if ($content === false || $httpCode >= 400) return null;
-        $this->downloaded[$url] = $content;
         return $content;
     }
 

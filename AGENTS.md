@@ -79,7 +79,11 @@ afiliafacil/
 ## Notas de arquitetura
 
 - **proxy.php**: obrigatório na raiz (rota `/proxy.php` no router) — o preview e o ZIP reescrevem TODOS os assets para `proxy.php?url=...`; sem ele tudo retorna 404. Versão do ZIP é gerada por `ZipBuilder::getProxyScript()`.
+- **proxy.php Range/streaming**: vídeo/áudio usam streaming com suporte a `Range` (206/Content-Range/Accept-Ranges) — headers definidos ANTES do curl_exec (modo mídia ecoa o body, não pode setar header depois). `Content-Range`/`Content-Length` vêm do header callback.
+- **Variantes de mídia cobertas no clone** (`processHtml`): `<img src>`, `srcset` (img/source), `<source src>`, `poster`, `style=""` inline, `<style>` tags, `image-set()`, `data-bg`/`data-background`/`data-lazy`/`data-src` (aspas simples e duplas), SVG `<image href>`, favicon/apple-touch-icon/preload(as=image|font). Falhas são registradas em `failed_assets` e exibidas na edição da página.
+- **splitSrcset**: NUNCA usar `preg_split` por vírgula em `srcset` — data URIs contêm vírgula (`base64,`); usar `AssetProcessor::splitSrcset()` (heurística: vírgula de data URI não é seguida de espaço).
 - **Preservação de aspas nas reescritas**: as funções `rewrite*` do `AssetProcessor` capturam o tipo de aspas original (`href=(["'])(...)\1`) e reusam na substituição — NUNCA forçar aspas duplas (quebrava JS inline tipo `x("<div style='...'>")` do jQuery UI → SyntaxError). `url()` em CSS é emitido sem quotes.
+- **Download robusto**: `fetchUrl` faz 2 tentativas com `Referer` do domínio fonte, timeout 30s — destrava hotlink/instabilidade. Falhas vão para `getFailedAssets()`.
 - **PCRE seguro**: `lib/SafePcre.php` — TODO uso de `preg_replace`/`preg_replace_callback` no clonador/preview/ZIP passa por `SafePcre::replace`/`SafePcre::replaceCallback` (retorna o subject original quando o PCRE estoura backtrack/JIT limit — evita TypeError fatal em páginas com `<style>` gigantes) + `SafePcre::bootstrap()` eleva limites (`pcre.backtrack_limit=50M`, `pcre.jit=0`). Nunca voltar a usar preg_* direto nesses fluxos.
 
 - **Preview vs ZIP**: ambos usam `AssetProcessor::rewriteForPreview()` / `rewriteForZip()` → URLs reescritas para `proxy.php?url=...` — o ZIP inclui um `proxy.php` local próprio. NÃO mudar a abordagem do preview (funciona perfeitamente como está).

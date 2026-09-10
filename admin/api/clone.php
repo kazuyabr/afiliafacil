@@ -125,6 +125,7 @@ function processAndSave(string $html, string $affiliateLink, string $sourceUrlOr
         'type' => 'clone',
         'html' => $result['html'],
         'source_domain' => $sourceDomain,
+        'failed_assets' => $result['failed_assets'] ?? [],
         'affiliate_link' => $affiliateLink,
         'status' => 'active',
     ]);

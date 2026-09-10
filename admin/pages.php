@@ -69,6 +69,28 @@ if ($action === 'new') {
                         </div>
                     </div>
 
+                    <?php
+                    $failedAssets = $editPage['failed_assets'] ?? [];
+                    if (!empty($failedAssets)):
+                    ?>
+                    <div class="alert alert-warning" style="margin-bottom:24px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                            <div>
+                                <strong><i class="fas fa-exclamation-triangle"></i> <?= count($failedAssets) ?> mídia(s) não puderam ser copiadas na clonagem</strong>
+                                <p style="margin-top:4px;font-size:.85rem;">Elas continuam apontando para o site original (podem quebrar se a origem sair do ar). Verifique os links abaixo:</p>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('failedAssetsList').style.display = document.getElementById('failedAssetsList').style.display === 'none' ? 'block' : 'none'">
+                                <i class="fas fa-list"></i> Ver lista
+                            </button>
+                        </div>
+                        <div id="failedAssetsList" style="display:none;margin-top:12px;max-height:200px;overflow-y:auto;">
+                            <?php foreach ($failedAssets as $fa): ?>
+                            <div style="font-family:monospace;font-size:.72rem;word-break:break-all;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.08);"><?= htmlspecialchars($fa) ?></div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
                     <div class="card" style="margin-bottom:24px;">
                         <div class="card-header"><h3><i class="fas fa-cog"></i> Informações da página</h3></div>
                         <div class="card-body">

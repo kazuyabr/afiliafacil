@@ -20,11 +20,13 @@ class Cloner
     {
         SafePcre::bootstrap();
         $originalSize = strlen($html);
+        $failedAssets = [];
 
         $sourceDomain = $this->extractDomain($html);
         if (!empty($sourceDomain)) {
             $processor = new AssetProcessor($sourceDomain);
             $html = $processor->processHtml($html);
+            $failedAssets = $processor->getFailedAssets();
         }
 
         $html = $this->detectAndReplaceCtas($html, $affiliateLink);
@@ -40,6 +42,7 @@ class Cloner
             'mode' => $mode,
             'affiliate_link' => $affiliateLink,
             'source_domain' => $sourceDomain,
+            'failed_assets' => $failedAssets,
             'created_at' => date('Y-m-d H:i:s'),
         ];
     }

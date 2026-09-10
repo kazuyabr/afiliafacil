@@ -225,35 +225,42 @@ echo $response;
     {
         $counter = 0;
 
-        $html = SafePcre::replaceCallback('/url\([\'"]data:([^;]+);base64,([A-Za-z0-9+\/=]+)[\'"]\)/i', function($m) use ($assetsDir, &$counter) {
-            $mime = $m[1];
-            $data = base64_decode($m[2]);
-            if ($data === false) return $m[0];
-
+        $save = function (string $mime, string $b64) use ($assetsDir, &$counter): ?string {
+            $data = base64_decode($b64);
+            if ($data === false) return null;
             $ext = $this->mimeToExt($mime);
             $filename = 'asset_' . (++$counter) . '.' . $ext;
-            $filepath = $assetsDir . DIRECTORY_SEPARATOR . $filename;
-            file_put_contents($filepath, $data);
+            file_put_contents($assetsDir . DIRECTORY_SEPARATOR . $filename, $data);
+            return $filename;
+        };
 
+        $html = SafePcre::replaceCallback('/url\(\s*([\'"]?)data:([^;]+);base64,([A-Za-z0-9+\/=]+)\1\s*\)/i', function($m) use ($save) {
+            $filename = $save($m[2], $m[3]);
+            if ($filename === null) return $m[0];
             return "url('assets/{$filename}')";
         }, $html);
 
-        $html = SafePcre::replaceCallback('/<style[^>]*>(.*?)<\/style>/is', function($m) use ($assetsDir, &$counter) {
-            $css = $m[1];
-            $css = SafePcre::replaceCallback('/url\([\'"]data:([^;]+);base64,([A-Za-z0-9+\/=]+)[\'"]\)/i', function($mm) use ($assetsDir, &$counter) {
-                $mime = $mm[1];
-                $data = base64_decode($mm[2]);
-                if ($data === false) return $mm[0];
+        $html = SafePcre::replaceCallback('/\b(src|poster|data-bg|data-background|data-src|data-original|data-lazy|data-original-src|data-lazy-src)=(["\'])data:([^;]+);base64,([A-Za-z0-9+\/=]+)\2/i', function($m) use ($save) {
+            $filename = $save($m[3], $m[4]);
+            if ($filename === null) return $m[0];
+            return $m[1] . '=' . $m[2] . 'assets/' . $filename . $m[2];
+        }, $html);
 
-                $ext = $this->mimeToExt($mime);
-                $filename = 'asset_' . (++$counter) . '.' . $ext;
-                $filepath = $assetsDir . DIRECTORY_SEPARATOR . $filename;
-                file_put_contents($filepath, $data);
-
-                return "url('assets/{$filename}')";
-            }, $css);
-
-            return "<style{$m[0]}>{$css}</style>";
+        $html = SafePcre::replaceCallback('/\bsrcset=(["\'])([^"\']+)\1/i', function($m) use ($save) {
+            $parts = AssetProcessor::splitSrcset($m[2]);
+            $out = [];
+            foreach ($parts as $part) {
+                $trimmed = trim($part);
+                if (preg_match('/^data:([^;]+);base64,([A-Za-z0-9+\/=]+)(\s+\S+)?$/i', $trimmed, $pm)) {
+                    $filename = $save($pm[1], $pm[2]);
+                    if ($filename !== null) {
+                        $out[] = 'assets/' . $filename . ($pm[3] ?? '');
+                        continue;
+                    }
+                }
+                $out[] = $trimmed;
+            }
+            return 'srcset=' . $m[1] . implode(', ', $out) . $m[1];
         }, $html);
 
         return $html;
@@ -263,8 +270,9 @@ echo $response;
     {
         $counter = 0;
 
-        $html = SafePcre::replaceCallback('/<style[^>]*data-cloned="true"[^>]*>(.*?)<\/style>/is', function($m) use ($assetsDir, &$counter) {
-            $css = $m[1];
+        $html = SafePcre::replaceCallback('/<style\b([^>]*)data-cloned="true"([^>]*)>(.*?)<\/style>/is', function($m) use ($assetsDir, &$counter) {
+            $attrs = $m[1] . $m[2];
+            $css = $m[3];
             $filename = 'style_' . (++$counter) . '.css';
             $filepath = $assetsDir . DIRECTORY_SEPARATOR . $filename;
             file_put_contents($filepath, $css);

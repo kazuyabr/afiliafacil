@@ -37,6 +37,7 @@ class PageManager
             'html' => $data['html'] ?? '',
             'source_domain' => $data['source_domain'] ?? '',
             'affiliate_link' => $data['affiliate_link'] ?? '',
+            'failed_assets' => $data['failed_assets'] ?? [],
             'domain' => $data['domain'] ?? '',
             'views' => 0,
             'created_at' => date('Y-m-d H:i:s'),
