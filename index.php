@@ -11,11 +11,12 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
-    if (Auth::attempt($email, $password)) {
+    $result = Auth::attemptWithThrottle($email, $password);
+    if ($result['ok']) {
         header('Location: /admin/');
         exit;
     }
-    $error = 'E-mail ou senha incorretos.';
+    $error = $result['error'] ?? 'E-mail ou senha incorretos.';
 }
 ?>
 <!DOCTYPE html>

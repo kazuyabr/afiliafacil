@@ -65,6 +65,11 @@
             <i class="fas fa-hand-holding-usd"></i> Pagamentos
         </a>
         <?php endif; ?>
+        <?php if (Auth::can('manage_settings')): ?>
+        <a href="/admin/audit.php" class="nav-item <?= $currentPage === 'audit.php' ? 'active' : '' ?>">
+            <i class="fas fa-clipboard-list"></i> Auditoria
+        </a>
+        <?php endif; ?>
         <?php endif; ?>
 
         <div class="nav-section">Conta</div>

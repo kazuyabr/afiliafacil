@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/Database.php';
+require_once Config::getLibDir() . '/Audit.php';
 
 use AfiliaFacil\Models\User;
 use AfiliaFacil\Models\Role;
@@ -82,6 +83,7 @@ switch ($action) {
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
 
+        Audit::log('user_created', 'user', (string)$user->id, ['email' => $email, 'role_id' => $roleId, 'plan' => $plan]);
         echo json_encode(['success' => true, 'id' => $user->id]);
         break;
 
@@ -125,6 +127,7 @@ switch ($action) {
         }
         $user->save();
 
+        Audit::log('user_updated', 'user', (string)$id, ['email' => $email, 'role_id' => $roleId, 'plan' => $plan]);
         echo json_encode(['success' => true]);
         break;
 
@@ -141,6 +144,7 @@ switch ($action) {
         }
         $user->active = !$user->active;
         $user->save();
+        Audit::log($user->active ? 'user_activated' : 'user_deactivated', 'user', (string)$id);
         echo json_encode(['success' => true, 'active' => (bool)$user->active]);
         break;
 
@@ -159,6 +163,7 @@ switch ($action) {
             echo json_encode(['error' => 'Você não pode excluir sua própria conta']);
             break;
         }
+        Audit::log('user_deleted', 'user', (string)$id, ['email' => $user->email]);
         $user->delete();
         echo json_encode(['success' => true]);
         break;

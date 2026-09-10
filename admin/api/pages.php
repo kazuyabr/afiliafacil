@@ -5,6 +5,7 @@ require_once Config::getLibDir() . '/PageManager.php';
 require_once Config::getLibDir() . '/Database.php';
 require_once Config::getLibDir() . '/Crypto.php';
 require_once Config::getLibDir() . '/R2Storage.php';
+require_once Config::getLibDir() . '/Audit.php';
 
 header('Content-Type: application/json');
 
@@ -74,6 +75,7 @@ switch ($action) {
             }
         }
 
+        Audit::log('page_deleted', 'page', (string)$id, ['name' => $page['name'] ?? '']);
         $pm->delete($id);
         echo json_encode(['success' => true]);
         break;

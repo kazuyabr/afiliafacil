@@ -34,6 +34,7 @@ $routes = [
     '/admin/roles.php' => '/admin/roles.php',
     '/admin/pricing.php' => '/admin/pricing.php',
     '/admin/storage.php' => '/admin/storage.php',
+    '/admin/audit.php' => '/admin/audit.php',
     '/admin/preview.php' => '/admin/preview.php',
     '/admin/download.php' => '/admin/download.php',
     '/admin/editor.php' => '/admin/editor.php',

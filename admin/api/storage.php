@@ -6,6 +6,7 @@ require_once Config::getLibDir() . '/Crypto.php';
 require_once Config::getLibDir() . '/R2Storage.php';
 require_once Config::getLibDir() . '/MediaOptimizer.php';
 require_once Config::getLibDir() . '/PageManager.php';
+require_once Config::getLibDir() . '/Audit.php';
 
 use AfiliaFacil\Models\StorageConfig;
 
@@ -104,6 +105,7 @@ switch ($action) {
             StorageConfig::create($data);
         }
 
+        Audit::log('storage_saved', 'storage', (string)$userId, ['media_mode' => $data['media_mode'], 'enabled' => $data['enabled']]);
         echo json_encode(['success' => true]);
         break;
 

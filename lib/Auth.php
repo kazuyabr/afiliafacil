@@ -3,6 +3,7 @@ session_start();
 
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Settings.php';
+require_once __DIR__ . '/Audit.php';
 
 class Auth
 {
@@ -80,8 +81,36 @@ class Auth
 
     public static function attempt(string $email, string $password): bool
     {
+        return self::attemptWithThrottle($email, $password)['ok'];
+    }
+
+    public const MAX_LOGIN_ATTEMPTS = 5;
+    public const LOGIN_WINDOW_MINUTES = 15;
+
+    public static function attemptWithThrottle(string $email, string $password): array
+    {
         $email = strtolower(trim($email));
 
+        if (self::isThrottled($email)) {
+            Audit::log('login_blocked', 'user', $email, ['reason' => 'rate_limit']);
+            return ['ok' => false, 'error' => 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.'];
+        }
+
+        $authenticated = self::verifyCredentials($email, $password);
+
+        if ($authenticated) {
+            self::recordAttempt($email, true);
+            Audit::log('login', 'user', $email);
+            return ['ok' => true, 'error' => null];
+        }
+
+        self::recordAttempt($email, false);
+        Audit::log('login_failed', 'user', $email);
+        return ['ok' => false, 'error' => null];
+    }
+
+    private static function verifyCredentials(string $email, string $password): bool
+    {
         if (Database::available()) {
             $user = \AfiliaFacil\Models\User::where('email', $email)->first();
             if (!$user || !$user->active) return false;
@@ -97,6 +126,44 @@ class Auth
             }
         }
         return false;
+    }
+
+    private static function isThrottled(string $email): bool
+    {
+        if (!Database::available()) return false;
+
+        try {
+            $since = date('Y-m-d H:i:s', time() - self::LOGIN_WINDOW_MINUTES * 60);
+            $count = \AfiliaFacil\Models\LoginAttempt::where('email', $email)
+                ->where('success', false)
+                ->where('created_at', '>=', $since)
+                ->count();
+            return $count >= self::MAX_LOGIN_ATTEMPTS;
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    private static function recordAttempt(string $email, bool $success): void
+    {
+        if (!Database::available()) return;
+
+        try {
+            \AfiliaFacil\Models\LoginAttempt::create([
+                'email' => $email,
+                'ip' => Audit::clientIp(),
+                'success' => $success,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            if ($success) {
+                \AfiliaFacil\Models\LoginAttempt::where('email', $email)
+                    ->where('success', false)
+                    ->where('created_at', '<', date('Y-m-d H:i:s', time() - 24 * 3600))
+                    ->delete();
+            }
+        } catch (Throwable $e) {
+        }
     }
 
     private static function userToArray($user): array
@@ -151,6 +218,8 @@ class Auth
 
     public static function setPlan(int $userId, string $plan): bool
     {
+        $result = false;
+
         if (Database::available()) {
             $user = \AfiliaFacil\Models\User::find($userId);
             if (!$user) return false;
@@ -161,25 +230,30 @@ class Auth
             if ($userId === (int)($_SESSION['user_id'] ?? 0)) {
                 $_SESSION['user_plan'] = $plan;
             }
-            return true;
+            $result = true;
+        } else {
+            $users = self::getUsers();
+            foreach ($users as &$user) {
+                if ($user['id'] === $userId) {
+                    $user['plan'] = $plan;
+                    $result = true;
+                    break;
+                }
+            }
+            unset($user);
+            if ($result) {
+                self::writeUsers($users);
+                if ($userId === (int)($_SESSION['user_id'] ?? 0)) {
+                    $_SESSION['user_plan'] = $plan;
+                }
+            }
         }
 
-        $users = self::getUsers();
-        $updated = false;
-        foreach ($users as &$user) {
-            if ($user['id'] === $userId) {
-                $user['plan'] = $plan;
-                $updated = true;
-                break;
-            }
+        if ($result) {
+            Audit::log('plan_changed', 'user', (string)$userId, ['plan' => $plan]);
         }
-        if ($updated) {
-            self::writeUsers($users);
-            if ($userId === (int)($_SESSION['user_id'] ?? 0)) {
-                $_SESSION['user_plan'] = $plan;
-            }
-        }
-        return $updated;
+
+        return $result;
     }
 
     public static function logout(): void

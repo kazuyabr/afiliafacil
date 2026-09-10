@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/Database.php';
 require_once Config::getLibDir() . '/ImportJsonData.php';
+require_once Config::getLibDir() . '/Audit.php';
 
 use AfiliaFacil\Models\Role;
 
@@ -73,6 +74,7 @@ switch ($action) {
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
 
+        Audit::log('role_created', 'role', (string)$role->id, ['name' => $name]);
         echo json_encode(['success' => true, 'id' => $role->id]);
         break;
 
@@ -97,6 +99,7 @@ switch ($action) {
         $role->updated_at = date('Y-m-d H:i:s');
         $role->save();
 
+        Audit::log('role_updated', 'role', (string)$id);
         echo json_encode(['success' => true]);
         break;
 
@@ -115,6 +118,7 @@ switch ($action) {
             echo json_encode(['error' => 'Existem usuários com este cargo. Reatribua-os antes de excluir.']);
             break;
         }
+        Audit::log('role_deleted', 'role', (string)$id, ['name' => $role->name]);
         $role->delete();
         echo json_encode(['success' => true]);
         break;

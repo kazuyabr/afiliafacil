@@ -44,6 +44,8 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 
 - **Isolamento de dados (app)**: `Auth::canAccessPage()`/`requirePageAccess()` — páginas só são acessíveis pelo dono ou admin (aplicado em pages/preview/download/editor/APIs); listagem e stats filtradas por usuário (`PageManager::listByUser`)
 - **Roles Postgres (least privilege)**: runtime conecta com `afiliafacil_app` (sem DDL — só DML + sequences); migrações usam o owner via `DB_MIGRATION_USER`/`DB_MIGRATION_PASSWORD`. A role é criada/atualizada no boot por `bin/migrate.php` (`DB_APP_USER`/`DB_APP_PASSWORD`)
+- **Rate limiting no login**: 5 falhas/15min por e-mail → bloqueio temporário (tabela `login_attempts`); mensagem exibida no login
+- **Auditoria**: tabela `audit_log` + `Audit::log()` — registra login/ok/falha/bloqueio, mudanças de plano, edição de preços, exclusão de página, CRUD de usuários/cargos e storage; tela `/admin/audit.php` (permissão `manage_settings`)
 - **Produção**: use `DATABASE_URL` com `sslmode=require` e senhas fortes via secrets (nunca os defaults de dev)
 - RLS não implementado (decisão de escopo — isolamento é feito na app + role restrita)
 

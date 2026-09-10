@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/Database.php';
 require_once Config::getLibDir() . '/Plans.php';
+require_once Config::getLibDir() . '/Audit.php';
 
 use AfiliaFacil\Models\Plan;
 use AfiliaFacil\Models\PlanPrice;
@@ -82,6 +83,7 @@ switch ($action) {
         }
 
         Plans::refresh();
+        Audit::log('pricing_updated', 'plan', (string)$plan->id);
         echo json_encode(['success' => true]);
         break;
 
