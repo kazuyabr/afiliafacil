@@ -1,0 +1,19 @@
+{
+    "name": "afiliafacil/app",
+    "description": "AfiliaFacil - plataforma de páginas para afiliados",
+    "type": "project",
+    "require": {
+        "php": ">=8.2",
+        "illuminate/database": "^10.0",
+        "robmorgan/phinx": "^0.16"
+    },
+    "autoload": {
+        "psr-4": {
+            "AfiliaFacil\\Models\\": "lib/Models/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}

@@ -41,17 +41,7 @@ class Checkout
         $payload = self::pixPayload($key, $amount, $reference);
 
         $p = new Payments();
-        $found = $p->get($payment['id']);
-        if ($found) {
-            $payments = $p->all();
-            foreach ($payments as &$pay) {
-                if ($pay['id'] === $payment['id']) {
-                    $pay['payload'] = $payload;
-                    break;
-                }
-            }
-            file_put_contents(Config::getDataDir() . '/payments.json', json_encode($payments, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-        }
+        $p->setPayload($payment['id'], $payload);
 
         return [
             'type' => 'pix',

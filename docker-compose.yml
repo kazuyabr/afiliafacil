@@ -1,4 +1,19 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=afiliafacil
+      - POSTGRES_USER=afiliafacil
+      - POSTGRES_PASSWORD=change-me
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U afiliafacil"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    container_name: afiliafacil-db
+
   app:
     build: .
     ports:
@@ -11,5 +26,16 @@ services:
       - .env
     environment:
       - DOCKER=true
-      - CHECKOUT_DRIVER=pix
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=afiliafacil
+      - DB_USERNAME=afiliafacil
+      - DB_PASSWORD=change-me
+    depends_on:
+      db:
+        condition: service_healthy
     container_name: afiliafacil
+
+volumes:
+  db_data:

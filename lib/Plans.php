@@ -1,4 +1,7 @@
 <?php
+
+require_once __DIR__ . '/Database.php';
+
 class Plans
 {
     public const PLANS = [
@@ -77,9 +80,54 @@ class Plans
         'annual' => 'Anual',
     ];
 
+    private static ?array $dbPlans = null;
+
+    private static function loadFromDb(): void
+    {
+        if (self::$dbPlans !== null) return;
+        self::$dbPlans = [];
+
+        if (!Database::available()) return;
+
+        try {
+            foreach (\AfiliaFacil\Models\Plan::with('prices')->get() as $plan) {
+                $cycles = [];
+                foreach ($plan->prices as $price) {
+                    $cycles[$price->cycle] = (int)$price->amount;
+                }
+                $cycles = $cycles ?: [];
+
+                self::$dbPlans[$plan->id] = [
+                    'name' => $plan->name,
+                    'price' => $cycles['monthly'] ?? 0,
+                    'cycles' => $cycles,
+                    'features' => $plan->features ?? [],
+                    'max_pages' => (int)$plan->max_pages,
+                    'max_domains' => (int)$plan->max_domains,
+                    'label' => $plan->label ?? '',
+                ];
+            }
+        } catch (Throwable $e) {
+            self::$dbPlans = [];
+        }
+    }
+
+    public static function all(): array
+    {
+        self::loadFromDb();
+        if (empty(self::$dbPlans)) return self::PLANS;
+
+        $merged = self::$dbPlans;
+        foreach (['trial_expired'] as $extra) {
+            if (!isset($merged[$extra])) $merged[$extra] = self::PLANS[$extra];
+        }
+        return $merged;
+    }
+
     public static function get(string $plan): array
     {
-        return self::PLANS[$plan] ?? self::PLANS['trial_expired'];
+        $all = self::all();
+        return $all[$plan] ?? $all['trial_expired'] ?? self::PLANS['trial_expired'];
     }
 
     public static function planName(string $plan): string
@@ -118,5 +166,10 @@ class Plans
     public static function formatPrice(int $value): string
     {
         return 'R$ ' . number_format($value, 2, ',', '.');
+    }
+
+    public static function refresh(): void
+    {
+        self::$dbPlans = null;
     }
 }

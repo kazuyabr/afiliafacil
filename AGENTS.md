@@ -4,15 +4,26 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 
 ## Stack
 
-- **PHP 8.2** (sem framework, sem composer)
+- **PHP 8.2** (sem framework) + **Composer** (Eloquent ORM + Phinx migrations)
 - **Docker** — built-in PHP server, porta **9876** (única do projeto; verificar antes se está livre: `netstat -an | Select-String ":9876"`)
-- Dados em JSON (`data/`), páginas geradas em `pages/`, sem banco de dados
+- **PostgreSQL 16** (container `afiliafacil-db`) — default; MySQL suportado via `DB_CONNECTION=mysql`. Sem banco configurado → fallback JSON em `data/` (compatibilidade)
+- Páginas geradas em `pages/` (HTML em arquivo, metadados no banco), uploads em `uploads/`
+
+## Banco de dados (Eloquent + Phinx)
+
+- Config: `lib/Database.php` (env `DB_CONNECTION`/`DB_HOST`/... ou `DATABASE_URL`)
+- Migrations: `database/migrations/` (Phinx, `phinx.php`); rodam automaticamente no boot do container via `bin/migrate.php`
+- Import JSON→DB idempotente: `lib/ImportJsonData.php` (roles seed, planos/preços seed, users/pages/payments/settings)
+- Models: `lib/Models/` (namespace `AfiliaFacil\Models`): User, Role, Plan, PlanPrice, Payment, Setting, Page, StorageConfig
+- Rodar manualmente: `docker exec afiliafacil php bin/migrate.php`
+- Tabelas: roles, users (role_id), plans, plan_prices, payments, settings, pages (HTML em arquivo), storage_configs (R2 por usuário)
+- Fallback JSON: `Auth`/`PageManager`/`Payments`/`Settings` funcionam sem DB (arquivos em `data/`)
 
 ## Como rodar
 
 ```powershell
 docker-compose down; docker-compose up -d --build
-# http://localhost:9876
+# http://localhost:9876  (aguarda healthcheck do Postgres + migrations no boot)
 ```
 
 ## Credenciais padrão (admin dono)
