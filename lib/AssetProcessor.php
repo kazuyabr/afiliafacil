@@ -544,12 +544,30 @@ class AssetProcessor
 
     private static function fixLazyLoadingForPreview(string $html): string
     {
-        $html = SafePcre::replaceCallback('/data-original-src=(["\'])([^"\']+)\1/i', function($m) {
-            return 'src=' . $m[1] . $m[2] . $m[1];
+        $html = SafePcre::replaceCallback('/<img\b[^>]*>/i', function ($m) {
+            $tag = $m[0];
+
+            if (preg_match('/\bdata-lazy-srcset=(["\'])([^"\']+)\1/i', $tag)) {
+                $tag = SafePcre::replace('/(?<![-\w])srcset=("[^"]*"|\'[^\']*\')\s?/i', '', $tag);
+                $tag = SafePcre::replace('/\bdata-lazy-srcset=(["\'])([^"\']+)\1/i', 'srcset=${1}${2}${1}', $tag);
+            }
+
+            if (preg_match('/\bdata-lazy-sizes=(["\'])([^"\']+)\1/i', $tag)) {
+                $tag = SafePcre::replace('/(?<![-\w])sizes=("[^"]*"|\'[^\']*\')\s?/i', '', $tag);
+                $tag = SafePcre::replace('/\bdata-lazy-sizes=(["\'])([^"\']+)\1/i', 'sizes=${1}${2}${1}', $tag);
+            }
+
+            foreach (['data-original-src', 'data-lazy-src', 'data-src', 'data-lazy'] as $attr) {
+                if (preg_match('/\b' . $attr . '=(["\'])([^"\']+)\1/i', $tag)) {
+                    $tag = SafePcre::replace('/(?<![-\w])src=("[^"]*"|\'[^\']*\')\s?/i', '', $tag);
+                    $tag = SafePcre::replace('/\b' . $attr . '=(["\'])([^"\']+)\1/i', 'src=${1}${2}${1}', $tag);
+                    break;
+                }
+            }
+
+            return $tag;
         }, $html);
-        $html = SafePcre::replaceCallback('/data-lazy-src=(["\'])([^"\']+)\1/i', function($m) {
-            return 'src=' . $m[1] . $m[2] . $m[1];
-        }, $html);
+
         $html = SafePcre::replace('/loading=["\']lazy["\']/i', 'loading="eager"', $html);
         return $html;
     }
@@ -571,13 +589,30 @@ class AssetProcessor
 
     private function fixLazyLoading(string $html): string
     {
-        foreach (['data-original-src', 'data-lazy-src', 'data-src', 'data-lazy'] as $attr) {
-            $html = SafePcre::replaceCallback('/' . $attr . '=(["\'])([^"\']+)\1/i', function ($m) {
-                if (strpos($m[2], 'data:') === 0 || strpos($m[2], '#') === 0) return $m[0];
-                if (strpos($m[2], 'url(') === 0) return $m[0];
-                return 'src=' . $m[1] . $m[2] . $m[1];
-            }, $html);
-        }
+        $html = SafePcre::replaceCallback('/<img\b[^>]*>/i', function ($m) {
+            $tag = $m[0];
+
+            if (preg_match('/\bdata-lazy-srcset=(["\'])([^"\']+)\1/i', $tag)) {
+                $tag = SafePcre::replace('/(?<![-\w])srcset=("[^"]*"|\'[^\']*\')\s?/i', '', $tag);
+                $tag = SafePcre::replace('/\bdata-lazy-srcset=(["\'])([^"\']+)\1/i', 'srcset=${1}${2}${1}', $tag);
+            }
+
+            if (preg_match('/\bdata-lazy-sizes=(["\'])([^"\']+)\1/i', $tag)) {
+                $tag = SafePcre::replace('/(?<![-\w])sizes=("[^"]*"|\'[^\']*\')\s?/i', '', $tag);
+                $tag = SafePcre::replace('/\bdata-lazy-sizes=(["\'])([^"\']+)\1/i', 'sizes=${1}${2}${1}', $tag);
+            }
+
+            foreach (['data-lazy-src', 'data-original-src', 'data-src', 'data-lazy'] as $attr) {
+                if (preg_match('/\b' . $attr . '=(["\'])([^"\']+)\1/i', $tag)) {
+                    $tag = SafePcre::replace('/(?<![-\w])src=("[^"]*"|\'[^\']*\')\s?/i', '', $tag);
+                    $tag = SafePcre::replace('/\b' . $attr . '=(["\'])([^"\']+)\1/i', 'src=${1}${2}${1}', $tag);
+                    break;
+                }
+            }
+
+            return $tag;
+        }, $html);
+
         $html = SafePcre::replace('/loading=["\']lazy["\']/i', 'loading="eager"', $html);
         return $html;
     }

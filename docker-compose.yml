@@ -2,13 +2,13 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_DB=afiliafacil
-      - POSTGRES_USER=afiliafacil
-      - POSTGRES_PASSWORD=change-me
+      - POSTGRES_DB=${POSTGRES_DB:-afiliafacil}
+      - POSTGRES_USER=${POSTGRES_USER:-afiliafacil}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U afiliafacil"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-afiliafacil}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -29,15 +29,15 @@ services:
       - DB_CONNECTION=pgsql
       - DB_HOST=db
       - DB_PORT=5432
-      - DB_DATABASE=afiliafacil
+      - DB_DATABASE=${POSTGRES_DB:-afiliafacil}
       # Runtime usa a role restrita (criada pelo bin/migrate.php, sem DDL)
-      - DB_USERNAME=afiliafacil_app
-      - DB_PASSWORD=${DB_APP_PASSWORD:-change-me}
+      - DB_USERNAME=${DB_APP_USER:-change-me}
+      - DB_PASSWORD=${DB_APP_PASSWORD}
       # Migracoes usam o owner
-      - DB_MIGRATION_USER=afiliafacil
-      - DB_MIGRATION_PASSWORD=change-me
-      - DB_APP_USER=afiliafacil_app
-      - DB_APP_PASSWORD=${DB_APP_PASSWORD:-change-me}
+      - DB_MIGRATION_USER=${POSTGRES_USER:-afiliafacil}
+      - DB_MIGRATION_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_APP_USER=${DB_APP_USER:-change-me}
+      - DB_APP_PASSWORD=${DB_APP_PASSWORD}
     depends_on:
       db:
         condition: service_healthy

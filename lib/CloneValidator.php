@@ -37,6 +37,21 @@ class CloneValidator
             $issues[] = ['type' => 'img_without_src', 'message' => $imgsWithoutSrc . ' imagem(ns) sem src'];
         }
 
+        if (preg_match_all('/<img\b[^>]*>/i', $html, $imgTags)) {
+            $duplicatedSrc = 0;
+            $lazyLeftover = 0;
+            foreach ($imgTags[0] as $tag) {
+                if (preg_match_all('/\bsrc=/i', $tag) >= 2) $duplicatedSrc++;
+                if (preg_match('/\bdata-(?:lazy-src|lazy-srcset|lazy-sizes|src|original-src)\s*=/i', $tag)) $lazyLeftover++;
+            }
+            if ($duplicatedSrc > 0) {
+                $issues[] = ['type' => 'img_duplicate_src', 'message' => $duplicatedSrc . ' imagem(ns) com atributo src duplicado (placeholder vence e a imagem real não aparece)'];
+            }
+            if ($lazyLeftover > 0) {
+                $issues[] = ['type' => 'img_lazy_leftover', 'message' => $lazyLeftover . ' imagem(ns) com atributos de lazy-load não resolvidos (data-lazy-*)'];
+            }
+        }
+
         return $issues;
     }
 

@@ -85,7 +85,12 @@ function createAppRole(): void
 {
     $db = Database::config(true);
     $appUser = getenv('DB_APP_USER') ?: 'afiliafacil_app';
-    $appPass = getenv('DB_APP_PASSWORD') ?: 'change-me';
+    $appPass = getenv('DB_APP_PASSWORD') ?: '';
+
+    if ($appPass === '') {
+        echo "[migrate] ERRO: DB_APP_PASSWORD nao configurado (defina no .env)\n";
+        exit(1);
+    }
 
     if ($db['driver'] === 'mysql') {
         $dsn = "mysql:host={$db['host']};port={$db['port']};dbname={$db['database']}";
