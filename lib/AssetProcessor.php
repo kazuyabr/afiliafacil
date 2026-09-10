@@ -11,12 +11,25 @@ class AssetProcessor
     private array $failed = [];
     private array $failedAssets = [];
     private int $timeout = 30;
+    private ?R2Storage $storage = null;
+    private string $storagePrefix = 'clones/';
+    private string $mediaMode = 'base64';
 
-    public function __construct(string $sourceDomain)
+    public function __construct(string $sourceDomain, ?array $storageConfig = null, string $storagePrefix = 'clones/')
     {
         SafePcre::bootstrap();
         $this->sourceDomain = $sourceDomain;
         $this->baseUrl = "https://{$sourceDomain}";
+        $this->storagePrefix = rtrim($storagePrefix, '/') . '/';
+
+        if ($storageConfig) {
+            $this->mediaMode = $storageConfig['media_mode'] ?? 'base64';
+            if ($this->mediaMode === 'r2' && !empty($storageConfig['enabled'])) {
+                require_once __DIR__ . '/R2Storage.php';
+                $r2 = new R2Storage($storageConfig);
+                if ($r2->isConfigured()) $this->storage = $r2;
+            }
+        }
     }
 
     public function getFailedAssets(): array
@@ -950,6 +963,12 @@ class AssetProcessor
     {
         if (isset($this->cssMap[$url])) return $this->cssMap[$url];
 
+        if ($this->mediaMode === 'original' && $this->storage === null) {
+            $resolved = strpos($url, 'http') === 0 ? $url : $this->resolveUrl($url);
+            $this->cssMap[$url] = $resolved;
+            return $resolved;
+        }
+
         $content = $this->fetchUrl($url);
         if ($content === null) return null;
 
@@ -958,10 +977,20 @@ class AssetProcessor
             'woff' => 'font/woff', 'woff2' => 'font/woff2', 'ttf' => 'font/ttf',
             'eot' => 'application/vnd.ms-fontobject', 'otf' => 'font/otf',
             'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
-            'gif' => 'image/gif', 'webp' => 'image/webp', 'svg' => 'image/svg+xml',
-            'ico' => 'image/x-icon',
+            'gif' => 'image/gif', 'webp' => 'image/webp', 'avif' => 'image/avif',
+            'svg' => 'image/svg+xml', 'ico' => 'image/x-icon',
         ];
         $mime = $mimeMap[$ext] ?? 'application/octet-stream';
+
+        if ($this->storage) {
+            $key = $this->storagePrefix . md5($url) . ($ext ? '.' . $ext : '.bin');
+            $publicUrl = $this->storage->upload($key, $content, $mime);
+            if ($publicUrl !== null) {
+                $this->cssMap[$url] = $publicUrl;
+                return $publicUrl;
+            }
+        }
+
         $dataUri = 'data:' . $mime . ';base64,' . base64_encode($content);
         $this->cssMap[$url] = $dataUri;
         return $dataUri;

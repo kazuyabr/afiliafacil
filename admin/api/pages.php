@@ -2,6 +2,9 @@
 require_once __DIR__ . '/../../lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/PageManager.php';
+require_once Config::getLibDir() . '/Database.php';
+require_once Config::getLibDir() . '/Crypto.php';
+require_once Config::getLibDir() . '/R2Storage.php';
 
 header('Content-Type: application/json');
 
@@ -38,6 +41,28 @@ switch ($action) {
             break;
         }
         $pm = new PageManager();
+        $page = $pm->get($id);
+
+        if ($page && Database::available()) {
+            try {
+                $storage = \AfiliaFacil\Models\StorageConfig::where('user_id', (int)$page['user_id'])->first();
+                if ($storage && $storage->enabled && $storage->media_mode === 'r2') {
+                    $secret = Crypto::decrypt($storage->secret_encrypted ?? '') ?? '';
+                    if ($secret !== '') {
+                        $r2 = new R2Storage([
+                            'account_id' => $storage->account_id,
+                            'access_key' => $storage->access_key,
+                            'secret_key' => $secret,
+                            'bucket' => $storage->bucket,
+                            'public_url' => $storage->public_url,
+                        ]);
+                        if ($r2->isConfigured()) $r2->deletePrefix('clones/' . $id . '/');
+                    }
+                }
+            } catch (Throwable $e) {
+            }
+        }
+
         $pm->delete($id);
         echo json_encode(['success' => true]);
         break;

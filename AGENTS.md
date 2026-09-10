@@ -28,6 +28,16 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **Seed não destrutivo**: `ImportJsonData::seedPlans/seedRoles` usam `firstOrCreate` — edições do admin NUNCA são sobrescritas no boot
 - **Trial dinâmico**: `trial_days` em settings; landing/registro leem de `Settings::get('trial_days')`
 
+## Armazenamento R2 por usuário
+
+- `/admin/storage.php`: cada usuário configura seu Cloudflare R2 (Account ID, Access Key, Secret, Bucket, Public URL/CDN)
+- **Secret criptografado** com AES-256-GCM (`lib/Crypto.php`, chave de `APP_KEY` env ou gerada em settings)
+- **media_mode** por usuário: `base64` (default) | `r2` (upload no bucket → URL CDN) | `original` (mantém URL da origem via proxy — clone leve, sem baixar assets)
+- `lib/R2Storage.php`: SigV4 via curl (upload/delete/deletePrefix/testConnection) — sem SDK
+- Clonagem usa o storage do dono (`api/clone.php` → `loadUserStorage` → `Cloner::process(..., $storageConfig, 'clones/<pageId>')` → `AssetProcessor::downloadAsset`)
+- **"Otimizar mídias (R2)"** na edição da página: converte data URIs existentes → R2 (`lib/MediaOptimizer.php`, cria revisão antes)
+- Delete da página remove `clones/<pageId>/` no R2 (`api/pages.php`)
+
 ## Como rodar
 
 ```powershell

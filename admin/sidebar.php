@@ -71,6 +71,9 @@
         <a href="/admin/plan.php" class="nav-item <?= $currentPage === 'plan.php' ? 'active' : '' ?>">
             <i class="fas fa-rocket"></i> Meu Plano
         </a>
+        <a href="/admin/storage.php" class="nav-item <?= $currentPage === 'storage.php' ? 'active' : '' ?>">
+            <i class="fas fa-database"></i> Armazenamento
+        </a>
         <a href="/admin/settings.php" class="nav-item <?= $currentPage === 'settings.php' ? 'active' : '' ?>">
             <i class="fas fa-cog"></i> Configurações
         </a>

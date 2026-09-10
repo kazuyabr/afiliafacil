@@ -123,13 +123,14 @@ if ($action === 'new') {
                                     <label>URL pública</label>
                                     <input type="text" class="form-control" disabled value="<?= htmlspecialchars(($editPage['domain'] ? 'https://' . $editPage['domain'] . '/' : '/admin/preview.php?id=') . ($editPage['domain'] ? $editPage['slug'] : $editPage['id'])) ?>">
                                 </div>
-                                <div style="display:flex;gap:8px;">
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
                                     <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Salvar alterações</button>
                                     <?php if (Plans::hasFeature(Auth::user()['plan'], 'editor')): ?>
                                     <a href="/admin/editor.php?id=<?= $editPage['id'] ?>" class="btn btn-success"><i class="fas fa-code"></i> Editar Código Online</a>
                                     <?php else: ?>
                                     <button type="button" class="btn btn-success" onclick="showToast('Editor disponível nos planos Essencial e Master', 'warning')"><i class="fas fa-code"></i> Editar Código Online</button>
                                     <?php endif; ?>
+                                    <button type="button" class="btn btn-outline" onclick="optimizeMedia(<?= $editPage['id'] ?>)" id="optimizeBtn" title="Converte mídias base64 desta página para o seu R2"><i class="fab fa-cloudflare"></i> Otimizar mídias (R2)</button>
                                 </div>
                             </form>
                         </div>
@@ -305,6 +306,29 @@ if ($action === 'new') {
         fetch('/admin/api/editor.php?action=restore&id=' + id + '&rev=' + encodeURIComponent(rev))
             .then(r => r.json())
             .then(d => { if (d.success) { showToast('Revisão restaurada!', 'success'); setTimeout(() => location.reload(), 1200); } else alert(d.error || 'Erro ao restaurar'); });
+    }
+    async function optimizeMedia(id) {
+        const btn = document.getElementById('optimizeBtn');
+        if (!confirm('Converter as mídias base64 desta página para o seu R2? (Uma revisão será criada antes.)')) return;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Otimizando...';
+        try {
+            const body = new URLSearchParams({ action: 'optimize', id });
+            const resp = await fetch('/admin/api/storage.php', { method: 'POST', body });
+            const data = await resp.json();
+            if (data.success) {
+                const saved = (data.saved_bytes / 1048576).toFixed(2);
+                showToast(data.optimized + ' mídia(s) enviadas ao R2 — economia de ' + saved + ' MB', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Erro ao otimizar', 'error');
+            }
+        } catch (err) {
+            showToast('Erro de conexão: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fab fa-cloudflare"></i> Otimizar mídias (R2)';
+        }
     }
     </script>
 </body>

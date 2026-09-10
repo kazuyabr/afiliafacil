@@ -16,7 +16,7 @@ class Cloner
         'ct-link-text', 'pulse-button', 'oxy-pro-menu',
     ];
 
-    public function process(string $html, string $affiliateLink, string $mode = 'paste'): array
+    public function process(string $html, string $affiliateLink, string $mode = 'paste', ?array $storageConfig = null, string $storagePrefix = 'clones/'): array
     {
         SafePcre::bootstrap();
         $originalSize = strlen($html);
@@ -24,7 +24,7 @@ class Cloner
 
         $sourceDomain = $this->extractDomain($html);
         if (!empty($sourceDomain)) {
-            $processor = new AssetProcessor($sourceDomain);
+            $processor = new AssetProcessor($sourceDomain, $storageConfig, $storagePrefix);
             $html = $processor->processHtml($html);
             $failedAssets = $processor->getFailedAssets();
         }

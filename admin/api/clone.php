@@ -4,6 +4,8 @@ require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/Cloner.php';
 require_once Config::getLibDir() . '/PageManager.php';
 require_once Config::getLibDir() . '/Plans.php';
+require_once Config::getLibDir() . '/Database.php';
+require_once Config::getLibDir() . '/Crypto.php';
 
 header('Content-Type: application/json');
 
@@ -107,8 +109,12 @@ function cloneByHtml(): void
 
 function processAndSave(string $html, string $affiliateLink, string $sourceUrlOrDomain, string $pageName): void
 {
+    $userId = (int)(Auth::user()['id'] ?? 1);
+    $storageConfig = loadUserStorage($userId);
+    $pageId = time() + random_int(1, 9999);
+
     $cloner = new Cloner();
-    $result = $cloner->process($html, $affiliateLink, 'url');
+    $result = $cloner->process($html, $affiliateLink, 'url', $storageConfig, 'clones/' . $pageId);
 
     $sourceDomain = $result['source_domain'] ?? '';
     if (empty($sourceDomain) && !filter_var($sourceUrlOrDomain, FILTER_VALIDATE_URL)) {
@@ -121,6 +127,8 @@ function processAndSave(string $html, string $affiliateLink, string $sourceUrlOr
 
     $pm = new PageManager();
     $page = $pm->create([
+        'id' => $pageId,
+        'user_id' => $userId,
         'name' => $pageName,
         'type' => 'clone',
         'html' => $result['html'],
@@ -143,4 +151,29 @@ function processAndSave(string $html, string $affiliateLink, string $sourceUrlOr
         'original_size' => $result['original_size'] ?? 0,
         'processed_size' => $result['processed_size'] ?? 0,
     ]);
+}
+
+function loadUserStorage(int $userId): ?array
+{
+    if (!Database::available()) return null;
+
+    try {
+        $config = \AfiliaFacil\Models\StorageConfig::where('user_id', $userId)->first();
+        if (!$config || !$config->enabled) return null;
+
+        $secret = Crypto::decrypt($config->secret_encrypted ?? '') ?? '';
+        if ($secret === '') return null;
+
+        return [
+            'enabled' => (bool)$config->enabled,
+            'account_id' => $config->account_id,
+            'access_key' => $config->access_key,
+            'secret_key' => $secret,
+            'bucket' => $config->bucket,
+            'public_url' => $config->public_url,
+            'media_mode' => $config->media_mode ?: 'base64',
+        ];
+    } catch (Throwable $e) {
+        return null;
+    }
 }
