@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['theme'] = $_POST['theme'] === 'dark' ? 'dark' : 'light';
     }
 
-    if (isset($_POST['system']) && Auth::isAdmin()) {
+    if (isset($_POST['system']) && Auth::can('manage_settings')) {
         if (isset($_POST['trial_days'])) Settings::set('trial_days', max(0, (int)$_POST['trial_days']));
         if (isset($_POST['checkout_driver']) && in_array($_POST['checkout_driver'], ['pix', 'stripe'])) Settings::set('checkout_driver', $_POST['checkout_driver']);
         if (isset($_POST['pix_key'])) Settings::set('pix_key', trim($_POST['pix_key']));
@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $theme = $_SESSION['theme'] ?? 'light';
 $saved = isset($_GET['saved']);
 $settings = Settings::all();
-$isAdmin = Auth::isAdmin();
+$isAdmin = Auth::can('manage_settings');
 $user = Auth::user();
 ?>
 <!DOCTYPE html>

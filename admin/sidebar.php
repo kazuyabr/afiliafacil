@@ -43,6 +43,30 @@
             <i class="fas fa-plug"></i> Integrações
         </a>
 
+        <?php if (Auth::can('manage_users') || Auth::can('manage_roles') || Auth::can('manage_pricing') || Auth::can('manage_payments')): ?>
+        <div class="nav-section">Administração</div>
+        <?php if (Auth::can('manage_users')): ?>
+        <a href="/admin/users.php" class="nav-item <?= $currentPage === 'users.php' ? 'active' : '' ?>">
+            <i class="fas fa-users"></i> Usuários
+        </a>
+        <?php endif; ?>
+        <?php if (Auth::can('manage_roles')): ?>
+        <a href="/admin/roles.php" class="nav-item <?= $currentPage === 'roles.php' ? 'active' : '' ?>">
+            <i class="fas fa-user-shield"></i> Cargos
+        </a>
+        <?php endif; ?>
+        <?php if (Auth::can('manage_pricing')): ?>
+        <a href="/admin/pricing.php" class="nav-item <?= $currentPage === 'pricing.php' ? 'active' : '' ?>">
+            <i class="fas fa-tags"></i> Preços
+        </a>
+        <?php endif; ?>
+        <?php if (Auth::can('manage_payments')): ?>
+        <a href="/admin/pay.php" class="nav-item <?= $currentPage === 'pay.php' ? 'active' : '' ?>">
+            <i class="fas fa-hand-holding-usd"></i> Pagamentos
+        </a>
+        <?php endif; ?>
+        <?php endif; ?>
+
         <div class="nav-section">Conta</div>
         <a href="/admin/plan.php" class="nav-item <?= $currentPage === 'plan.php' ? 'active' : '' ?>">
             <i class="fas fa-rocket"></i> Meu Plano
@@ -50,11 +74,6 @@
         <a href="/admin/settings.php" class="nav-item <?= $currentPage === 'settings.php' ? 'active' : '' ?>">
             <i class="fas fa-cog"></i> Configurações
         </a>
-        <?php if (in_array($_SESSION['user_plan'] ?? '', ['premium', 'admin'])): ?>
-        <a href="/admin/pay.php" class="nav-item <?= $currentPage === 'pay.php' ? 'active' : '' ?>">
-            <i class="fas fa-hand-holding-usd"></i> Pagamentos
-        </a>
-        <?php endif; ?>
     </nav>
     <div class="sidebar-footer">
         <div class="user-info">

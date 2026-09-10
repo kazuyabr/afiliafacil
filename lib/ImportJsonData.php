@@ -37,7 +37,7 @@ class ImportJsonData
         ];
 
         foreach ($roles as $role) {
-            \AfiliaFacil\Models\Role::updateOrCreate(
+            \AfiliaFacil\Models\Role::firstOrCreate(
                 ['name' => $role['name']],
                 [
                     'label' => $role['label'],
@@ -83,7 +83,7 @@ class ImportJsonData
         ];
 
         foreach ($plans as $plan) {
-            $model = \AfiliaFacil\Models\Plan::updateOrCreate(
+            \AfiliaFacil\Models\Plan::firstOrCreate(
                 ['id' => $plan['id']],
                 [
                     'name' => $plan['name'],
@@ -98,7 +98,7 @@ class ImportJsonData
             );
 
             foreach ($plan['prices'] as $cycle => $amount) {
-                \AfiliaFacil\Models\PlanPrice::updateOrCreate(
+                \AfiliaFacil\Models\PlanPrice::firstOrCreate(
                     ['plan_id' => $plan['id'], 'cycle' => $cycle],
                     ['amount' => $amount, 'updated_at' => date('Y-m-d H:i:s')]
                 );

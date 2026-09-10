@@ -19,6 +19,15 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - Tabelas: roles, users (role_id), plans, plan_prices, payments, settings, pages (HTML em arquivo), storage_configs (R2 por usuário)
 - Fallback JSON: `Auth`/`PageManager`/`Payments`/`Settings` funcionam sem DB (arquivos em `data/`)
 
+## RBAC e painel Master
+
+- **Cargos** (tabela `roles`): master (protegido, todas as permissões), admin, gerente, afiliado + CRUD de cargos custom em `/admin/roles.php`
+- **Permissões**: `manage_users`, `manage_roles`, `manage_pricing`, `manage_pages`, `manage_settings`, `manage_payments`, `manage_storage` — checadas via `Auth::can()` (sidebar e endpoints)
+- **Master** (`admin@afiliafacil.com`): não pode ser excluído, desativado nem ter cargo alterado (guards em `admin/api/users.php`)
+- **Preços dinâmicos**: `/admin/pricing.php` (master/admin) edita nome/label/limites/features/preços por ciclo; `Plans::all()` lê do DB (cache estático, `Plans::refresh()` após edição); landing e checkouts refletem na hora
+- **Seed não destrutivo**: `ImportJsonData::seedPlans/seedRoles` usam `firstOrCreate` — edições do admin NUNCA são sobrescritas no boot
+- **Trial dinâmico**: `trial_days` em settings; landing/registro leem de `Settings::get('trial_days')`
+
 ## Como rodar
 
 ```powershell

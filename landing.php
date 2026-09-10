@@ -2,8 +2,10 @@
 require_once __DIR__ . '/lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/Plans.php';
+require_once Config::getLibDir() . '/Settings.php';
 
 $theme = isset($_COOKIE['theme']) ? $_COOKIE['theme'] : 'light';
+$trialDays = (int)Settings::get('trial_days', 3);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="<?= $theme ?>">
@@ -11,7 +13,7 @@ $theme = isset($_COOKIE['theme']) ? $_COOKIE['theme'] : 'light';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AfiliaFacil - Clone, Crie e Hospede Páginas para Afiliados</title>
-    <meta name="description" content="Clone páginas de vendas, gere pressels e hospede sua estrutura de afiliado em minutos. Plano grátis por 3 dias.">
+    <meta name="description" content="Clone páginas de vendas, gere pressels e hospede sua estrutura de afiliado em minutos. Plano grátis por <?= $trialDays ?> dias.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="/assets/css/theme-light.css">
@@ -82,7 +84,7 @@ $theme = isset($_COOKIE['theme']) ? $_COOKIE['theme'] : 'light';
         <h1>Clone, Crie e Hospede Páginas que Vendem</h1>
         <p>A forma mais fácil de vender online como afiliado. Clone qualquer página de vendas, gere pressels e hospede sua estrutura em minutos. Sem código. Sem complicação.</p>
         <a href="/register" class="btn btn-primary btn-full" style="max-width:300px;margin:0 auto;font-size:1rem;padding:14px 28px;display:inline-flex;">
-            <i class="fas fa-rocket"></i> Começar grátis por 3 dias
+            <i class="fas fa-rocket"></i> Começar grátis por <?= $trialDays ?> dias
         </a>
         <div class="lp-hero-badges">
             <span><i class="fas fa-check-circle"></i> Clonador de páginas</span>
@@ -123,47 +125,56 @@ $theme = isset($_COOKIE['theme']) ? $_COOKIE['theme'] : 'light';
     <section class="lp-section" id="plans" style="background:var(--bg-secondary);">
         <div class="lp-section-title">
             <h2>Planos e preços</h2>
-            <p>Experimente grátis por 3 dias em qualquer plano. Sem fidelidade, cancele quando quiser.</p>
+            <p>Experimente grátis por <?= $trialDays ?> dias em qualquer plano. Sem fidelidade, cancele quando quiser.</p>
         </div>
         <div class="lp-plans">
             <?php
-            $plans = [
-                ['id' => 'vsl', 'name' => 'VSL', 'price' => 79, 'class' => '', 'items' => [
-                    ['Página de VSL com delay', true],
-                    ['Clonador de páginas', true],
-                    ['Player de vídeo', true],
-                    ['1 página', true],
-                    ['1 domínio', true],
-                    ['Pressel', false],
-                    ['Pixel & rastreamento', false],
-                ]],
-                ['id' => 'essencial', 'name' => 'Essencial', 'price' => 119, 'class' => 'featured', 'tag' => 'Mais popular', 'items' => [
-                    ['Clonador de páginas', true],
-                    ['Pressel', true],
-                    ['Player de vídeo', true],
-                    ['Pixel & rastreamento', true],
-                    ['Cookie & Back Redirect', true],
-                    ['5 páginas', true],
-                    ['2 domínios', true],
-                    ['Integrações', false],
-                ]],
-                ['id' => 'master', 'name' => 'Master', 'price' => 149, 'class' => '', 'items' => [
-                    ['Tudo do Essencial', true],
-                    ['Integrações (ManyChat, Mailchimp)', true],
-                    ['Quizz', true],
-                    ['Páginas ilimitadas', true],
-                    ['10 domínios', true],
-                    ['Suporte prioritário', true],
-                ]],
+            $featureLabels = [
+                'clone' => 'Clonador de páginas',
+                'pressel' => 'Pressel',
+                'player' => 'Player de vídeo',
+                'pixel' => 'Pixel & rastreamento',
+                'cookie' => 'Cookie & Back Redirect',
+                'backredirect' => 'Back Redirect',
+                'video' => 'Página de VSL com delay',
+                'delay' => 'Delay',
+                'integrations' => 'Integrações (ManyChat, Mailchimp)',
+                'quizz' => 'Quizz',
+                'editor' => 'Editor de código online',
             ];
+            $allFeatures = array_keys($featureLabels);
+
+            $displayPlans = [];
+            foreach (Plans::all() as $pid => $plan) {
+                if (in_array($pid, ['trial', 'trial_expired', 'premium'], true)) continue;
+                if (isset($plan['active']) && !$plan['active']) continue;
+
+                $items = [];
+                foreach ($allFeatures as $feat) {
+                    $has = in_array($feat, $plan['features'], true);
+                    if ($has) $items[] = [$featureLabels[$feat], true];
+                }
+                $items[] = [$plan['max_pages'] === -1 ? 'Páginas ilimitadas' : $plan['max_pages'] . ' página(s)', true];
+                $items[] = [$plan['max_domains'] === -1 ? 'Domínios ilimitados' : $plan['max_domains'] . ' domínio(s)', true];
+
+                $displayPlans[] = [
+                    'id' => $pid,
+                    'name' => $plan['name'],
+                    'price' => $plan['price'],
+                    'class' => $pid === 'essencial' ? 'featured' : '',
+                    'tag' => $pid === 'essencial' ? 'Mais popular' : '',
+                    'items' => $items,
+                ];
+            }
+            $plans = $displayPlans;
             foreach ($plans as $p): ?>
             <div class="lp-plan <?= $p['class'] ?>">
                 <?php if (!empty($p['tag'])): ?><span class="tag"><?= $p['tag'] ?></span><?php endif; ?>
-                <h3><?= $p['name'] ?></h3>
+                <h3><?= htmlspecialchars($p['name']) ?></h3>
                 <div class="price"><?= Plans::formatPrice($p['price']) ?><small>/mês</small></div>
                 <ul>
                     <?php foreach ($p['items'] as $item): ?>
-                    <li class="<?= $item[1] ? '' : 'no' ?>"><i class="fas fa-<?= $item[1] ? 'check' : 'times' ?>"></i> <?= $item[0] ?></li>
+                    <li class="<?= $item[1] ? '' : 'no' ?>"><i class="fas fa-<?= $item[1] ? 'check' : 'times' ?>"></i> <?= htmlspecialchars($item[0]) ?></li>
                     <?php endforeach; ?>
                 </ul>
                 <a href="/register" class="btn btn-<?= $p['class'] === 'featured' ? 'primary' : 'outline' ?> btn-full">Começar grátis</a>
@@ -191,7 +202,7 @@ $theme = isset($_COOKIE['theme']) ? $_COOKIE['theme'] : 'light';
             </details>
             <details>
                 <summary>Como funciona o teste grátis?</summary>
-                <p>Ao criar sua conta você tem 3 dias de acesso a um plano sem custo. Após o período, escolha o plano que deseja assinar para continuar usando a plataforma.</p>
+                <p>Ao criar sua conta você tem <?= $trialDays ?> dias de acesso a um plano sem custo. Após o período, escolha o plano que deseja assinar para continuar usando a plataforma.</p>
             </details>
             <details>
                 <summary>Posso cancelar a qualquer momento?</summary>

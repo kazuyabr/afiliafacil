@@ -6,7 +6,7 @@ require_once Config::getLibDir() . '/Plans.php';
 
 Auth::requireAuth();
 
-if (!Auth::isAdmin()) {
+if (!Auth::can('manage_payments')) {
     header('Location: /admin/');
     exit;
 }
