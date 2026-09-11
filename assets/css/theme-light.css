@@ -1,4 +1,5 @@
 :root, [data-theme="light"] {
+    color-scheme: light;
     --bg-primary: #ffffff;
     --bg-secondary: #f8f9fa;
     --bg-card: #ffffff;
@@ -22,4 +23,10 @@
     --radius: 8px;
     --radius-lg: 12px;
     --transition: .2s ease;
+    --scrollbar-track: #f1f3f5;
+    --scrollbar-thumb: #c9ced6;
+    --scrollbar-thumb-hover: #a8afb9;
+    --scrollbar-sidebar-track: transparent;
+    --scrollbar-sidebar-thumb: #2d3139;
+    --scrollbar-sidebar-thumb-hover: #3a3f48;
 }

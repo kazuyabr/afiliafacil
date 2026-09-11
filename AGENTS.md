@@ -132,6 +132,7 @@ afiliafacil/
 - **Conexão CTA**: clones identificam CTAs (`<a>`/`<button>`) e substituem pelo link de afiliado informado na clonagem.
 - **Trial**: `Auth::syncPlan()` rodado em `requireAuth()` marca `trial_expired` quando `trial_until` passa; `Plans::get('trial_expired')` bloqueia tudo.
 - **Temas**: `data-theme` no `<html>` decide o tema — `theme-light.css` escopa `:root, [data-theme="light"]` e `theme-dark.css` escopa `[data-theme="dark"]`; **ambos os CSS são sempre carregados** (dark por último, vence por ordem quando `data-theme="dark"`). `app.js` (toggleTheme) alterna `data-theme` instantaneamente e persiste via localStorage + sessão (POST theme= em settings.php). NUNCA usar link dinâmico `theme-<?= $theme ?>.css` — quebrou o toggle antes.
+- **Scrollbar por tema**: variáveis `--scrollbar-track/thumb/thumb-hover` + `--scrollbar-sidebar-*` (sidebar é escura nos 2 temas) nos arquivos de tema; estilos globais em `app.css` (`::-webkit-scrollbar` + `scrollbar-width`) e no `editor.css` (`.CodeMirror-scroll`, `.editor-sidebar`). `color-scheme` nos temas adapta controles nativos. O preview das páginas clonadas NÃO recebe scrollbar custom (fidelidade ao original).
 
 ## Fluxo principal testado
 

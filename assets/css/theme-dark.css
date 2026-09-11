@@ -1,4 +1,5 @@
 [data-theme="dark"] {
+    color-scheme: dark;
     --bg-primary: #0f1117;
     --bg-secondary: #161920;
     --bg-card: #1a1d27;
@@ -22,4 +23,10 @@
     --radius: 8px;
     --radius-lg: 12px;
     --transition: .2s ease;
+    --scrollbar-track: #161920;
+    --scrollbar-thumb: #2f333d;
+    --scrollbar-thumb-hover: #3f444f;
+    --scrollbar-sidebar-track: transparent;
+    --scrollbar-sidebar-thumb: #1f232c;
+    --scrollbar-sidebar-thumb-hover: #2c313b;
 }
