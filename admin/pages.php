@@ -151,6 +151,9 @@ if ($action === 'new') {
                                     <button type="button" class="btn btn-success" onclick="showToast('Editor disponível nos planos Essencial e Master', 'warning')"><i class="fas fa-code"></i> Editar Código Online</button>
                                     <?php endif; ?>
                                     <button type="button" class="btn btn-outline" onclick="optimizeMedia(<?= $editPage['id'] ?>)" id="optimizeBtn" title="Converte mídias base64 desta página para o seu R2"><i class="fab fa-cloudflare"></i> Otimizar mídias (R2)</button>
+                                    <?php if (Plans::hasFeature(Auth::user()['plan'], 'adspy') || Auth::isAdmin()): ?>
+                                    <a href="/admin/adspy.php?page=<?= $editPage['id'] ?>" class="btn btn-outline" title="Busca anúncios deste site nas bibliotecas públicas (Meta, Google, TikTok)"><i class="fas fa-crosshairs"></i> Espionar Campanha</a>
+                                    <?php endif; ?>
                                 </div>
                             </form>
                         </div>

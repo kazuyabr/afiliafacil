@@ -1,4 +1,8 @@
-<?php $currentPage = basename($_SERVER['SCRIPT_NAME']); ?>
+<?php
+$currentPage = basename($_SERVER['SCRIPT_NAME']);
+require_once __DIR__ . '/../lib/Config.php';
+require_once Config::getLibDir() . '/Plans.php';
+?>
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
         <div class="logo"><i class="fas fa-bolt"></i></div>
@@ -33,6 +37,14 @@
         </a>
         <a href="/admin/cookie.php" class="nav-item <?= $currentPage === 'cookie.php' ? 'active' : '' ?>">
             <i class="fas fa-cookie-bite"></i> Cookie
+        </a>
+        <?php if (Plans::hasFeature($_SESSION['user_plan'] ?? '', 'adspy') || Auth::isAdmin()): ?>
+        <a href="/admin/adspy.php" class="nav-item <?= $currentPage === 'adspy.php' ? 'active' : '' ?>">
+            <i class="fas fa-crosshairs"></i> Espionar Anúncios
+        </a>
+        <?php endif; ?>
+        <a href="/admin/ai-settings.php" class="nav-item <?= $currentPage === 'ai-settings.php' ? 'active' : '' ?>">
+            <i class="fas fa-robot"></i> IA (BYOK)
         </a>
 
         <div class="nav-section">Infraestrutura</div>

@@ -94,6 +94,16 @@ $theme = $_SESSION['theme'] ?? 'light';
                             <input type="number" class="form-control plan-max-domains" value="${p.max_domains}">
                         </div>
                     </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>Buscas de espionagem/mês (-1 = ilimitado)</label>
+                            <input type="number" class="form-control plan-max-adspy" value="${p.max_adspy_searches}">
+                        </div>
+                        <div class="form-group">
+                            <label>Análises IA/mês (-1 = ilimitado)</label>
+                            <input type="number" class="form-control plan-max-ai" value="${p.max_ai_analyses}">
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label>Recursos (separados por vírgula)</label>
                         <input type="text" class="form-control plan-features" value="${esc(p.features.join(', '))}">
@@ -121,6 +131,8 @@ $theme = $_SESSION['theme'] ?? 'light';
         body.append('label', card.querySelector('.plan-label').value);
         body.append('max_pages', card.querySelector('.plan-max-pages').value);
         body.append('max_domains', card.querySelector('.plan-max-domains').value);
+        body.append('max_adspy_searches', card.querySelector('.plan-max-adspy').value);
+        body.append('max_ai_analyses', card.querySelector('.plan-max-ai').value);
         body.append('features', card.querySelector('.plan-features').value);
         body.append('active', card.querySelector('.plan-active').checked ? '1' : '0');
         card.querySelectorAll('.plan-price').forEach(input => {

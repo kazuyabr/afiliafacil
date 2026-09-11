@@ -49,6 +49,16 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **Produção**: use `DATABASE_URL` com `sslmode=require` e senhas fortes via secrets (nunca os defaults de dev)
 - RLS não implementado (decisão de escopo — isolamento é feito na app + role restrita)
 
+## Espionagem de Anúncios (Ad Spy)
+
+- **Módulo** (`lib/AdSpy/`): busca centralizada nas bibliotecas públicas — **Meta Ad Library** (scraping dos endpoints internos; API oficial via `META_AD_ACCESS_TOKEN` cobre políticos/UE), **Google Ads Transparency** (via **SerpApi free 250/mês**, env `SERPAPI_KEY`), **TikTok Creative Center** (scraping)
+- **Dossiê da Campanha**: botão "Espionar Campanha" na edição da página clonada → extrai sinais (domínio, marca, termos, checkouts) → busca nas 3 plataformas → **análise IA** (resumo, ângulos, oferta, público, funil, termos para testar, sugestões)
+- **Cache 24h** (`ad_spy_cache`) — busca repetida NÃO consome quota; providers que falham NÃO consomem quota
+- **Quotas por plano** (`plans.max_adspy_searches` / `max_ai_analyses`, editáveis em `/admin/pricing.php`): Trial 3/3 · VSL Start 0/0 · Afiliado Pro 30/10 · Master Elite 300/100 · Admin ilimitado
+- **Planos renomeados**: Teste Grátis (trial) · VSL Start · Afiliado Pro · Master Elite
+- **IA**: padrão **Cloudflare Workers AI** (`CF_ACCOUNT_ID`/`CF_AI_TOKEN`/`CF_AI_MODEL` — 10k neurons/dia grátis) + **BYOK** em `/admin/ai-settings.php` (catálogo **models.dev** via JS; suporta cloudflare/openai-compatible/anthropic/google; chave criptografada AES)
+- **Páginas**: `/admin/adspy.php` (busca + grid + filtros por plataforma), `/admin/ai-settings.php` (BYOK); APIs `api/adspy.php` (quota/search/dossier/analyze) e `api/ai-settings.php` (get/save/test)
+
 ## Como rodar
 
 ```powershell

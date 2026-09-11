@@ -104,6 +104,8 @@ class Plans
                     'features' => $plan->features ?? [],
                     'max_pages' => (int)$plan->max_pages,
                     'max_domains' => (int)$plan->max_domains,
+                    'max_adspy_searches' => (int)($plan->max_adspy_searches ?? 0),
+                    'max_ai_analyses' => (int)($plan->max_ai_analyses ?? 0),
                     'label' => $plan->label ?? '',
                 ];
             }
@@ -144,6 +146,16 @@ class Plans
     public static function maxPages(string $plan): int
     {
         return self::get($plan)['max_pages'];
+    }
+
+    public static function maxAdSpySearches(string $plan): int
+    {
+        return self::get($plan)['max_adspy_searches'] ?? 0;
+    }
+
+    public static function maxAiAnalyses(string $plan): int
+    {
+        return self::get($plan)['max_ai_analyses'] ?? 0;
     }
 
     public static function maxDomains(string $plan): int
