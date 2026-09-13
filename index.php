@@ -7,16 +7,43 @@ if (Auth::check()) {
     exit;
 }
 
+if (isset($_GET['cancel'])) {
+    unset($_SESSION['pending_2fa_user_id']);
+    header('Location: /login');
+    exit;
+}
+
 $error = '';
+$twoFactorStep = false;
+$info = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $result = Auth::attemptWithThrottle($email, $password);
-    if ($result['ok']) {
-        header('Location: /admin/');
-        exit;
+    if (($_POST['step'] ?? '') === '2fa') {
+        $result = Auth::completeTwoFactor($_POST['code'] ?? '');
+        if ($result['ok']) {
+            header('Location: /admin/');
+            exit;
+        }
+        $error = $result['error'] ?? 'Código inválido.';
+        $twoFactorStep = true;
+    } else {
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $result = Auth::attemptWithThrottle($email, $password);
+        if ($result['ok']) {
+            header('Location: /admin/');
+            exit;
+        }
+        if (!empty($result['two_factor'])) {
+            $twoFactorStep = true;
+            $info = 'Digite o código de 6 dígitos do seu aplicativo autenticador (ou um código de recuperação).';
+        } else {
+            $error = $result['error'] ?? 'E-mail ou senha incorretos.';
+        }
     }
-    $error = $result['error'] ?? 'E-mail ou senha incorretos.';
+} elseif (!empty($_SESSION['pending_2fa_user_id'])) {
+    $twoFactorStep = true;
+    $info = 'Digite o código de 6 dígitos do seu aplicativo autenticador (ou um código de recuperação).';
 }
 ?>
 <!DOCTYPE html>
@@ -56,6 +83,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <div class="login-right">
             <div class="login-card">
+                <?php if ($twoFactorStep): ?>
+                <h2><i class="fas fa-shield-halved" style="color:var(--accent);"></i> Verificação em 2 etapas</h2>
+                <p class="subtitle"><?= htmlspecialchars($info) ?></p>
+                <?php if ($error): ?>
+                    <div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> <?= $error ?></div>
+                <?php endif; ?>
+                <form method="POST">
+                    <input type="hidden" name="step" value="2fa">
+                    <div class="form-group">
+                        <label>Código de verificação</label>
+                        <input type="text" name="code" class="form-control" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" autofocus required style="font-family:monospace;font-size:1.2rem;letter-spacing:.2em;text-align:center;">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-full">
+                        <i class="fas fa-check"></i> Verificar e entrar
+                    </button>
+                </form>
+                <p style="text-align:center;margin-top:20px;font-size:.85rem;color:var(--text-secondary);">
+                    <a href="/login?cancel=1">Voltar</a>
+                </p>
+                <?php else: ?>
                 <h2>Bem-vindo de volta</h2>
                 <p class="subtitle">Entre com suas credenciais para acessar o painel.</p>
                 <?php if ($error): ?>
@@ -82,6 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p style="text-align:center;margin-top:20px;font-size:.85rem;color:var(--text-secondary);">
                     Não tem conta? <a href="/register"><strong>Criar conta grátis</strong></a>
                 </p>
+                <?php endif; ?>
             </div>
         </div>
     </div>

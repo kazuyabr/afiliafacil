@@ -4,6 +4,8 @@ session_start();
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Settings.php';
 require_once __DIR__ . '/Audit.php';
+require_once __DIR__ . '/Crypto.php';
+require_once __DIR__ . '/Totp.php';
 
 class Auth
 {
@@ -96,10 +98,18 @@ class Auth
             return ['ok' => false, 'error' => 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.'];
         }
 
-        $authenticated = self::verifyCredentials($email, $password);
+        $user = self::findAuthenticatedUser($email, $password);
 
-        if ($authenticated) {
+        if ($user) {
             self::recordAttempt($email, true);
+
+            if (!empty($user['two_factor_enabled'])) {
+                $_SESSION['pending_2fa_user_id'] = (int)$user['id'];
+                Audit::log('login_2fa_pending', 'user', $email);
+                return ['ok' => false, 'two_factor' => true, 'error' => null];
+            }
+
+            self::loginUser($user);
             Audit::log('login', 'user', $email);
             return ['ok' => true, 'error' => null];
         }
@@ -109,23 +119,140 @@ class Auth
         return ['ok' => false, 'error' => null];
     }
 
-    private static function verifyCredentials(string $email, string $password): bool
+    public static function completeTwoFactor(string $code): array
     {
-        if (Database::available()) {
-            $user = \AfiliaFacil\Models\User::where('email', $email)->first();
-            if (!$user || !$user->active) return false;
-            if (!password_verify($password, $user->password)) return false;
-            self::loginUser(self::userToArray($user));
-            return true;
+        $userId = (int)($_SESSION['pending_2fa_user_id'] ?? 0);
+        if ($userId <= 0) {
+            return ['ok' => false, 'error' => 'Sessão de verificação expirada. Faça login novamente.'];
         }
 
-        foreach (self::getUsers() as $user) {
-            if (strtolower($user['email']) === $email && password_verify($password, $user['password'])) {
-                self::loginUser($user);
+        if (!self::verify2fa($userId, $code)) {
+            Audit::log('login_2fa_failed', 'user', (string)$userId);
+            return ['ok' => false, 'error' => 'Código inválido. Tente novamente.'];
+        }
+
+        $user = self::getUserById($userId);
+        if (!$user) {
+            return ['ok' => false, 'error' => 'Usuário não encontrado.'];
+        }
+
+        unset($_SESSION['pending_2fa_user_id']);
+        self::loginUser($user);
+        Audit::log('login', 'user', $user['email']);
+        return ['ok' => true, 'error' => null];
+    }
+
+    public static function verify2fa(int $userId, string $code): bool
+    {
+        if (!Database::available()) return false;
+
+        $user = \AfiliaFacil\Models\User::find($userId);
+        if (!$user || !$user->two_factor_enabled) return false;
+
+        $code = strtoupper(trim($code));
+
+        if (preg_match('/^[A-F0-9]{4}-[A-F0-9]{4}$/i', $code)) {
+            return self::consumeRecoveryCode($user, $code);
+        }
+
+        $secret = Crypto::decrypt($user->two_factor_secret ?? '') ?? '';
+        if ($secret === '') return false;
+
+        return Totp::verify($secret, $code);
+    }
+
+    private static function consumeRecoveryCode($user, string $code): bool
+    {
+        $codes = json_decode($user->two_factor_recovery_codes ?? '[]', true);
+        if (!is_array($codes) || empty($codes)) return false;
+
+        foreach ($codes as $index => $hash) {
+            if (password_verify($code, $hash)) {
+                unset($codes[$index]);
+                $user->two_factor_recovery_codes = json_encode(array_values($codes));
+                $user->save();
+                Audit::log('2fa_recovery_used', 'user', (string)$user->id);
                 return true;
             }
         }
         return false;
+    }
+
+    public static function enable2fa(int $userId, string $secret, array $codes): bool
+    {
+        if (!Database::available()) return false;
+
+        $user = \AfiliaFacil\Models\User::find($userId);
+        if (!$user) return false;
+
+        $user->two_factor_secret = Crypto::encrypt($secret);
+        $user->two_factor_enabled = true;
+        $user->two_factor_recovery_codes = json_encode(array_map(
+            fn($code) => password_hash($code, PASSWORD_DEFAULT),
+            $codes
+        ));
+        $user->save();
+
+        Audit::log('2fa_enabled', 'user', (string)$userId);
+        return true;
+    }
+
+    public static function disable2fa(int $userId): bool
+    {
+        if (!Database::available()) return false;
+
+        $user = \AfiliaFacil\Models\User::find($userId);
+        if (!$user) return false;
+
+        $user->two_factor_secret = null;
+        $user->two_factor_enabled = false;
+        $user->two_factor_recovery_codes = null;
+        $user->save();
+
+        Audit::log('2fa_disabled', 'user', (string)$userId);
+        return true;
+    }
+
+    public static function regenerateRecoveryCodes(int $userId): array
+    {
+        if (!Database::available()) return [];
+
+        $user = \AfiliaFacil\Models\User::find($userId);
+        if (!$user || !$user->two_factor_enabled) return [];
+
+        $codes = Totp::generateRecoveryCodes();
+        $user->two_factor_recovery_codes = json_encode(array_map(
+            fn($code) => password_hash($code, PASSWORD_DEFAULT),
+            $codes
+        ));
+        $user->save();
+
+        Audit::log('2fa_recovery_regenerated', 'user', (string)$userId);
+        return $codes;
+    }
+
+    public static function has2fa(int $userId): bool
+    {
+        if (!Database::available()) return false;
+        $user = \AfiliaFacil\Models\User::find($userId);
+        return $user && $user->two_factor_enabled;
+    }
+
+    private static function findAuthenticatedUser(string $email, string $password): ?array
+    {
+        if (Database::available()) {
+            $user = \AfiliaFacil\Models\User::where('email', $email)->first();
+            if (!$user || !$user->active) return null;
+            if (!password_verify($password, $user->password)) return null;
+            return self::userToArray($user);
+        }
+
+        foreach (self::getUsers() as $user) {
+            if (strtolower($user['email']) === $email && password_verify($password, $user['password'])) {
+                return $user;
+            }
+        }
+        return null;
     }
 
     private static function isThrottled(string $email): bool
@@ -183,6 +310,7 @@ class Auth
             'trial_until' => $user->trial_until ? (string)$user->trial_until : null,
             'role' => $roleName,
             'role_id' => $user->role_id ?? null,
+            'two_factor_enabled' => (bool)($user->two_factor_enabled ?? false),
             'created_at' => (string)$user->created_at,
         ];
     }

@@ -105,6 +105,65 @@ $user = Auth::user();
                             <a href="/admin/plan.php" class="btn btn-outline btn-sm"><i class="fas fa-arrow-up"></i> Ver meu plano</a>
                         </div>
                     </div>
+
+                    <div class="card" style="margin-top:24px;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-shield-halved"></i> Segurança (2FA)</h3>
+                            <span id="twoFaStatusBadge" class="status status-draft">Verificando...</span>
+                        </div>
+                        <div class="card-body">
+                            <p style="color:var(--text-secondary);font-size:.9rem;margin-bottom:16px;">
+                                Proteja sua conta com verificação em duas etapas (Google Authenticator, Authy, 1Password e similares).
+                            </p>
+
+                            <div id="twoFaIdle" style="display:none;">
+                                <button class="btn btn-primary" onclick="start2fa()"><i class="fas fa-shield-halved"></i> Ativar 2FA</button>
+                            </div>
+
+                            <div id="twoFaSetup" style="display:none;">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> 1) Escaneie o QR Code no seu aplicativo autenticador. 2) Digite o código gerado para confirmar.
+                                </div>
+                                <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
+                                    <img id="twoFaQr" src="" alt="QR Code 2FA" style="width:180px;height:180px;border-radius:12px;border:1px solid var(--border-color);background:#fff;">
+                                    <div style="flex:1;min-width:220px;">
+                                        <div class="form-group">
+                                            <label>Chave manual (se preferir)</label>
+                                            <input type="text" id="twoFaSecret" class="form-control" readonly style="font-family:monospace;font-size:.8rem;">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Código de 6 dígitos</label>
+                                            <input type="text" id="twoFaCode" class="form-control" placeholder="000000" inputmode="numeric" style="font-family:monospace;letter-spacing:.15em;">
+                                        </div>
+                                        <div style="display:flex;gap:8px;">
+                                            <button class="btn btn-primary" onclick="confirm2fa()"><i class="fas fa-check"></i> Confirmar e ativar</button>
+                                            <button class="btn btn-outline" onclick="cancel2fa()">Cancelar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="twoFaEnabled" style="display:none;">
+                                <div class="form-group">
+                                    <label>Digite um código atual para confirmar a ação</label>
+                                    <input type="text" id="twoFaManageCode" class="form-control" placeholder="000000" inputmode="numeric" style="max-width:220px;font-family:monospace;letter-spacing:.15em;">
+                                </div>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button class="btn btn-outline" onclick="regenerate2faCodes()"><i class="fas fa-rotate"></i> Regerar códigos de recuperação</button>
+                                    <button class="btn btn-danger" onclick="disable2fa()"><i class="fas fa-shield-slash"></i> Desativar 2FA</button>
+                                </div>
+                            </div>
+
+                            <div id="twoFaCodes" style="display:none;margin-top:16px;">
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-triangle-exclamation"></i> <strong>Guarde estes códigos de recuperação agora.</strong> Eles são exibidos apenas uma vez e cada um só pode ser usado uma vez.
+                                </div>
+                                <div id="twoFaCodesList" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;font-family:monospace;"></div>
+                            </div>
+
+                            <div id="twoFaResult" style="margin-top:12px;"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <?php if ($isAdmin): ?>
@@ -167,5 +226,74 @@ $user = Auth::user();
         </div>
     </div>
     <script src="/assets/js/app.js"></script>
+    <script>
+    async function load2fa() {
+        const resp = await fetch('/admin/api/2fa.php?action=status');
+        const data = await resp.json();
+        const enabled = !!data.enabled;
+        const badge = document.getElementById('twoFaStatusBadge');
+        badge.textContent = enabled ? 'Ativado' : 'Desativado';
+        badge.className = 'status ' + (enabled ? 'status-active' : 'status-draft');
+        document.getElementById('twoFaIdle').style.display = enabled ? 'none' : 'block';
+        document.getElementById('twoFaEnabled').style.display = enabled ? 'block' : 'none';
+        document.getElementById('twoFaSetup').style.display = 'none';
+    }
+
+    async function start2fa() {
+        const resp = await fetch('/admin/api/2fa.php', { method: 'POST', body: new URLSearchParams({ action: 'setup' }) });
+        const data = await resp.json();
+        if (!data.success) { showToast(data.error || 'Erro ao iniciar 2FA', 'error'); return; }
+        document.getElementById('twoFaQr').src = data.qr_image;
+        document.getElementById('twoFaSecret').value = data.secret;
+        document.getElementById('twoFaSetup').style.display = 'block';
+        document.getElementById('twoFaIdle').style.display = 'none';
+    }
+
+    function cancel2fa() {
+        document.getElementById('twoFaSetup').style.display = 'none';
+        document.getElementById('twoFaIdle').style.display = 'block';
+    }
+
+    function showRecoveryCodes(codes) {
+        const list = document.getElementById('twoFaCodesList');
+        list.innerHTML = codes.map(c => '<div class="quota-pill" style="justify-content:center;padding:6px 10px;font-size:.85rem;">' + c + '</div>').join('');
+        document.getElementById('twoFaCodes').style.display = 'block';
+    }
+
+    async function confirm2fa() {
+        const code = document.getElementById('twoFaCode').value.trim();
+        if (!code) { showToast('Digite o código de 6 dígitos', 'warning'); return; }
+        const resp = await fetch('/admin/api/2fa.php', { method: 'POST', body: new URLSearchParams({ action: 'confirm', code }) });
+        const data = await resp.json();
+        if (data.success) {
+            showToast('2FA ativado com sucesso!', 'success');
+            showRecoveryCodes(data.recovery_codes || []);
+            load2fa();
+        } else {
+            showToast(data.error || 'Erro ao ativar', 'error');
+        }
+    }
+
+    async function disable2fa() {
+        const code = document.getElementById('twoFaManageCode').value.trim();
+        if (!code) { showToast('Digite um código atual para desativar', 'warning'); return; }
+        if (!confirm('Desativar a verificação em duas etapas?')) return;
+        const resp = await fetch('/admin/api/2fa.php', { method: 'POST', body: new URLSearchParams({ action: 'disable', code }) });
+        const data = await resp.json();
+        if (data.success) { showToast('2FA desativado', 'success'); document.getElementById('twoFaCodes').style.display = 'none'; load2fa(); }
+        else showToast(data.error || 'Erro ao desativar', 'error');
+    }
+
+    async function regenerate2faCodes() {
+        const code = document.getElementById('twoFaManageCode').value.trim();
+        if (!code) { showToast('Digite um código atual para regerar', 'warning'); return; }
+        const resp = await fetch('/admin/api/2fa.php', { method: 'POST', body: new URLSearchParams({ action: 'regenerate', code }) });
+        const data = await resp.json();
+        if (data.success) { showToast('Novos códigos gerados!', 'success'); showRecoveryCodes(data.recovery_codes || []); }
+        else showToast(data.error || 'Erro ao regerar', 'error');
+    }
+
+    load2fa();
+    </script>
 </body>
 </html>

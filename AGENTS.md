@@ -28,6 +28,10 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **Seed não destrutivo**: `ImportJsonData::seedPlans/seedRoles` usam `firstOrCreate` — edições do admin NUNCA são sobrescritas no boot
 - **Trial dinâmico**: `trial_days` em settings; landing/registro leem de `Settings::get('trial_days')`
 
+## CRON (preparação Plano B — Ofertas Escalando)
+
+- `CRON_KEY` no `.env` (gerar com `openssl rand -hex 32`) — endpoint futuro `/cron/monitor.php?key=...` (monitoramento de ofertas, modo `cron` | `manual` configurável). Documentado no `.env.sample`.
+
 ## Armazenamento R2 por usuário
 
 - `/admin/storage.php`: cada usuário configura seu Cloudflare R2 (Account ID, Access Key, Secret, Bucket, Public URL/CDN)
@@ -42,6 +46,9 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 
 ## Segurança
 
+- **2FA TOTP** (`lib/Totp.php`, RFC 6238 — validado com vetores oficiais): ativação em Admin → Configurações → Segurança (QR via `api.qrserver.com` + chave manual + 10 códigos de recuperação exibidos uma única vez, single-use, hash `password_hash`). Login em 2 etapas (`index.php`: etapa 2 com sessão pendente `pending_2fa_user_id`; código TOTP ou recovery code). Secret criptografado com AES-256-GCM (`Crypto`). API: `admin/api/2fa.php` (status/setup/confirm/disable/regenerate). Rota `/admin/api/2fa.php` no router. Desativar/regerar exige código atual; auditoria (`2fa_enabled`, `2fa_disabled`, `2fa_recovery_used`, `login_2fa_pending`, `login_2fa_failed`).
+- **Contas ADMIN**: criadas/gerenciadas apenas por quem tem cargo master/admin (`admin/api/users.php` → `isAdminRoleId()`). Não-admin com `manage_users` (ex.: gerente custom) NÃO pode criar/editar/excluir/desativar contas admin/master (403) nem atribuir esses cargos; o select de cargos some com master/admin (`admin/users.php` → `actorIsAdmin` + `canManage`). Atribuir cargo admin força plano `premium`; rebaixar volta para `trial`. Master só é editável por ele mesmo; não pode ser excluído/desativado nem ter cargo alterado (403).
+- **`/admin/plan.php` para admins**: conta admin vê card "ADMIN — Conta de Trabalho" (acesso total) e os planos comerciais atenuados/desabilitados ("Disponível para clientes"), sem botão de upgrade/checkout.
 - **Isolamento de dados (app)**: `Auth::canAccessPage()`/`requirePageAccess()` — páginas só são acessíveis pelo dono ou admin (aplicado em pages/preview/download/editor/APIs); listagem e stats filtradas por usuário (`PageManager::listByUser`)
 - **Roles Postgres (least privilege)**: runtime conecta com `afiliafacil_app` (sem DDL — só DML + sequences); migrações usam o owner via `DB_MIGRATION_USER`/`DB_MIGRATION_PASSWORD`. A role é criada/atualizada no boot por `bin/migrate.php` (`DB_APP_USER`/`DB_APP_PASSWORD`)
 - **Rate limiting no login**: 5 falhas/15min por e-mail → bloqueio temporário (tabela `login_attempts`); mensagem exibida no login

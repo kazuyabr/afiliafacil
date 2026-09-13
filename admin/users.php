@@ -12,6 +12,10 @@ if (!Auth::can('manage_users')) {
 
 $theme = $_SESSION['theme'] ?? 'light';
 $roles = Database::available() ? \AfiliaFacil\Models\Role::orderBy('id')->get() : collect();
+$actorIsAdmin = Auth::isAdmin();
+if (!$actorIsAdmin) {
+    $roles = $roles->filter(fn($r) => !in_array($r->name, ['master', 'admin'], true))->values();
+}
 $plans = Plans::all();
 ?>
 <!DOCTYPE html>
@@ -117,12 +121,14 @@ $plans = Plans::all();
     <script src="/assets/js/app.js"></script>
     <script>
     let usersCache = [];
+    let actorIsAdmin = false;
 
     async function loadUsers() {
         const resp = await fetch('/admin/api/users.php?action=list');
         const data = await resp.json();
         if (!data.success) { document.getElementById('usersBody').innerHTML = '<tr><td colspan="7">' + (data.error || 'Erro') + '</td></tr>'; return; }
         usersCache = data.users;
+        actorIsAdmin = !!data.actor_is_admin;
         renderUsers();
     }
 
@@ -132,21 +138,25 @@ $plans = Plans::all();
             body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;">Nenhum usuário</td></tr>';
             return;
         }
-        body.innerHTML = usersCache.map(u => `
+        body.innerHTML = usersCache.map(u => {
+            const canManage = actorIsAdmin || !u.is_admin;
+            return `
             <tr data-id="${u.id}">
-                <td><strong>${escapeHtml(u.name)}</strong></td>
+                <td><strong>${escapeHtml(u.name)}</strong>${u.is_admin ? ' <span style="font-size:.65rem;font-weight:700;color:var(--warning);border:1px solid var(--warning);padding:1px 6px;border-radius:10px;margin-left:4px;"><i class="fas fa-shield-halved"></i> ADMIN</span>' : ''}</td>
                 <td><small>${escapeHtml(u.email)}</small></td>
                 <td><span style="font-size:.8rem;background:var(--bg-secondary);padding:3px 8px;border-radius:4px;">${escapeHtml(u.role_label)}</span></td>
                 <td>${escapeHtml(u.plan)}</td>
                 <td><span class="status status-${u.active ? 'active' : 'expired'}">${u.active ? 'Ativo' : 'Inativo'}</span></td>
                 <td><small style="color:var(--text-secondary);">${u.created_at.slice(0, 10)}</small></td>
                 <td style="text-align:right;">
+                    ${canManage ? `
                     <button class="btn btn-sm btn-outline" onclick="openEdit(${u.id})" title="Editar"><i class="fas fa-pen"></i></button>
                     <button class="btn btn-sm btn-outline" onclick="toggleUser(${u.id})" title="${u.active ? 'Desativar' : 'Ativar'}"><i class="fas fa-${u.active ? 'ban' : 'check'}"></i></button>
                     <button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})" title="Excluir"><i class="fas fa-trash"></i></button>
+                    ` : '<span style="font-size:.75rem;color:var(--text-secondary);"><i class="fas fa-lock"></i> restrito</span>'}
                 </td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
     }
 
     function escapeHtml(s) {

@@ -10,12 +10,13 @@ Auth::requireAuth();
 $theme = $_SESSION['theme'] ?? 'light';
 
 $user = Auth::user();
+$isAdmin = Auth::isAdmin();
 $currentPlan = Auth::getUserById($user['id']);
 $plan = Plans::get($user['plan']);
 
 $checkout = null;
 $checkoutErr = null;
-if (isset($_GET['plan']) && isset($_GET['cycle'])) {
+if (!$isAdmin && isset($_GET['plan']) && isset($_GET['cycle'])) {
     $planId = $_GET['plan'];
     $cycle = $_GET['cycle'];
     $result = Checkout::createCheckout($user['id'], $planId, $cycle);
@@ -89,7 +90,7 @@ if (isset($_GET['plan']) && isset($_GET['cycle'])) {
                             <?php endif; ?>
                         </div>
                         <div style="display:flex;gap:8px;">
-                            <?php if ($user['plan'] !== 'premium'): ?>
+                            <?php if (!$isAdmin): ?>
                                 <a href="#plans-grid" class="btn btn-outline"><i class="fas fa-arrow-up"></i> Fazer upgrade</a>
                             <?php endif; ?>
                         </div>
@@ -97,9 +98,23 @@ if (isset($_GET['plan']) && isset($_GET['cycle'])) {
                 </div>
 
                 <div id="plans-grid" class="grid-3" style="margin-bottom:24px;">
+                    <?php if ($isAdmin): ?>
+                    <div class="plan-card current" style="border-color:var(--warning);background:linear-gradient(180deg, color-mix(in srgb, var(--warning) 8%, var(--bg-card)) 0%, var(--bg-card) 100%);">
+                        <span style="display:inline-flex;align-items:center;gap:6px;font-size:.7rem;font-weight:700;letter-spacing:.05em;color:var(--warning);margin-bottom:6px;"><i class="fas fa-shield-halved"></i> CONTA DE TRABALHO</span>
+                        <h3 style="font-size:1.3rem;">ADMIN</h3>
+                        <div class="price">Acesso total</div>
+                        <ul>
+                            <li><i class="fas fa-check"></i> Todos os recursos ilimitados</li>
+                            <li><i class="fas fa-check"></i> Gestão de usuários, cargos e preços</li>
+                            <li><i class="fas fa-check"></i> Auditoria e configurações do sistema</li>
+                            <li><i class="fas fa-check"></i> Sem cobrança de assinatura</li>
+                        </ul>
+                        <button class="btn btn-outline btn-full" disabled><i class="fas fa-shield-halved"></i> Plano de administrador</button>
+                    </div>
+                    <?php endif; ?>
                     <?php foreach (['vsl', 'essencial', 'master'] as $planId): ?>
                     <?php $p = Plans::get($planId); ?>
-                    <div class="plan-card <?= $user['plan'] === $planId ? 'current' : '' ?>">
+                    <div class="plan-card <?= (!$isAdmin && $user['plan'] === $planId) ? 'current' : '' ?>" style="<?= $isAdmin ? 'opacity:.55;' : '' ?>">
                         <h3><?= $p['name'] ?></h3>
                         <div class="price"><?= Plans::formatPrice($p['price']) ?><small style="font-size:.9rem;font-weight:500;color:var(--text-secondary);">/mês</small></div>
                         <ul>
@@ -108,7 +123,9 @@ if (isset($_GET['plan']) && isset($_GET['cycle'])) {
                             <li><i class="fas fa-check"></i> <?= $p['max_domains'] === -1 ? 'Domínios ilimitados' : $p['max_domains'] . ' domínios' ?></li>
                             <li><i class="fas fa-check"></i> <?= count($p['features']) ?> recursos inclusos</li>
                         </ul>
-                        <?php if ($user['plan'] === $planId): ?>
+                        <?php if ($isAdmin): ?>
+                            <button class="btn btn-outline btn-full" disabled title="Planos comerciais são exclusivos para clientes"><i class="fas fa-lock"></i> Disponível para clientes</button>
+                        <?php elseif ($user['plan'] === $planId): ?>
                             <button class="btn btn-outline btn-full" disabled><i class="fas fa-check"></i> Plano atual</button>
                         <?php else: ?>
                             <a href="/admin/plan.php?plan=<?= $planId ?>&cycle=monthly" class="btn btn-primary btn-full">Assinar agora</a>

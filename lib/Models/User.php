@@ -12,6 +12,7 @@ class User extends Model
     protected $casts = [
         'trial_until' => 'datetime',
         'active' => 'boolean',
+        'two_factor_enabled' => 'boolean',
     ];
 
     public function role()

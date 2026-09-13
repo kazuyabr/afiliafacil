@@ -28,6 +28,15 @@ if (!Database::available()) {
 }
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
+$actor = Auth::user();
+$actorIsAdmin = Auth::isAdmin();
+
+function isAdminRoleId(int $roleId): bool
+{
+    if ($roleId <= 0) return false;
+    $role = Role::find($roleId);
+    return $role && in_array($role->name, ['master', 'admin'], true);
+}
 
 switch ($action) {
     case 'list':
@@ -39,12 +48,13 @@ switch ($action) {
                 'role_id' => $u->role_id,
                 'role_name' => $u->role->name ?? null,
                 'role_label' => $u->role->label ?? '—',
+                'is_admin' => in_array($u->role->name ?? '', ['master', 'admin'], true),
                 'plan' => $u->plan,
                 'active' => (bool)$u->active,
                 'created_at' => (string)$u->created_at,
             ];
         });
-        echo json_encode(['success' => true, 'users' => $users]);
+        echo json_encode(['success' => true, 'users' => $users, 'actor_is_admin' => $actorIsAdmin]);
         break;
 
     case 'create':
@@ -69,6 +79,14 @@ switch ($action) {
         if ($roleId && !Role::find($roleId)) {
             echo json_encode(['error' => 'Cargo inválido']);
             break;
+        }
+        if (isAdminRoleId($roleId) && !$actorIsAdmin) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Apenas administradores podem criar contas de administrador']);
+            break;
+        }
+        if (isAdminRoleId($roleId)) {
+            $plan = 'premium';
         }
 
         $user = User::create([
@@ -95,17 +113,44 @@ switch ($action) {
             break;
         }
 
+        $targetIsMaster = $user->isMaster();
+        $targetIsAdmin = in_array($user->role->name ?? '', ['master', 'admin'], true);
+
+        if ($targetIsMaster && $id !== (int)$actor['id']) {
+            http_response_code(403);
+            echo json_encode(['error' => 'A conta Master só pode ser editada por ela mesma']);
+            break;
+        }
+        if ($targetIsAdmin && !$actorIsAdmin) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Apenas administradores podem editar contas de administrador']);
+            break;
+        }
+
         $name = trim($_POST['name'] ?? $user->name);
         $email = strtolower(trim($_POST['email'] ?? $user->email));
         $roleId = (int)($_POST['role_id'] ?? $user->role_id);
         $plan = $_POST['plan'] ?? $user->plan;
         $password = $_POST['password'] ?? '';
 
-        if ($user->isMaster()) {
+        if ($targetIsMaster) {
             if ($roleId !== $user->role_id) {
+                http_response_code(403);
                 echo json_encode(['error' => 'O cargo da conta Master não pode ser alterado']);
                 break;
             }
+        }
+
+        if (isAdminRoleId($roleId) && !$actorIsAdmin) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Apenas administradores podem atribuir cargos de administrador']);
+            break;
+        }
+
+        if (isAdminRoleId($roleId)) {
+            $plan = 'premium';
+        } elseif ($targetIsAdmin && !isAdminRoleId($roleId) && $plan === 'premium') {
+            $plan = 'trial';
         }
 
         if ($email !== $user->email && User::where('email', $email)->where('id', '!=', $id)->exists()) {
@@ -139,7 +184,13 @@ switch ($action) {
             break;
         }
         if ($user->isMaster()) {
+            http_response_code(403);
             echo json_encode(['error' => 'A conta Master não pode ser desativada']);
+            break;
+        }
+        if (in_array($user->role->name ?? '', ['master', 'admin'], true) && !$actorIsAdmin) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Apenas administradores podem gerenciar contas de administrador']);
             break;
         }
         $user->active = !$user->active;
@@ -156,10 +207,16 @@ switch ($action) {
             break;
         }
         if ($user->isMaster()) {
+            http_response_code(403);
             echo json_encode(['error' => 'A conta Master não pode ser excluída']);
             break;
         }
-        if ($id === (int)Auth::user()['id']) {
+        if (in_array($user->role->name ?? '', ['master', 'admin'], true) && !$actorIsAdmin) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Apenas administradores podem excluir contas de administrador']);
+            break;
+        }
+        if ($id === (int)$actor['id']) {
             echo json_encode(['error' => 'Você não pode excluir sua própria conta']);
             break;
         }

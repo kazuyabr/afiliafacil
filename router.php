@@ -43,6 +43,7 @@ $routes = [
     '/admin/logout.php' => '/admin/logout.php',
     '/admin/api/editor.php' => '/admin/api/editor.php',
     '/admin/api/users.php' => '/admin/api/users.php',
+    '/admin/api/2fa.php' => '/admin/api/2fa.php',
     '/admin/api/roles.php' => '/admin/api/roles.php',
     '/admin/api/pricing.php' => '/admin/api/pricing.php',
     '/admin/api/storage.php' => '/admin/api/storage.php',
