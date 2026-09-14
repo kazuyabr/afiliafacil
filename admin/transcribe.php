@@ -107,6 +107,7 @@ $maxUpload = min(24, (int)ini_get('upload_max_filesize') ?: 24);
                                 <button class="btn btn-outline btn-sm" onclick="copyTranscript()"><i class="fas fa-copy"></i> Copiar</button>
                                 <button class="btn btn-outline btn-sm" onclick="downloadSrt()"><i class="fas fa-closed-captioning"></i> Baixar SRT</button>
                                 <button class="btn btn-outline btn-sm" onclick="downloadTxt()"><i class="fas fa-download"></i> Baixar TXT</button>
+                                <button class="btn btn-outline btn-sm" onclick="askAgentTranscript()"><i class="fas fa-handshake"></i> Discutir com o sócio</button>
                             </div>
                         </div>
                         <div class="card-body">
@@ -199,6 +200,12 @@ $maxUpload = min(24, (int)ini_get('upload_max_filesize') ?: 24);
         if (!lastText) return;
         const blob = new Blob([lastText], { type: 'text/plain;charset=utf-8' });
         downloadBlob(blob, 'transcricao.txt');
+    }
+
+    function askAgentTranscript() {
+        if (!lastText) return;
+        const text = 'Transcrevi este material de VSL. Analise o roteiro e me diga: os angulos de venda, o publico e 3 melhorias praticas. Trecho: ' + lastText.substring(0, 600);
+        window.open('/admin/agent.php?ask=' + encodeURIComponent(text), '_blank');
     }
 
     function downloadSrt() {

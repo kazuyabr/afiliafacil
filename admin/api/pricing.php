@@ -46,6 +46,10 @@ switch ($action) {
                 'max_domains' => (int)$p->max_domains,
                 'max_adspy_searches' => (int)($p->max_adspy_searches ?? 0),
                 'max_ai_analyses' => (int)($p->max_ai_analyses ?? 0),
+                'max_offers_views' => (int)($p->max_offers_views ?? 0),
+                'max_transcriptions' => (int)($p->max_transcriptions ?? 0),
+                'max_tts' => (int)($p->max_tts ?? 0),
+                'max_agent_messages' => (int)($p->max_agent_messages ?? 0),
                 'active' => (bool)$p->active,
                 'prices' => $prices,
             ];
@@ -67,6 +71,10 @@ switch ($action) {
         if (isset($_POST['max_domains'])) $plan->max_domains = (int)$_POST['max_domains'];
         if (isset($_POST['max_adspy_searches'])) $plan->max_adspy_searches = (int)$_POST['max_adspy_searches'];
         if (isset($_POST['max_ai_analyses'])) $plan->max_ai_analyses = (int)$_POST['max_ai_analyses'];
+        if (isset($_POST['max_offers_views'])) $plan->max_offers_views = (int)$_POST['max_offers_views'];
+        if (isset($_POST['max_transcriptions'])) $plan->max_transcriptions = (int)$_POST['max_transcriptions'];
+        if (isset($_POST['max_tts'])) $plan->max_tts = (int)$_POST['max_tts'];
+        if (isset($_POST['max_agent_messages'])) $plan->max_agent_messages = (int)$_POST['max_agent_messages'];
         if (isset($_POST['active'])) $plan->active = (bool)$_POST['active'];
         if (isset($_POST['features'])) {
             $features = $_POST['features'];

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/PageManager.php';
+require_once Config::getLibDir() . '/Plans.php';
 
 Auth::requireAuth();
 
@@ -71,6 +72,13 @@ $theme = $_SESSION['theme'] ?? 'light';
                     </div>
                     <div class="card-body">
                         <div class="grid-4" style="gap:12px;">
+                            <?php if (Plans::hasFeature($user['plan'], 'agent') || Auth::isAdmin()): ?>
+                            <a href="/admin/agent.php" class="feature-card" style="text-decoration:none;">
+                                <div class="feature-icon" style="background:#e0f2fe;color:#0369a1;"><i class="fas fa-handshake"></i></div>
+                                <h3>Fale com seu Sócio</h3>
+                                <p>Seu parceiro de tráfego: pergunta, orienta e protege</p>
+                            </a>
+                            <?php endif; ?>
                             <a href="/admin/clone.php" class="feature-card" style="text-decoration:none;">
                                 <div class="feature-icon" style="background:#e7f1ff;color:#0d6efd;"><i class="fas fa-clone"></i></div>
                                 <h3>Clonar Página</h3>

@@ -97,7 +97,10 @@ $config = TtsConfig::forUser((int)$user['id']);
                     <div class="card">
                         <div class="card-header">
                             <h3><i class="fas fa-circle-play"></i> Narração gerada</h3>
-                            <a class="btn btn-outline btn-sm" id="ttsDownload" href="#" download><i class="fas fa-download"></i> Baixar áudio</a>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn btn-outline btn-sm" onclick="askAgentTts()"><i class="fas fa-handshake"></i> Discutir com o sócio</button>
+                                <a class="btn btn-outline btn-sm" id="ttsDownload" href="#" download><i class="fas fa-download"></i> Baixar áudio</a>
+                            </div>
                         </div>
                         <div class="card-body">
                             <div id="ttsMeta" style="font-size:.75rem;color:var(--text-secondary);margin-bottom:10px;"></div>
@@ -133,6 +136,11 @@ $config = TtsConfig::forUser((int)$user['id']);
     function updateQuota(quota) {
         if (!quota) return;
         document.getElementById('quotaPill').innerHTML = '<i class="fas fa-volume-high"></i> Narrações: <strong>' + (quota.limit === -1 ? 'ilimitado' : quota.used + '/' + quota.limit) + '</strong>';
+    }
+
+    function askAgentTts() {
+        const text = 'Gerei uma narração aqui. Como eu uso isso numa VSL ou anuncio? Me de um passo a passo simples e sem gastar muito.';
+        window.open('/admin/agent.php?ask=' + encodeURIComponent(text), '_blank');
     }
 
     async function loadConfig() {

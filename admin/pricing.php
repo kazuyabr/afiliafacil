@@ -104,6 +104,24 @@ $theme = $_SESSION['theme'] ?? 'light';
                             <input type="number" class="form-control plan-max-ai" value="${p.max_ai_analyses}">
                         </div>
                     </div>
+                    <div class="grid-4">
+                        <div class="form-group">
+                            <label>Ofertas vistas/mês (-1 = ilimitado)</label>
+                            <input type="number" class="form-control plan-max-offers" value="${p.max_offers_views ?? 0}">
+                        </div>
+                        <div class="form-group">
+                            <label>Transcrições/mês (-1 = ilimitado)</label>
+                            <input type="number" class="form-control plan-max-transcriptions" value="${p.max_transcriptions ?? 0}">
+                        </div>
+                        <div class="form-group">
+                            <label>Narrações/mês (-1 = ilimitado)</label>
+                            <input type="number" class="form-control plan-max-tts" value="${p.max_tts ?? 0}">
+                        </div>
+                        <div class="form-group">
+                            <label>Mensagens do Sócio/mês (-1 = ilimitado)</label>
+                            <input type="number" class="form-control plan-max-agent" value="${p.max_agent_messages ?? 0}">
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label>Recursos (separados por vírgula)</label>
                         <input type="text" class="form-control plan-features" value="${esc(p.features.join(', '))}">
@@ -133,6 +151,10 @@ $theme = $_SESSION['theme'] ?? 'light';
         body.append('max_domains', card.querySelector('.plan-max-domains').value);
         body.append('max_adspy_searches', card.querySelector('.plan-max-adspy').value);
         body.append('max_ai_analyses', card.querySelector('.plan-max-ai').value);
+        body.append('max_offers_views', card.querySelector('.plan-max-offers').value);
+        body.append('max_transcriptions', card.querySelector('.plan-max-transcriptions').value);
+        body.append('max_tts', card.querySelector('.plan-max-tts').value);
+        body.append('max_agent_messages', card.querySelector('.plan-max-agent').value);
         body.append('features', card.querySelector('.plan-features').value);
         body.append('active', card.querySelector('.plan-active').checked ? '1' : '0');
         card.querySelectorAll('.plan-price').forEach(input => {

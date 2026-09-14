@@ -443,6 +443,7 @@ $quota = OfferQuota::check((int)$user['id'], $user['plan']);
             (o.source_url || o.domain ? '<button class="btn btn-primary btn-sm" onclick="cloneCurrentOffer()"><i class="fas fa-clone"></i> Clonar página principal</button>' : '') +
             '<button class="btn btn-outline btn-sm" onclick="spyCurrentOffer()"><i class="fas fa-crosshairs"></i> Espionar campanha</button>' +
             '<button class="btn btn-outline btn-sm" onclick="transcribeCurrentOffer()"><i class="fas fa-microphone-lines"></i> Transcrever VSL</button>' +
+            '<button class="btn btn-outline btn-sm" onclick="askAgentCurrentOffer()"><i class="fas fa-handshake"></i> Discutir com o sócio</button>' +
         '</div>';
 
         if ((o.creatives || []).length) {
@@ -511,6 +512,12 @@ $quota = OfferQuota::check((int)$user['id'], $user['plan']);
         const url = currentOffer.source_url || (currentOffer.domain ? 'https://' + currentOffer.domain : '');
         if (!url) { showToast('Oferta sem URL de origem', 'warning'); return; }
         window.open('/admin/transcribe.php?url=' + encodeURIComponent(url), '_blank');
+    }
+
+    function askAgentCurrentOffer() {
+        if (!currentOffer) return;
+        const text = 'Estou olhando a oferta "' + currentOffer.name + '" (ID ' + currentOffer.id + '). Vale a pena eu promover? Me diga os riscos e o que voce faria no meu lugar.';
+        window.open('/admin/agent.php?ask=' + encodeURIComponent(text), '_blank');
     }
 
     async function loadCreatives() {

@@ -1,0 +1,416 @@
+<?php
+
+require_once __DIR__ . '/../Config.php';
+require_once __DIR__ . '/../Database.php';
+require_once __DIR__ . '/../Plans.php';
+require_once __DIR__ . '/../PageManager.php';
+require_once __DIR__ . '/../Cloner.php';
+require_once __DIR__ . '/../Crypto.php';
+require_once __DIR__ . '/../Offers/OfferManager.php';
+require_once __DIR__ . '/../Offers/OfferQuota.php';
+require_once __DIR__ . '/../Offers/OfferAi.php';
+require_once __DIR__ . '/../AdSpy/AdSpyManager.php';
+require_once __DIR__ . '/../AdSpy/AdSpyQuota.php';
+require_once __DIR__ . '/../Ai/SttConfig.php';
+require_once __DIR__ . '/../Ai/SttClient.php';
+require_once __DIR__ . '/../Ai/SttQuota.php';
+require_once __DIR__ . '/../Ai/TtsConfig.php';
+require_once __DIR__ . '/../Ai/TtsClient.php';
+require_once __DIR__ . '/../Ai/TtsQuota.php';
+require_once __DIR__ . '/../Ai/MediaDetector.php';
+
+class AgentTools
+{
+    public const LEITURA = ['consultar_quotas', 'listar_ofertas', 'listar_minhas_paginas', 'listar_transcricoes', 'listar_narracoes'];
+
+    public static function definitions(): array
+    {
+        return [
+            ['name' => 'consultar_quotas', 'params' => [], 'desc' => 'Consulta as quotas e limites do plano do usuário (anúncios, IA, ofertas, transcrições, narrações).'],
+            ['name' => 'listar_ofertas', 'params' => ['niche?' => 'nicho', 'structure?' => 'estrutura', 'order?' => 'score|scale|ads|recent', 'limit?' => 'máx 20'], 'desc' => 'Lista ofertas aprovadas no swipe file (validadas nas bibliotecas de anúncios).'],
+            ['name' => 'listar_minhas_paginas', 'params' => [], 'desc' => 'Lista as páginas clonadas do usuário.'],
+            ['name' => 'listar_transcricoes', 'params' => [], 'desc' => 'Lista as últimas transcrições do usuário.'],
+            ['name' => 'listar_narracoes', 'params' => [], 'desc' => 'Lista as últimas narrações (TTS) do usuário.'],
+            ['name' => 'ver_oferta', 'params' => ['id' => 'ID da oferta'], 'desc' => 'Abre o dossiê completo de uma oferta (criativos, páginas, análise). Consome 1 visualização.'],
+            ['name' => 'espionar_anuncios', 'params' => ['query' => 'termo, domínio ou anunciante', 'providers?' => 'meta|google|tiktok'], 'desc' => 'Busca anúncios ativos nas bibliotecas (Meta/Google/TikTok). Consome 1 busca.'],
+            ['name' => 'analisar_oferta', 'params' => ['id' => 'ID da oferta'], 'desc' => 'Analisa uma oferta com IA (nicho, estrutura, score, ângulos). Consome 1 análise IA.'],
+            ['name' => 'transcrever_midia', 'params' => ['url' => 'URL da página/VSL/áudio'], 'desc' => 'Transcreve um vídeo/áudio (com timestamps). Consome 1 transcrição.'],
+            ['name' => 'gerar_narracao', 'params' => ['text' => 'texto (máx 5000)', 'voice?' => 'voz'], 'desc' => 'Gera narração (TTS) a partir de um texto. Consome 1 narração.'],
+            ['name' => 'clonar_pagina', 'params' => ['url' => 'URL da página', 'affiliate_link' => 'link de afiliado', 'name?' => 'nome'], 'desc' => 'Clona uma página de vendas e aplica o link de afiliado. Consome 1 página do plano.'],
+        ];
+    }
+
+    public static function execute(string $tool, array $args, array $user, int $userId): array
+    {
+        try {
+            return match ($tool) {
+                'consultar_quotas' => self::consultarQuotas($user, $userId),
+                'listar_ofertas' => self::listarOfertas($args),
+                'listar_minhas_paginas' => self::listarPaginas($userId),
+                'listar_transcricoes' => self::listarTranscricoes($userId),
+                'listar_narracoes' => self::listarNarracoes($userId),
+                'ver_oferta' => self::verOferta($args, $user, $userId),
+                'espionar_anuncios' => self::espionar($args, $user, $userId),
+                'analisar_oferta' => self::analisarOferta($args, $user, $userId),
+                'transcrever_midia' => self::transcrever($args, $user, $userId),
+                'gerar_narracao' => self::gerarNarracao($args, $user, $userId),
+                'clonar_pagina' => self::clonar($args, $userId),
+                default => ['success' => false, 'summary' => 'Ferramenta desconhecida.', 'render' => null],
+            };
+        } catch (Throwable $e) {
+            return ['success' => false, 'summary' => 'Erro ao executar: ' . $e->getMessage(), 'render' => null];
+        }
+    }
+
+    private static function consultarQuotas(array $user, int $userId): array
+    {
+        $plan = $user['plan'];
+        $data = [
+            'plano' => Plans::planName($plan),
+            'paginas' => ['limite' => Plans::maxPages($plan)],
+            'dominios' => ['limite' => Plans::maxDomains($plan)],
+            'adspy' => AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_SEARCH),
+            'ia' => AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_ANALYSIS),
+            'ofertas' => OfferQuota::check($userId, $plan),
+            'transcricoes' => SttQuota::check($userId, $plan),
+            'narracoes' => TtsQuota::check($userId, $plan),
+            'agente' => AgentQuota::check($userId, $plan),
+        ];
+
+        return [
+            'success' => true,
+            'summary' => 'Quotas do plano ' . $data['plano'] . ': ' . json_encode($data, JSON_UNESCAPED_UNICODE),
+            'render' => ['type' => 'quotas', 'data' => $data],
+        ];
+    }
+
+    private static function listarOfertas(array $args): array
+    {
+        $manager = new OfferManager();
+        $result = $manager->list([
+            'niche' => (string)($args['niche'] ?? ''),
+            'structure' => (string)($args['structure'] ?? ''),
+            'order' => (string)($args['order'] ?? 'score'),
+        ], min(20, max(1, (int)($args['limit'] ?? 10))));
+
+        $items = array_map(fn($o) => [
+            'id' => $o['id'],
+            'name' => $o['name'],
+            'niche' => $o['niche'],
+            'structure' => $o['structure'],
+            'ads_count' => $o['ads_count'],
+            'scale_pct' => $o['scale_pct'],
+            'score' => $o['score'],
+            'domain' => $o['domain'],
+        ], $result['items']);
+
+        return [
+            'success' => true,
+            'summary' => count($items) . ' ofertas aprovadas encontradas: ' . json_encode($items, JSON_UNESCAPED_UNICODE),
+            'render' => ['type' => 'ofertas', 'data' => $items],
+        ];
+    }
+
+    private static function listarPaginas(int $userId): array
+    {
+        $pm = new PageManager();
+        $pages = array_slice($pm->listByUser($userId), 0, 20);
+        $items = array_map(fn($p) => [
+            'id' => $p['id'],
+            'name' => $p['name'],
+            'status' => $p['status'] ?? '',
+            'domain' => $p['domain'] ?? '',
+            'source_domain' => $p['source_domain'] ?? '',
+        ], $pages);
+
+        return [
+            'success' => true,
+            'summary' => count($items) . ' páginas do usuário: ' . json_encode($items, JSON_UNESCAPED_UNICODE),
+            'render' => ['type' => 'paginas', 'data' => $items],
+        ];
+    }
+
+    private static function listarTranscricoes(int $userId): array
+    {
+        $items = [];
+        if (Database::available()) {
+            $items = \AfiliaFacil\Models\Transcription::where('user_id', $userId)
+                ->orderByDesc('id')->limit(5)->get()
+                ->map(fn($t) => ['id' => (int)$t->id, 'url' => $t->source_url, 'status' => $t->status, 'chars' => mb_strlen((string)$t->text)])
+                ->all();
+        }
+
+        return [
+            'success' => true,
+            'summary' => count($items) . ' transcrições recentes: ' . json_encode($items, JSON_UNESCAPED_UNICODE),
+            'render' => ['type' => 'transcricoes', 'data' => $items],
+        ];
+    }
+
+    private static function listarNarracoes(int $userId): array
+    {
+        $items = [];
+        if (Database::available()) {
+            $items = \AfiliaFacil\Models\TtsGeneration::where('user_id', $userId)
+                ->orderByDesc('id')->limit(5)->get()
+                ->map(fn($t) => ['id' => (int)$t->id, 'status' => $t->status, 'chars' => (int)$t->chars, 'voice' => $t->voice])
+                ->all();
+        }
+
+        return [
+            'success' => true,
+            'summary' => count($items) . ' narrações recentes: ' . json_encode($items, JSON_UNESCAPED_UNICODE),
+            'render' => ['type' => 'narracoes', 'data' => $items],
+        ];
+    }
+
+    private static function verOferta(array $args, array $user, int $userId): array
+    {
+        $id = (int)($args['id'] ?? 0);
+        $manager = new OfferManager();
+        $offer = $manager->get($id);
+
+        if (!$offer || $offer['status'] !== 'approved') {
+            return ['success' => false, 'summary' => 'Oferta não encontrada ou não aprovada.', 'render' => null];
+        }
+
+        OfferQuota::consume($userId, $id);
+
+        return [
+            'success' => true,
+            'summary' => 'Oferta "' . $offer['name'] . '": ' . $offer['ads_count'] . ' anúncios, escala ' . $offer['scale_pct'] . '%, score ' . $offer['score'] . '. Nicho: ' . ($offer['niche'] ?: 'n/d') . '. Estrutura: ' . ($offer['structure'] ?: 'n/d') . '. Resumo IA: ' . mb_substr((string)$offer['ai_summary'], 0, 400),
+            'render' => ['type' => 'oferta', 'data' => [
+                'id' => $offer['id'],
+                'name' => $offer['name'],
+                'advertiser' => $offer['advertiser'],
+                'domain' => $offer['domain'],
+                'niche' => $offer['niche'],
+                'structure' => $offer['structure'],
+                'ads_count' => $offer['ads_count'],
+                'scale_pct' => $offer['scale_pct'],
+                'score' => $offer['score'],
+                'ai_summary' => $offer['ai_summary'],
+                'sparkline' => $offer['sparkline'],
+                'source_url' => $offer['source_url'],
+                'creatives_count' => count($offer['creatives'] ?? []),
+                'pages_count' => count($offer['pages'] ?? []),
+            ]],
+        ];
+    }
+
+    private static function espionar(array $args, array $user, int $userId): array
+    {
+        $query = trim((string)($args['query'] ?? ''));
+        if ($query === '') {
+            return ['success' => false, 'summary' => 'Informe um termo, domínio ou anunciante.', 'render' => null];
+        }
+
+        $providers = $args['providers'] ?? ['meta', 'google', 'tiktok'];
+        $providers = array_values(array_intersect((array)$providers, ['meta', 'google', 'tiktok']));
+        if (empty($providers)) $providers = ['meta', 'google', 'tiktok'];
+
+        $manager = new AdSpyManager();
+        $search = $manager->search($userId, $user['plan'], $query, $providers, ['countries' => ['BR'], 'country' => 'BR']);
+
+        $ads = [];
+        foreach ($search['results'] as $pid => $result) {
+            foreach (array_slice($result['ads'] ?? [], 0, 12) as $ad) {
+                $ad['provider'] = $pid;
+                $ads[] = $ad;
+            }
+        }
+
+        $summary = count($ads) . ' anúncios encontrados para "' . $query . '".';
+        if (!empty($search['errors'])) {
+            $summary .= ' Avisos: ' . implode(' | ', array_slice($search['errors'], 0, 3));
+        }
+
+        return [
+            'success' => true,
+            'summary' => $summary,
+            'render' => ['type' => 'anuncios', 'data' => array_slice($ads, 0, 24)],
+        ];
+    }
+
+    private static function analisarOferta(array $args, array $user, int $userId): array
+    {
+        $id = (int)($args['id'] ?? 0);
+        $ai = new OfferAi();
+        $result = $ai->analyze($id, $userId);
+
+        if (empty($result['success'])) {
+            return ['success' => false, 'summary' => $result['error'] ?? 'Falha na análise.', 'render' => null];
+        }
+
+        AdSpyQuota::consume($userId, AdSpyQuota::KIND_ANALYSIS, 'agente-analise-oferta', 'agent', 1, false);
+
+        $analysis = $result['analysis'] ?? [];
+        return [
+            'success' => true,
+            'summary' => 'Análise concluída. Score ' . ($analysis['score'] ?? 0) . '. Nicho: ' . ($analysis['nicho'] ?? 'n/d') . '. Resumo: ' . mb_substr($analysis['resumo'] ?? '', 0, 400),
+            'render' => ['type' => 'analise', 'data' => $analysis],
+        ];
+    }
+
+    private static function transcrever(array $args, array $user, int $userId): array
+    {
+        $url = trim((string)($args['url'] ?? ''));
+        if ($url === '') {
+            return ['success' => false, 'summary' => 'Informe a URL da mídia/página.', 'render' => null];
+        }
+
+        $config = SttConfig::forUser($userId);
+        if (($config['api_key'] ?? '') === '') {
+            return ['success' => false, 'summary' => 'Transcrição não configurada (CF_AI_TOKEN da plataforma ou BYOK).', 'render' => null];
+        }
+
+        $input = ['url' => $url];
+        if (!MediaDetector::isMediaUrl($url)) {
+            $media = MediaDetector::detect($url);
+            if (empty($media['success'])) {
+                return ['success' => false, 'summary' => $media['error'] ?? 'Mídia não detectada.', 'render' => null];
+            }
+            $input = ['url' => $media['media_url']];
+        }
+
+        $id = SttQuota::create($userId, $input['url'], $config['provider']);
+        if ($id === null) {
+            return ['success' => false, 'summary' => 'Falha ao registrar a transcrição.', 'render' => null];
+        }
+
+        $result = SttClient::transcribe($input, $config);
+        if (empty($result['success'])) {
+            SttQuota::fail($id, $result['error'] ?? 'erro');
+            return ['success' => false, 'summary' => $result['error'] ?? 'Falha na transcrição.', 'render' => null];
+        }
+
+        SttQuota::complete($id, $result);
+        return [
+            'success' => true,
+            'summary' => 'Transcrição concluída (' . mb_strlen($result['text']) . ' caracteres). Início: ' . mb_substr($result['text'], 0, 500),
+            'render' => ['type' => 'transcricao', 'data' => [
+                'id' => $id,
+                'text' => $result['text'],
+                'words' => count($result['words'] ?? []),
+                'duration' => $result['duration'] ?? 0,
+            ]],
+        ];
+    }
+
+    private static function gerarNarracao(array $args, array $user, int $userId): array
+    {
+        $text = trim((string)($args['text'] ?? ''));
+        if ($text === '') {
+            return ['success' => false, 'summary' => 'Informe o texto para narração.', 'render' => null];
+        }
+
+        $config = TtsConfig::forUser($userId);
+        if (($config['api_key'] ?? '') === '') {
+            return ['success' => false, 'summary' => 'Narração não configurada (CF_AI_TOKEN da plataforma ou BYOK).', 'render' => null];
+        }
+
+        $voice = trim((string)($args['voice'] ?? '')) ?: TtsConfig::defaultVoice($config['provider']);
+        $id = TtsQuota::create($userId, $config['provider'], (string)$config['model'], $voice, $config['provider'] === 'google' ? 'wav' : 'mp3', $text);
+        if ($id === null) {
+            return ['success' => false, 'summary' => 'Falha ao registrar a narração.', 'render' => null];
+        }
+
+        $result = TtsClient::generate($text, $config, $voice);
+        if (empty($result['success'])) {
+            TtsQuota::fail($id, $result['error'] ?? 'erro');
+            return ['success' => false, 'summary' => $result['error'] ?? 'Falha na geração.', 'render' => null];
+        }
+
+        $ext = $result['format'] === 'wav' ? 'wav' : 'mp3';
+        $dir = Config::getUploadsDir() . '/tts';
+        if (!is_dir($dir)) mkdir($dir, 0777, true);
+
+        $filename = 'tts-' . $id . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
+        if (file_put_contents($dir . '/' . $filename, $result['audio']) === false) {
+            TtsQuota::fail($id, 'Falha ao salvar o áudio.');
+            return ['success' => false, 'summary' => 'Falha ao salvar o áudio gerado.', 'render' => null];
+        }
+
+        TtsQuota::complete($id, $filename);
+        return [
+            'success' => true,
+            'summary' => 'Narração gerada (' . mb_strlen($text) . ' caracteres, voz ' . $voice . ').',
+            'render' => ['type' => 'narracao', 'data' => ['id' => $id, 'voice' => $voice, 'format' => $ext]],
+        ];
+    }
+
+    private static function clonar(array $args, int $userId): array
+    {
+        $url = trim((string)($args['url'] ?? ''));
+        $affiliateLink = trim((string)($args['affiliate_link'] ?? ''));
+        $name = trim((string)($args['name'] ?? ''));
+
+        if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+            return ['success' => false, 'summary' => 'URL inválida para clonagem.', 'render' => null];
+        }
+        if ($affiliateLink === '') {
+            return ['success' => false, 'summary' => 'O link de afiliado é obrigatório para clonar.', 'render' => null];
+        }
+
+        $cloner = new Cloner();
+        $fetch = $cloner->fetchUrl($url);
+        if (empty($fetch['success'])) {
+            return ['success' => false, 'summary' => 'Não foi possível buscar a URL: ' . ($fetch['error'] ?? 'erro'), 'render' => null];
+        }
+
+        $storageConfig = self::loadUserStorage($userId);
+        $pageId = time() + random_int(1, 9999);
+        $result = $cloner->process($fetch['html'], $affiliateLink, 'url', $storageConfig, 'clones/' . $pageId);
+
+        $sourceDomain = $result['source_domain'] ?? '';
+        if ($name === '') {
+            $name = $sourceDomain ?: 'Página Clonada ' . date('d/m/Y H:i');
+        }
+
+        $pm = new PageManager();
+        $pm->create([
+            'id' => $pageId,
+            'user_id' => $userId,
+            'name' => $name,
+            'type' => 'clone',
+            'html' => $result['html'],
+            'source_domain' => $sourceDomain,
+            'failed_assets' => $result['failed_assets'] ?? [],
+            'cloner_version' => $result['cloner_version'] ?? '',
+            'affiliate_link' => $affiliateLink,
+            'status' => 'active',
+        ]);
+
+        $failed = count($result['failed_assets'] ?? []);
+        return [
+            'success' => true,
+            'summary' => 'Página clonada com sucesso (ID ' . $pageId . ', ' . $failed . ' assets com falha). Nome: ' . $name,
+            'render' => ['type' => 'clone', 'data' => ['id' => $pageId, 'name' => $name, 'failed_assets' => $failed]],
+        ];
+    }
+
+    private static function loadUserStorage(int $userId): ?array
+    {
+        if (!Database::available()) return null;
+
+        try {
+            $config = \AfiliaFacil\Models\StorageConfig::where('user_id', $userId)->first();
+            if (!$config || !$config->enabled) return null;
+
+            $secret = Crypto::decrypt($config->secret_encrypted ?? '') ?? '';
+            if ($secret === '') return null;
+
+            return [
+                'enabled' => (bool)$config->enabled,
+                'account_id' => $config->account_id,
+                'access_key' => $config->access_key,
+                'secret_key' => $secret,
+                'bucket' => $config->bucket,
+                'public_url' => $config->public_url,
+                'media_mode' => $config->media_mode ?: 'base64',
+            ];
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
+}

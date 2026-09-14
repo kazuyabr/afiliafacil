@@ -13,6 +13,11 @@ require_once Config::getLibDir() . '/Plans.php';
         <a href="/admin/" class="nav-item <?= $currentPage === 'index.php' ? 'active' : '' ?>">
             <i class="fas fa-home"></i> Dashboard
         </a>
+        <?php if (Plans::hasFeature($_SESSION['user_plan'] ?? '', 'agent') || Auth::isAdmin()): ?>
+        <a href="/admin/agent.php" class="nav-item <?= $currentPage === 'agent.php' ? 'active' : '' ?>">
+            <i class="fas fa-handshake"></i> Sócio
+        </a>
+        <?php endif; ?>
 
         <div class="nav-section">Minhas Páginas</div>
         <a href="/admin/pages.php" class="nav-item <?= $currentPage === 'pages.php' ? 'active' : '' ?>">
