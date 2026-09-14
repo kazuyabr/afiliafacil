@@ -12,6 +12,7 @@ class Plans
             'max_pages' => 1,
             'max_domains' => 0,
             'max_offers_views' => 3,
+            'max_transcriptions' => 2,
             'label' => 'Grátis por 3 dias',
         ],
         'trial_expired' => [
@@ -49,6 +50,7 @@ class Plans
             'max_pages' => 5,
             'max_domains' => 2,
             'max_offers_views' => 30,
+            'max_transcriptions' => 10,
             'label' => '5 páginas, 2 domínios',
         ],
         'master' => [
@@ -64,6 +66,7 @@ class Plans
             'max_pages' => -1,
             'max_domains' => 10,
             'max_offers_views' => 300,
+            'max_transcriptions' => 100,
             'label' => 'Tudo ilimitado + integrações',
         ],
         'premium' => [
@@ -73,6 +76,7 @@ class Plans
             'max_pages' => -1,
             'max_domains' => -1,
             'max_offers_views' => -1,
+            'max_transcriptions' => -1,
             'label' => 'Acesso de administrador',
         ],
     ];
@@ -111,6 +115,7 @@ class Plans
                     'max_adspy_searches' => (int)($plan->max_adspy_searches ?? 0),
                     'max_ai_analyses' => (int)($plan->max_ai_analyses ?? 0),
                     'max_offers_views' => (int)($plan->max_offers_views ?? 0),
+                    'max_transcriptions' => (int)($plan->max_transcriptions ?? 0),
                     'label' => $plan->label ?? '',
                 ];
             }
@@ -166,6 +171,11 @@ class Plans
     public static function maxOffersViews(string $plan): int
     {
         return self::get($plan)['max_offers_views'] ?? 0;
+    }
+
+    public static function maxTranscriptions(string $plan): int
+    {
+        return self::get($plan)['max_transcriptions'] ?? 0;
     }
 
     public static function maxDomains(string $plan): int

@@ -3,14 +3,24 @@
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Crypto.php';
 
-class AiConfig
+class SttConfig
 {
+    public const PROVIDERS = ['cloudflare', 'openai', 'groq', 'deepgram', 'assemblyai'];
+
+    public const DEFAULT_MODELS = [
+        'cloudflare' => '@cf/openai/whisper-large-v3-turbo',
+        'openai' => 'whisper-1',
+        'groq' => 'whisper-large-v3',
+        'deepgram' => 'nova-3',
+        'assemblyai' => 'best',
+    ];
+
     public static function forUser(int $userId): array
     {
         if (Database::available()) {
             try {
                 $config = \AfiliaFacil\Models\UserAiConfig::where('user_id', $userId)
-                    ->where('capability', 'chat')
+                    ->where('capability', 'stt')
                     ->where('enabled', true)
                     ->first();
                 if ($config) {
@@ -32,17 +42,12 @@ class AiConfig
 
         return [
             'provider' => 'cloudflare',
-            'model' => getenv('CF_AI_MODEL') ?: '@cf/zai-org/glm-4.7-flash',
+            'model' => getenv('CF_WHISPER_MODEL') ?: self::DEFAULT_MODELS['cloudflare'],
             'base_url' => '',
             'api_key' => getenv('CF_AI_TOKEN') ?: '',
             'account_id' => getenv('CF_ACCOUNT_ID') ?: '',
             'source' => 'platform',
         ];
-    }
-
-    public static function isPlatformConfigured(): bool
-    {
-        return (getenv('CF_AI_TOKEN') ?: '') !== '' && (getenv('CF_ACCOUNT_ID') ?: '') !== '';
     }
 
     public static function isAvailable(int $userId): bool

@@ -6,6 +6,7 @@ require_once Config::getLibDir() . '/Crypto.php';
 require_once Config::getLibDir() . '/Audit.php';
 require_once Config::getLibDir() . '/AdSpy/AiClient.php';
 require_once Config::getLibDir() . '/AdSpy/AiConfig.php';
+require_once Config::getLibDir() . '/Ai/SttConfig.php';
 
 use AfiliaFacil\Models\UserAiConfig;
 
@@ -25,12 +26,16 @@ if (!Database::available()) {
 
 $userId = (int)Auth::user()['id'];
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
+$capability = in_array($_POST['capability'] ?? $_GET['capability'] ?? '', ['chat', 'stt'], true)
+    ? ($_POST['capability'] ?? $_GET['capability'])
+    : 'chat';
 
 switch ($action) {
     case 'get':
-        $config = UserAiConfig::where('user_id', $userId)->first();
+        $config = UserAiConfig::where('user_id', $userId)->where('capability', $capability)->first();
         echo json_encode([
             'success' => true,
+            'capability' => $capability,
             'config' => [
                 'provider' => $config->provider ?? 'cloudflare',
                 'model' => $config->model ?? '',
@@ -40,11 +45,13 @@ switch ($action) {
             ],
             'platform_configured' => AiConfig::isPlatformConfigured(),
             'platform_model' => getenv('CF_AI_MODEL') ?: '@cf/zai-org/glm-4.7-flash',
+            'stt_platform_configured' => (getenv('CF_AI_TOKEN') ?: '') !== '' && (getenv('CF_ACCOUNT_ID') ?: '') !== '',
+            'stt_default_model' => SttConfig::DEFAULT_MODELS['cloudflare'],
         ]);
         break;
 
     case 'save':
-        $config = UserAiConfig::where('user_id', $userId)->first();
+        $config = UserAiConfig::where('user_id', $userId)->where('capability', $capability)->first();
 
         $data = [
             'provider' => trim($_POST['provider'] ?? 'cloudflare'),
@@ -53,6 +60,10 @@ switch ($action) {
             'enabled' => !empty($_POST['enabled']),
             'updated_at' => date('Y-m-d H:i:s'),
         ];
+
+        if ($capability === 'stt' && !in_array($data['provider'], SttConfig::PROVIDERS, true)) {
+            $data['provider'] = 'cloudflare';
+        }
 
         $key = trim($_POST['api_key'] ?? '');
         if ($key !== '') {
@@ -64,15 +75,26 @@ switch ($action) {
             $config->save();
         } else {
             $data['user_id'] = $userId;
+            $data['capability'] = $capability;
             $data['created_at'] = date('Y-m-d H:i:s');
             UserAiConfig::create($data);
         }
 
-        Audit::log('ai_config_saved', 'user', (string)$userId, ['provider' => $data['provider'], 'model' => $data['model']]);
+        Audit::log('ai_config_saved', 'user', (string)$userId, ['capability' => $capability, 'provider' => $data['provider'], 'model' => $data['model']]);
         echo json_encode(['success' => true]);
         break;
 
     case 'test':
+        if ($capability === 'stt') {
+            $config = SttConfig::forUser($userId);
+            if (($config['api_key'] ?? '') === '') {
+                echo json_encode(['ok' => false, 'error' => 'Nenhuma chave configurada (nem BYOK, nem plataforma)']);
+                break;
+            }
+            echo json_encode(testStt($config));
+            break;
+        }
+
         $config = AiConfig::forUser($userId);
         if (($config['api_key'] ?? '') === '') {
             echo json_encode(['ok' => false, 'error' => 'Nenhuma chave configurada (nem BYOK, nem plataforma)']);
@@ -92,4 +114,39 @@ switch ($action) {
 
     default:
         echo json_encode(['error' => 'Ação inválida']);
+}
+
+function testStt(array $config): array
+{
+    $provider = $config['provider'] ?? 'cloudflare';
+    $key = trim($config['api_key'] ?? '');
+
+    [$method, $url, $headers] = match ($provider) {
+        'openai' => ['GET', rtrim($config['base_url'] ?: 'https://api.openai.com/v1', '/') . '/models', ['Authorization: Bearer ' . $key]],
+        'groq' => ['GET', rtrim($config['base_url'] ?: 'https://api.groq.com/openai/v1', '/') . '/models', ['Authorization: Bearer ' . $key]],
+        'deepgram' => ['GET', 'https://api.deepgram.com/v1/projects', ['Authorization: Token ' . $key]],
+        'assemblyai' => ['GET', 'https://api.assemblyai.com/v2/transcript?limit=1', ['Authorization: ' . $key]],
+        default => ['GET', 'https://api.cloudflare.com/client/v4/user/tokens/verify', ['Authorization: Bearer ' . $key]],
+    };
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_CUSTOMREQUEST => $method,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_HTTPHEADER => $headers,
+    ]);
+    $response = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($response !== false && $status < 400) {
+        return ['ok' => true, 'message' => 'Credenciais OK com ' . $provider . ' (' . ($config['model'] ?? '') . ')'];
+    }
+
+    $json = is_string($response) ? json_decode($response, true) : null;
+    $error = $json['error']['message'] ?? $json['err_msg'] ?? $json['errors'][0]['message'] ?? ('HTTP ' . $status);
+    return ['ok' => false, 'error' => ucfirst($provider) . ': ' . $error];
 }

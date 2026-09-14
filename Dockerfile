@@ -19,6 +19,8 @@ RUN composer install --no-dev --no-interaction --prefer-dist --no-scripts || com
 
 COPY . .
 
+RUN printf 'upload_max_filesize=24M\npost_max_size=26M\nmax_execution_time=300\nmemory_limit=256M\n' > /usr/local/etc/php/conf.d/afiliafacil.ini
+
 EXPOSE 9876
 
 CMD ["sh", "-c", "php bin/migrate.php; php -S 0.0.0.0:9876 router.php"]

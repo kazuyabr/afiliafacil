@@ -51,6 +51,11 @@ require_once Config::getLibDir() . '/Plans.php';
         <a href="/admin/ai-settings.php" class="nav-item <?= $currentPage === 'ai-settings.php' ? 'active' : '' ?>">
             <i class="fas fa-robot"></i> IA (BYOK)
         </a>
+        <?php if (Plans::maxTranscriptions($_SESSION['user_plan'] ?? '') !== 0 || Auth::isAdmin()): ?>
+        <a href="/admin/transcribe.php" class="nav-item <?= $currentPage === 'transcribe.php' ? 'active' : '' ?>">
+            <i class="fas fa-microphone-lines"></i> Transcrições
+        </a>
+        <?php endif; ?>
 
         <div class="nav-section">Infraestrutura</div>
         <a href="/admin/domains.php" class="nav-item <?= $currentPage === 'domains.php' ? 'active' : '' ?>">

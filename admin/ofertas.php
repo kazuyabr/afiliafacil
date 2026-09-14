@@ -442,6 +442,7 @@ $quota = OfferQuota::check((int)$user['id'], $user['plan']);
         html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">' +
             (o.source_url || o.domain ? '<button class="btn btn-primary btn-sm" onclick="cloneCurrentOffer()"><i class="fas fa-clone"></i> Clonar página principal</button>' : '') +
             '<button class="btn btn-outline btn-sm" onclick="spyCurrentOffer()"><i class="fas fa-crosshairs"></i> Espionar campanha</button>' +
+            '<button class="btn btn-outline btn-sm" onclick="transcribeCurrentOffer()"><i class="fas fa-microphone-lines"></i> Transcrever VSL</button>' +
         '</div>';
 
         if ((o.creatives || []).length) {
@@ -503,6 +504,13 @@ $quota = OfferQuota::check((int)$user['id'], $user['plan']);
         if (!currentOffer) return;
         const query = currentOffer.domain || currentOffer.advertiser || currentOffer.name;
         window.open('/admin/adspy.php?query=' + encodeURIComponent(query), '_blank');
+    }
+
+    function transcribeCurrentOffer() {
+        if (!currentOffer) return;
+        const url = currentOffer.source_url || (currentOffer.domain ? 'https://' + currentOffer.domain : '');
+        if (!url) { showToast('Oferta sem URL de origem', 'warning'); return; }
+        window.open('/admin/transcribe.php?url=' + encodeURIComponent(url), '_blank');
     }
 
     async function loadCreatives() {

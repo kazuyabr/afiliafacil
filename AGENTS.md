@@ -79,6 +79,18 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **API**: `admin/api/ofertas.php` (list/get/creatives/pages/approve/reject/bulk/analyze/analyze-pending/collect/monitor/settings/cron-key) — ações de admin exigem `isAdmin` (403).
 - **Tabelas**: `offers`, `offer_metrics`, `offer_creatives`, `offer_pages`, `offer_suggestions`, `offer_views` (migrations 14 e 15).
 
+## Transcrições (STT)
+
+- **Módulo** (`lib/Ai/`): transcrição de VSLs, áudios e vídeos com timestamps — `SttClient` (5 providers), `SttConfig` (BYOK por capacidade), `SttQuota`, `MediaDetector`.
+- **Providers**: **Cloudflare Whisper** (padrão grátis da plataforma, aceita áudio até 24MB), **OpenAI/Groq** (áudio até 24MB), **Deepgram/AssemblyAI** (aceitam **URL de vídeo direto** — ideais para VSLs longas). Sem ffmpeg no container (decisão): VSLs longas via Deepgram/AssemblyAI.
+- **BYOK por capacidade**: `user_ai_configs.capability` (`chat` | `stt`) com unique composto (user_id, capability) — configs independentes. UI em `/admin/ai-settings.php` com abas Análise (Chat) e Transcrição (STT); o teste de STT valida credenciais de verdade (endpoint leve por provider).
+- **Fluxo**: `/admin/transcribe.php` — URL (com **detecção automática de mídia** na página: `<video>`, `og:video`, extensões diretas; players embedados são avisados) ou upload de arquivo; resultado com copiar/TXT/SRT (gerado no browser a partir das words); histórico por usuário.
+- **Quotas por plano** (`plans.max_transcriptions`): Trial 2 · VSL Start 0 · Afiliado Pro 10 · Master Elite 100 · Admin ilimitado. Só transcrições **concluídas** consomem quota (falhas não).
+- **API**: `admin/api/transcribe.php` (quota/list/get/delete/detect/transcribe) e `admin/api/ai-settings.php` (get/save/test com `capability`).
+- **Integração**: botão "Transcrever VSL" no dossiê das Ofertas Escalando (`/admin/transcribe.php?url=`).
+- **Upload**: php.ini do container com `upload_max_filesize=24M`, `post_max_size=26M`, `max_execution_time=300` (Dockerfile).
+- **Tabela**: `transcriptions` (migration 16-17).
+
 ## Como rodar
 
 ```powershell

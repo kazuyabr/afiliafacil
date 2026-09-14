@@ -3,6 +3,7 @@ require_once __DIR__ . '/../lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/Database.php';
 require_once Config::getLibDir() . '/AdSpy/AiConfig.php';
+require_once Config::getLibDir() . '/Ai/SttConfig.php';
 
 Auth::requireAuth();
 $theme = $_SESSION['theme'] ?? 'light';
@@ -18,6 +19,11 @@ $theme = $_SESSION['theme'] ?? 'light';
     <link rel="stylesheet" href="/assets/css/theme-light.css">
     <link rel="stylesheet" href="/assets/css/theme-dark.css">
     <link rel="stylesheet" href="/assets/css/app.css">
+    <style>
+        .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:20px; border-bottom:1px solid var(--border-color); }
+        .tab-btn { padding:10px 18px; border:none; background:none; cursor:pointer; font-size:.9rem; color:var(--text-secondary); border-bottom:2px solid transparent; display:flex; align-items:center; gap:8px; }
+        .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+    </style>
 </head>
 <body>
     <div class="layout">
@@ -33,7 +39,7 @@ $theme = $_SESSION['theme'] ?? 'light';
                 <div class="page-header">
                     <div>
                         <h1>Inteligência Artificial (BYOK)</h1>
-                        <p style="color:var(--text-secondary);margin-top:4px;font-size:.9rem;">Use a IA da plataforma (Cloudflare Workers AI) ou conecte seu próprio provider.</p>
+                        <p style="color:var(--text-secondary);margin-top:4px;font-size:.9rem;">Use a IA da plataforma (Cloudflare Workers AI) ou conecte seu próprio provider — por capacidade.</p>
                     </div>
                 </div>
 
@@ -43,49 +49,107 @@ $theme = $_SESSION['theme'] ?? 'light';
                 </div>
                 <?php endif; ?>
 
-                <div class="card" style="margin-bottom:24px;">
-                    <div class="card-header">
-                        <h3><i class="fas fa-robot"></i> Seu provider de IA</h3>
-                        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:400;cursor:pointer;">
-                            <input type="checkbox" id="aiEnabled"> Ativo (usar meu provider)
-                        </label>
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="chat" onclick="switchTab('chat')"><i class="fas fa-brain"></i> Análise (Chat)</button>
+                    <button class="tab-btn" data-tab="stt" onclick="switchTab('stt')"><i class="fas fa-microphone-lines"></i> Transcrição (STT)</button>
+                </div>
+
+                <div id="tab-chat">
+                    <div class="card" style="margin-bottom:24px;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-robot"></i> Provider de análise (chat)</h3>
+                            <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:400;cursor:pointer;">
+                                <input type="checkbox" id="aiEnabled"> Ativo (usar meu provider)
+                            </label>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> Usado nas análises de campanha (Ad Spy) e na curadoria IA das Ofertas Escalando.
+                            </div>
+
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Provider <small style="color:var(--text-secondary);">(catálogo models.dev)</small></label>
+                                    <select id="aiProvider" class="form-control">
+                                        <option value="cloudflare">Cloudflare Workers AI (plataforma)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Modelo</label>
+                                    <select id="aiModel" class="form-control">
+                                        <option value="">Carregando catálogo...</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Base URL <small style="color:var(--text-secondary);">(apenas OpenAI-compatible)</small></label>
+                                    <input type="text" id="aiBaseUrl" class="form-control" placeholder="https://api.openai.com/v1">
+                                </div>
+                                <div class="form-group">
+                                    <label>API Key <small id="keyHint" style="color:var(--text-secondary);"></small></label>
+                                    <input type="password" id="aiApiKey" class="form-control" placeholder="deixe vazio para manter">
+                                </div>
+                            </div>
+
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="btn btn-primary" onclick="saveAi('chat')"><i class="fas fa-save"></i> Salvar</button>
+                                <button class="btn btn-outline" onclick="testAi('chat')"><i class="fas fa-plug"></i> Testar conexão</button>
+                            </div>
+                            <div id="aiTestResult" style="margin-top:12px;"></div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i> Com o BYOK ativo, as análises usam a sua conta do provider escolhido — sem consumir a cota da plataforma.
-                        </div>
+                </div>
 
-                        <div class="grid-2">
-                            <div class="form-group">
-                                <label>Provider <small style="color:var(--text-secondary);">(catálogo models.dev)</small></label>
-                                <select id="aiProvider" class="form-control">
-                                    <option value="cloudflare">Cloudflare Workers AI (plataforma)</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Modelo</label>
-                                <select id="aiModel" class="form-control">
-                                    <option value="">Carregando catálogo...</option>
-                                </select>
-                            </div>
+                <div id="tab-stt" style="display:none;">
+                    <div class="card" style="margin-bottom:24px;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-microphone-lines"></i> Provider de transcrição (STT)</h3>
+                            <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:400;cursor:pointer;">
+                                <input type="checkbox" id="sttEnabled"> Ativo (usar meu provider)
+                            </label>
                         </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> Usado em <a href="/admin/transcribe.php"><strong>Transcrições</strong></a> (VSLs, áudios e vídeos).
+                                <strong>Deepgram</strong> e <strong>AssemblyAI</strong> aceitam URL de vídeo direto (ideal para VSLs longas); os demais exigem arquivo de áudio (até 24MB).
+                            </div>
 
-                        <div class="grid-2">
-                            <div class="form-group">
-                                <label>Base URL <small style="color:var(--text-secondary);">(apenas OpenAI-compatible)</small></label>
-                                <input type="text" id="aiBaseUrl" class="form-control" placeholder="https://api.openai.com/v1">
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Provider</label>
+                                    <select id="sttProvider" class="form-control" onchange="updateSttModels()">
+                                        <option value="cloudflare">Cloudflare Whisper (plataforma, grátis)</option>
+                                        <option value="deepgram">Deepgram (vídeo por URL)</option>
+                                        <option value="assemblyai">AssemblyAI (vídeo por URL)</option>
+                                        <option value="openai">OpenAI Whisper</option>
+                                        <option value="groq">Groq Whisper (rápido/barato)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Modelo</label>
+                                    <select id="sttModel" class="form-control"></select>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>API Key <small id="keyHint" style="color:var(--text-secondary);"></small></label>
-                                <input type="password" id="aiApiKey" class="form-control" placeholder="deixe vazio para manter">
-                            </div>
-                        </div>
 
-                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                            <button class="btn btn-primary" onclick="saveAi()"><i class="fas fa-save"></i> Salvar</button>
-                            <button class="btn btn-outline" onclick="testAi()"><i class="fas fa-plug"></i> Testar conexão</button>
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Base URL <small style="color:var(--text-secondary);">(apenas OpenAI-compatible)</small></label>
+                                    <input type="text" id="sttBaseUrl" class="form-control" placeholder="https://api.openai.com/v1">
+                                </div>
+                                <div class="form-group">
+                                    <label>API Key <small id="sttKeyHint" style="color:var(--text-secondary);"></small></label>
+                                    <input type="password" id="sttApiKey" class="form-control" placeholder="deixe vazio para manter">
+                                </div>
+                            </div>
+
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="btn btn-primary" onclick="saveAi('stt')"><i class="fas fa-save"></i> Salvar</button>
+                                <button class="btn btn-outline" onclick="testAi('stt')"><i class="fas fa-plug"></i> Testar credenciais</button>
+                            </div>
+                            <div id="sttTestResult" style="margin-top:12px;"></div>
                         </div>
-                        <div id="aiTestResult" style="margin-top:12px;"></div>
                     </div>
                 </div>
             </div>
@@ -95,6 +159,22 @@ $theme = $_SESSION['theme'] ?? 'light';
     <script src="/assets/js/app.js"></script>
     <script>
     let catalog = null;
+
+    const STT_MODELS = {
+        cloudflare: [['@cf/openai/whisper-large-v3-turbo', 'Whisper Large v3 Turbo (grátis)'], ['@cf/openai/whisper', 'Whisper (grátis)']],
+        deepgram: [['nova-3', 'Nova 3'], ['nova-2', 'Nova 2'], ['whisper-large', 'Whisper Large']],
+        assemblyai: [['best', 'Best'], ['nano', 'Nano (mais barato)']],
+        openai: [['whisper-1', 'Whisper 1'], ['gpt-4o-transcribe', 'GPT-4o Transcribe'], ['gpt-4o-mini-transcribe', 'GPT-4o Mini Transcribe']],
+        groq: [['whisper-large-v3', 'Whisper Large v3'], ['whisper-large-v3-turbo', 'Whisper Large v3 Turbo'], ['distil-whisper-large-v3-en', 'Distil Whisper v3 (EN)']],
+    };
+
+    function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+        document.getElementById('tab-chat').style.display = tab === 'chat' ? 'block' : 'none';
+        document.getElementById('tab-stt').style.display = tab === 'stt' ? 'block' : 'none';
+    }
 
     async function loadCatalog() {
         try {
@@ -151,54 +231,87 @@ $theme = $_SESSION['theme'] ?? 'light';
         }
     }
 
-    async function loadConfig() {
-        const resp = await fetch('/admin/api/ai-settings.php?action=get');
+    function updateSttModels() {
+        const providerId = document.getElementById('sttProvider').value;
+        const modelSelect = document.getElementById('sttModel');
+        modelSelect.innerHTML = '';
+        (STT_MODELS[providerId] || []).forEach(([v, l]) => modelSelect.appendChild(new Option(l, v)));
+    }
+
+    async function loadConfig(capability) {
+        const resp = await fetch('/admin/api/ai-settings.php?action=get&capability=' + capability);
         const data = await resp.json();
         if (!data.success) return;
-        const c = data.config;
-        document.getElementById('aiEnabled').checked = c.enabled;
-        document.getElementById('aiBaseUrl').value = c.base_url;
-        document.getElementById('keyHint').textContent = c.has_key ? '(configurada — vazio mantém)' : '';
 
-        if (c.provider && c.provider !== 'cloudflare') {
-            document.getElementById('aiProvider').value = c.provider;
-            updateModels();
-            if (c.model) {
-                const opt = new Option(c.model, c.model);
-                document.getElementById('aiModel').appendChild(opt);
-                document.getElementById('aiModel').value = c.model;
+        if (capability === 'chat') {
+            const c = data.config;
+            document.getElementById('aiEnabled').checked = c.enabled;
+            document.getElementById('aiBaseUrl').value = c.base_url;
+            document.getElementById('keyHint').textContent = c.has_key ? '(configurada — vazio mantém)' : '';
+            if (c.provider && c.provider !== 'cloudflare') {
+                document.getElementById('aiProvider').value = c.provider;
+                updateModels();
+                if (c.model) {
+                    const opt = new Option(c.model, c.model);
+                    document.getElementById('aiModel').appendChild(opt);
+                    document.getElementById('aiModel').value = c.model;
+                }
             }
+            return;
+        }
+
+        const c = data.config;
+        document.getElementById('sttEnabled').checked = c.enabled;
+        document.getElementById('sttBaseUrl').value = c.base_url;
+        document.getElementById('sttKeyHint').textContent = c.has_key ? '(configurada — vazio mantém)' : '';
+        document.getElementById('sttProvider').value = c.provider || 'cloudflare';
+        updateSttModels();
+        if (c.model) {
+            const opt = new Option(c.model, c.model);
+            document.getElementById('sttModel').appendChild(opt);
+            document.getElementById('sttModel').value = c.model;
         }
     }
 
-    async function saveAi() {
+    async function saveAi(capability) {
         const body = new URLSearchParams();
         body.append('action', 'save');
-        body.append('provider', document.getElementById('aiProvider').value);
-        body.append('model', document.getElementById('aiModel').value);
-        body.append('base_url', document.getElementById('aiBaseUrl').value);
-        body.append('api_key', document.getElementById('aiApiKey').value);
-        body.append('enabled', document.getElementById('aiEnabled').checked ? '1' : '0');
+        body.append('capability', capability);
+
+        if (capability === 'chat') {
+            body.append('provider', document.getElementById('aiProvider').value);
+            body.append('model', document.getElementById('aiModel').value);
+            body.append('base_url', document.getElementById('aiBaseUrl').value);
+            body.append('api_key', document.getElementById('aiApiKey').value);
+            body.append('enabled', document.getElementById('aiEnabled').checked ? '1' : '0');
+        } else {
+            body.append('provider', document.getElementById('sttProvider').value);
+            body.append('model', document.getElementById('sttModel').value);
+            body.append('base_url', document.getElementById('sttBaseUrl').value);
+            body.append('api_key', document.getElementById('sttApiKey').value);
+            body.append('enabled', document.getElementById('sttEnabled').checked ? '1' : '0');
+        }
 
         const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body });
         const data = await resp.json();
-        if (data.success) { showToast('Configuração de IA salva!', 'success'); loadConfig(); }
+        if (data.success) { showToast('Configuração salva!', 'success'); loadConfig(capability); }
         else showToast(data.error || 'Erro ao salvar', 'error');
     }
 
-    async function testAi() {
-        const el = document.getElementById('aiTestResult');
+    async function testAi(capability) {
+        const el = document.getElementById(capability === 'chat' ? 'aiTestResult' : 'sttTestResult');
         el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testando...';
-        const body = new URLSearchParams({ action: 'test' });
+        const body = new URLSearchParams({ action: 'test', capability });
         const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body });
         const data = await resp.json();
         el.innerHTML = data.ok
-            ? '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + data.message + '</div>'
-            : '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> ' + (data.error || 'Falha') + '</div>';
+            ? '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + esc(data.message) + '</div>'
+            : '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> ' + esc(data.error || 'Falha') + '</div>';
     }
 
     document.getElementById('aiProvider').addEventListener('change', updateModels);
-    loadCatalog().then(loadConfig);
+    updateSttModels();
+    loadCatalog().then(() => { loadConfig('chat'); loadConfig('stt'); });
     </script>
 </body>
 </html>
