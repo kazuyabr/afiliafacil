@@ -91,6 +91,16 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **Upload**: php.ini do container com `upload_max_filesize=24M`, `post_max_size=26M`, `max_execution_time=300` (Dockerfile).
 - **Tabela**: `transcriptions` (migration 16-17).
 
+## Narração (TTS)
+
+- **Módulo** (`lib/Ai/TtsClient.php` + `TtsConfig` + `TtsQuota`): geração de áudio a partir de texto (roteiros/VSLs) — 4 providers: **Cloudflare MeloTTS** (padrão grátis da plataforma), **OpenAI TTS** (gpt-4o-mini-tts/tts-1/tts-1-hd), **ElevenLabs** (multilingual v2/turbo/flash) e **Google Gemini TTS** (PCM convertido para WAV no cliente).
+- **BYOK por capacidade**: `user_ai_configs.capability = 'tts'`; UI em `/admin/ai-settings.php` aba Narração; teste de credenciais real por provider.
+- **UI**: `/admin/tts.php` — textarea (máx 5000 caracteres), seletor de voz por provider, **carregar texto de uma transcrição** (integração STT→TTS), player + download, histórico com player inline.
+- **Quotas por plano** (`plans.max_tts`): Trial 2 · VSL Start 0 · Afiliado Pro 10 · Master Elite 100 · Admin ilimitado. Só gerações **concluídas** consomem quota.
+- **Áudios**: salvos em `uploads/tts/` (volume do docker-compose); servidos autenticados via `admin/api/tts.php?action=audio&id=` (dono apenas).
+- **API**: `admin/api/tts.php` (quota/generate/list/audio/delete).
+- **Tabela**: `tts_generations` (migration 18).
+
 ## Como rodar
 
 ```powershell

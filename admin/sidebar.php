@@ -56,6 +56,11 @@ require_once Config::getLibDir() . '/Plans.php';
             <i class="fas fa-microphone-lines"></i> Transcrições
         </a>
         <?php endif; ?>
+        <?php if (Plans::maxTts($_SESSION['user_plan'] ?? '') !== 0 || Auth::isAdmin()): ?>
+        <a href="/admin/tts.php" class="nav-item <?= $currentPage === 'tts.php' ? 'active' : '' ?>">
+            <i class="fas fa-volume-high"></i> Narração
+        </a>
+        <?php endif; ?>
 
         <div class="nav-section">Infraestrutura</div>
         <a href="/admin/domains.php" class="nav-item <?= $currentPage === 'domains.php' ? 'active' : '' ?>">

@@ -52,6 +52,7 @@ $theme = $_SESSION['theme'] ?? 'light';
                 <div class="tabs">
                     <button class="tab-btn active" data-tab="chat" onclick="switchTab('chat')"><i class="fas fa-brain"></i> Análise (Chat)</button>
                     <button class="tab-btn" data-tab="stt" onclick="switchTab('stt')"><i class="fas fa-microphone-lines"></i> Transcrição (STT)</button>
+                    <button class="tab-btn" data-tab="tts" onclick="switchTab('tts')"><i class="fas fa-volume-high"></i> Narração (TTS)</button>
                 </div>
 
                 <div id="tab-chat">
@@ -152,10 +153,57 @@ $theme = $_SESSION['theme'] ?? 'light';
                         </div>
                     </div>
                 </div>
+                <div id="tab-tts" style="display:none;">
+                    <div class="card" style="margin-bottom:24px;">
+                        <div class="card-header">
+                            <h3><i class="fas fa-volume-high"></i> Provider de narração (TTS)</h3>
+                            <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:400;cursor:pointer;">
+                                <input type="checkbox" id="ttsEnabled"> Ativo (usar meu provider)
+                            </label>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> Usado em <a href="/admin/tts.php"><strong>Narração</strong></a> — geração de áudio a partir de roteiros e textos.
+                            </div>
+
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Provider</label>
+                                    <select id="ttsProvider" class="form-control" onchange="updateTtsModels()">
+                                        <option value="cloudflare">Cloudflare MeloTTS (plataforma, grátis)</option>
+                                        <option value="openai">OpenAI TTS</option>
+                                        <option value="elevenlabs">ElevenLabs</option>
+                                        <option value="google">Google Gemini TTS</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Modelo</label>
+                                    <select id="ttsModel" class="form-control"></select>
+                                </div>
+                            </div>
+
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Base URL <small style="color:var(--text-secondary);">(apenas OpenAI-compatible)</small></label>
+                                    <input type="text" id="ttsBaseUrl" class="form-control" placeholder="https://api.openai.com/v1">
+                                </div>
+                                <div class="form-group">
+                                    <label>API Key <small id="ttsKeyHint" style="color:var(--text-secondary);"></small></label>
+                                    <input type="password" id="ttsApiKey" class="form-control" placeholder="deixe vazio para manter">
+                                </div>
+                            </div>
+
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="btn btn-primary" onclick="saveAi('tts')"><i class="fas fa-save"></i> Salvar</button>
+                                <button class="btn btn-outline" onclick="testAi('tts')"><i class="fas fa-plug"></i> Testar credenciais</button>
+                            </div>
+                            <div id="ttsTestResult" style="margin-top:12px;"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-
     <script src="/assets/js/app.js"></script>
     <script>
     let catalog = null;
@@ -168,12 +216,20 @@ $theme = $_SESSION['theme'] ?? 'light';
         groq: [['whisper-large-v3', 'Whisper Large v3'], ['whisper-large-v3-turbo', 'Whisper Large v3 Turbo'], ['distil-whisper-large-v3-en', 'Distil Whisper v3 (EN)']],
     };
 
+    const TTS_MODELS = {
+        cloudflare: [['@cf/myshell-ai/melotts', 'MeloTTS (grátis)']],
+        openai: [['gpt-4o-mini-tts', 'GPT-4o Mini TTS'], ['tts-1', 'TTS-1'], ['tts-1-hd', 'TTS-1 HD']],
+        elevenlabs: [['eleven_multilingual_v2', 'Multilingual v2'], ['eleven_turbo_v2_5', 'Turbo v2.5'], ['eleven_flash_v2_5', 'Flash v2.5']],
+        google: [['gemini-2.5-flash-preview-tts', 'Gemini 2.5 Flash TTS'], ['gemini-2.5-pro-preview-tts', 'Gemini 2.5 Pro TTS']],
+    };
+
     function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
     function switchTab(tab) {
         document.querySelectorAll('.tab-btn').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
         document.getElementById('tab-chat').style.display = tab === 'chat' ? 'block' : 'none';
         document.getElementById('tab-stt').style.display = tab === 'stt' ? 'block' : 'none';
+        document.getElementById('tab-tts').style.display = tab === 'tts' ? 'block' : 'none';
     }
 
     async function loadCatalog() {
@@ -238,6 +294,13 @@ $theme = $_SESSION['theme'] ?? 'light';
         (STT_MODELS[providerId] || []).forEach(([v, l]) => modelSelect.appendChild(new Option(l, v)));
     }
 
+    function updateTtsModels() {
+        const providerId = document.getElementById('ttsProvider').value;
+        const modelSelect = document.getElementById('ttsModel');
+        modelSelect.innerHTML = '';
+        (TTS_MODELS[providerId] || []).forEach(([v, l]) => modelSelect.appendChild(new Option(l, v)));
+    }
+
     async function loadConfig(capability) {
         const resp = await fetch('/admin/api/ai-settings.php?action=get&capability=' + capability);
         const data = await resp.json();
@@ -260,16 +323,33 @@ $theme = $_SESSION['theme'] ?? 'light';
             return;
         }
 
-        const c = data.config;
-        document.getElementById('sttEnabled').checked = c.enabled;
-        document.getElementById('sttBaseUrl').value = c.base_url;
-        document.getElementById('sttKeyHint').textContent = c.has_key ? '(configurada — vazio mantém)' : '';
-        document.getElementById('sttProvider').value = c.provider || 'cloudflare';
-        updateSttModels();
-        if (c.model) {
-            const opt = new Option(c.model, c.model);
-            document.getElementById('sttModel').appendChild(opt);
-            document.getElementById('sttModel').value = c.model;
+        if (capability === 'stt') {
+            const c = data.config;
+            document.getElementById('sttEnabled').checked = c.enabled;
+            document.getElementById('sttBaseUrl').value = c.base_url;
+            document.getElementById('sttKeyHint').textContent = c.has_key ? '(configurada — vazio mantém)' : '';
+            document.getElementById('sttProvider').value = c.provider || 'cloudflare';
+            updateSttModels();
+            if (c.model) {
+                const opt = new Option(c.model, c.model);
+                document.getElementById('sttModel').appendChild(opt);
+                document.getElementById('sttModel').value = c.model;
+            }
+            return;
+        }
+
+        if (capability === 'tts') {
+            const c = data.config;
+            document.getElementById('ttsEnabled').checked = c.enabled;
+            document.getElementById('ttsBaseUrl').value = c.base_url;
+            document.getElementById('ttsKeyHint').textContent = c.has_key ? '(configurada — vazio mantém)' : '';
+            document.getElementById('ttsProvider').value = c.provider || 'cloudflare';
+            updateTtsModels();
+            if (c.model) {
+                const opt = new Option(c.model, c.model);
+                document.getElementById('ttsModel').appendChild(opt);
+                document.getElementById('ttsModel').value = c.model;
+            }
         }
     }
 
@@ -284,12 +364,18 @@ $theme = $_SESSION['theme'] ?? 'light';
             body.append('base_url', document.getElementById('aiBaseUrl').value);
             body.append('api_key', document.getElementById('aiApiKey').value);
             body.append('enabled', document.getElementById('aiEnabled').checked ? '1' : '0');
-        } else {
+        } else if (capability === 'stt') {
             body.append('provider', document.getElementById('sttProvider').value);
             body.append('model', document.getElementById('sttModel').value);
             body.append('base_url', document.getElementById('sttBaseUrl').value);
             body.append('api_key', document.getElementById('sttApiKey').value);
             body.append('enabled', document.getElementById('sttEnabled').checked ? '1' : '0');
+        } else {
+            body.append('provider', document.getElementById('ttsProvider').value);
+            body.append('model', document.getElementById('ttsModel').value);
+            body.append('base_url', document.getElementById('ttsBaseUrl').value);
+            body.append('api_key', document.getElementById('ttsApiKey').value);
+            body.append('enabled', document.getElementById('ttsEnabled').checked ? '1' : '0');
         }
 
         const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body });
@@ -299,7 +385,7 @@ $theme = $_SESSION['theme'] ?? 'light';
     }
 
     async function testAi(capability) {
-        const el = document.getElementById(capability === 'chat' ? 'aiTestResult' : 'sttTestResult');
+        const el = document.getElementById(capability === 'chat' ? 'aiTestResult' : capability === 'stt' ? 'sttTestResult' : 'ttsTestResult');
         el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testando...';
         const body = new URLSearchParams({ action: 'test', capability });
         const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body });
@@ -311,7 +397,8 @@ $theme = $_SESSION['theme'] ?? 'light';
 
     document.getElementById('aiProvider').addEventListener('change', updateModels);
     updateSttModels();
-    loadCatalog().then(() => { loadConfig('chat'); loadConfig('stt'); });
+    updateTtsModels();
+    loadCatalog().then(() => { loadConfig('chat'); loadConfig('stt'); loadConfig('tts'); });
     </script>
 </body>
 </html>

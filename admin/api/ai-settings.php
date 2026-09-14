@@ -7,6 +7,7 @@ require_once Config::getLibDir() . '/Audit.php';
 require_once Config::getLibDir() . '/AdSpy/AiClient.php';
 require_once Config::getLibDir() . '/AdSpy/AiConfig.php';
 require_once Config::getLibDir() . '/Ai/SttConfig.php';
+require_once Config::getLibDir() . '/Ai/TtsConfig.php';
 
 use AfiliaFacil\Models\UserAiConfig;
 
@@ -26,7 +27,7 @@ if (!Database::available()) {
 
 $userId = (int)Auth::user()['id'];
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
-$capability = in_array($_POST['capability'] ?? $_GET['capability'] ?? '', ['chat', 'stt'], true)
+$capability = in_array($_POST['capability'] ?? $_GET['capability'] ?? '', ['chat', 'stt', 'tts'], true)
     ? ($_POST['capability'] ?? $_GET['capability'])
     : 'chat';
 
@@ -64,6 +65,9 @@ switch ($action) {
         if ($capability === 'stt' && !in_array($data['provider'], SttConfig::PROVIDERS, true)) {
             $data['provider'] = 'cloudflare';
         }
+        if ($capability === 'tts' && !in_array($data['provider'], TtsConfig::PROVIDERS, true)) {
+            $data['provider'] = 'cloudflare';
+        }
 
         $key = trim($_POST['api_key'] ?? '');
         if ($key !== '') {
@@ -87,6 +91,16 @@ switch ($action) {
     case 'test':
         if ($capability === 'stt') {
             $config = SttConfig::forUser($userId);
+            if (($config['api_key'] ?? '') === '') {
+                echo json_encode(['ok' => false, 'error' => 'Nenhuma chave configurada (nem BYOK, nem plataforma)']);
+                break;
+            }
+            echo json_encode(testStt($config));
+            break;
+        }
+
+        if ($capability === 'tts') {
+            $config = TtsConfig::forUser($userId);
             if (($config['api_key'] ?? '') === '') {
                 echo json_encode(['ok' => false, 'error' => 'Nenhuma chave configurada (nem BYOK, nem plataforma)']);
                 break;
@@ -126,6 +140,8 @@ function testStt(array $config): array
         'groq' => ['GET', rtrim($config['base_url'] ?: 'https://api.groq.com/openai/v1', '/') . '/models', ['Authorization: Bearer ' . $key]],
         'deepgram' => ['GET', 'https://api.deepgram.com/v1/projects', ['Authorization: Token ' . $key]],
         'assemblyai' => ['GET', 'https://api.assemblyai.com/v2/transcript?limit=1', ['Authorization: ' . $key]],
+        'elevenlabs' => ['GET', 'https://api.elevenlabs.io/v1/user', ['xi-api-key: ' . $key]],
+        'google' => ['GET', 'https://generativelanguage.googleapis.com/v1beta/models?key=' . urlencode($key), []],
         default => ['GET', 'https://api.cloudflare.com/client/v4/user/tokens/verify', ['Authorization: Bearer ' . $key]],
     };
 

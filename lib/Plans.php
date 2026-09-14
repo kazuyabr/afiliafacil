@@ -13,6 +13,7 @@ class Plans
             'max_domains' => 0,
             'max_offers_views' => 3,
             'max_transcriptions' => 2,
+            'max_tts' => 2,
             'label' => 'Grátis por 3 dias',
         ],
         'trial_expired' => [
@@ -51,6 +52,7 @@ class Plans
             'max_domains' => 2,
             'max_offers_views' => 30,
             'max_transcriptions' => 10,
+            'max_tts' => 10,
             'label' => '5 páginas, 2 domínios',
         ],
         'master' => [
@@ -67,6 +69,7 @@ class Plans
             'max_domains' => 10,
             'max_offers_views' => 300,
             'max_transcriptions' => 100,
+            'max_tts' => 100,
             'label' => 'Tudo ilimitado + integrações',
         ],
         'premium' => [
@@ -77,6 +80,7 @@ class Plans
             'max_domains' => -1,
             'max_offers_views' => -1,
             'max_transcriptions' => -1,
+            'max_tts' => -1,
             'label' => 'Acesso de administrador',
         ],
     ];
@@ -116,6 +120,7 @@ class Plans
                     'max_ai_analyses' => (int)($plan->max_ai_analyses ?? 0),
                     'max_offers_views' => (int)($plan->max_offers_views ?? 0),
                     'max_transcriptions' => (int)($plan->max_transcriptions ?? 0),
+                    'max_tts' => (int)($plan->max_tts ?? 0),
                     'label' => $plan->label ?? '',
                 ];
             }
@@ -176,6 +181,11 @@ class Plans
     public static function maxTranscriptions(string $plan): int
     {
         return self::get($plan)['max_transcriptions'] ?? 0;
+    }
+
+    public static function maxTts(string $plan): int
+    {
+        return self::get($plan)['max_tts'] ?? 0;
     }
 
     public static function maxDomains(string $plan): int
