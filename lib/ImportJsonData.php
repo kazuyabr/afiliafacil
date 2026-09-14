@@ -54,7 +54,7 @@ class ImportJsonData
         $plans = [
             [
                 'id' => 'trial', 'name' => 'Trial', 'label' => 'Grátis por 3 dias',
-                'features' => ['clone', 'offers'], 'max_pages' => 1, 'max_domains' => 0, 'sort' => 0,
+                'features' => ['clone', 'offers', 'adspy'], 'max_pages' => 1, 'max_domains' => 0, 'sort' => 0,
                 'max_adspy' => 3, 'max_ai' => 3, 'max_offers' => 3, 'max_transcriptions' => 2, 'max_tts' => 2,
                 'prices' => [],
             ],

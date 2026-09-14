@@ -8,7 +8,7 @@ class Plans
         'trial' => [
             'name' => 'Trial',
             'price' => 0,
-            'features' => ['clone', 'offers'],
+            'features' => ['clone', 'offers', 'adspy'],
             'max_pages' => 1,
             'max_domains' => 0,
             'max_offers_views' => 3,
