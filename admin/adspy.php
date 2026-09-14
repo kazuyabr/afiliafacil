@@ -90,7 +90,7 @@ if ($pageId > 0) {
                         <div class="form-group">
                             <label>Termo, domínio ou anunciante</label>
                             <div class="input-group">
-                                <input type="text" id="adspyQuery" class="form-control" placeholder="ex: preguicaartificial.com.br, nome do produto, marca..." value="<?= $pageId > 0 ? '' : '' ?>">
+                                <input type="text" id="adspyQuery" class="form-control" placeholder="ex: preguicaartificial.com.br, nome do produto, marca..." value="<?= htmlspecialchars($_GET['query'] ?? '') ?>">
                                 <button class="btn btn-primary" onclick="runSearch()" id="searchBtn"><i class="fas fa-search"></i> Espionar</button>
                             </div>
                         </div>
@@ -284,6 +284,8 @@ if ($pageId > 0) {
 
     if (PAGE_ID > 0) {
         runDossier();
+    } else if (document.getElementById('adspyQuery').value.trim() !== '') {
+        runSearch();
     }
     </script>
 </body>

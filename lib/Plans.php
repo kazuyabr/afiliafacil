@@ -8,9 +8,10 @@ class Plans
         'trial' => [
             'name' => 'Trial',
             'price' => 0,
-            'features' => ['clone'],
+            'features' => ['clone', 'offers'],
             'max_pages' => 1,
             'max_domains' => 0,
+            'max_offers_views' => 3,
             'label' => 'Grátis por 3 dias',
         ],
         'trial_expired' => [
@@ -44,9 +45,10 @@ class Plans
                 'semiannual' => 402,
                 'annual' => 679,
             ],
-            'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'editor'],
+            'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'editor', 'offers'],
             'max_pages' => 5,
             'max_domains' => 2,
+            'max_offers_views' => 30,
             'label' => '5 páginas, 2 domínios',
         ],
         'master' => [
@@ -58,17 +60,19 @@ class Plans
                 'semiannual' => 492,
                 'annual' => 838,
             ],
-            'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'integrations', 'quizz', 'editor'],
+            'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'integrations', 'quizz', 'editor', 'offers'],
             'max_pages' => -1,
             'max_domains' => 10,
+            'max_offers_views' => 300,
             'label' => 'Tudo ilimitado + integrações',
         ],
         'premium' => [
             'name' => 'Admin',
             'price' => 0,
-            'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'integrations', 'quizz', 'editor'],
+            'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'integrations', 'quizz', 'editor', 'offers'],
             'max_pages' => -1,
             'max_domains' => -1,
+            'max_offers_views' => -1,
             'label' => 'Acesso de administrador',
         ],
     ];
@@ -106,6 +110,7 @@ class Plans
                     'max_domains' => (int)$plan->max_domains,
                     'max_adspy_searches' => (int)($plan->max_adspy_searches ?? 0),
                     'max_ai_analyses' => (int)($plan->max_ai_analyses ?? 0),
+                    'max_offers_views' => (int)($plan->max_offers_views ?? 0),
                     'label' => $plan->label ?? '',
                 ];
             }
@@ -156,6 +161,11 @@ class Plans
     public static function maxAiAnalyses(string $plan): int
     {
         return self::get($plan)['max_ai_analyses'] ?? 0;
+    }
+
+    public static function maxOffersViews(string $plan): int
+    {
+        return self::get($plan)['max_offers_views'] ?? 0;
     }
 
     public static function maxDomains(string $plan): int

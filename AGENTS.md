@@ -66,6 +66,19 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **IA**: padrão **Cloudflare Workers AI** (`CF_ACCOUNT_ID`/`CF_AI_TOKEN`/`CF_AI_MODEL` — 10k neurons/dia grátis) + **BYOK** em `/admin/ai-settings.php` (catálogo **models.dev** via JS; suporta cloudflare/openai-compatible/anthropic/google; chave criptografada AES)
 - **Páginas**: `/admin/adspy.php` (busca + grid + filtros por plataforma), `/admin/ai-settings.php` (BYOK); APIs `api/adspy.php` (quota/search/dossier/analyze) e `api/ai-settings.php` (get/save/test)
 
+## Ofertas Escalando (swipe file)
+
+- **Módulo** (`lib/Offers/`): swipe file de ofertas validadas nas bibliotecas de anúncios com métricas de escala (histórico diário → sparkline), criativos e páginas (thumbnails, sem screenshots).
+- **Coleta** (`OfferCollector`): busca termos configurados nos providers do Ad Spy (via `AdSpyManager::searchSystem` — NÃO consome quota de usuário) e agrupa anúncios por domínio/anunciante → `offers` + `offer_creatives` + `offer_pages` + `offer_metrics`. Anúncios de checkout/hotmart etc. classificados como página `checkout`.
+- **IA** (`OfferAi`): analisa cada oferta (nicho, estrutura vsl/quiz/low_ticket/infoproduto/carta, idioma, score 0-100, resumo, ângulos, sugestões) — usa Cloudflare Workers AI da plataforma ou BYOK. `analyzePending()` roda em lote; **auto-aprovação** quando `offers_auto_approve=1` e score >= `offers_auto_approve_score` (curadoria com mínimo trabalho do admin).
+- **Monitor/cron**: `/cron/monitor.php?key=CRON_KEY` (rota no router) — atualiza métricas das ofertas, coleta novas e roda IA nas pendentes. Chave: `CRON_KEY` (env) ou `cron_key` em settings (gerada/rotacionada no painel). Modo `offers_monitor_mode`: `cron` (padrão) | `manual` (endpoint retorna `skipped`).
+- **Quotas por plano** (`plans.max_offers_views`, editáveis no pricing): Trial 3 · VSL Start 0 · Afiliado Pro 30 · Master Elite 300 · Admin ilimitado. Ver o dossiê consome 1 view/mês por oferta; reabrir a mesma oferta no mês NÃO consome (dedupe em `offer_views`).
+- **Feature**: `offers` (trial, essencial, master, premium) — gating em `admin/ofertas.php`, sidebar e `api/ofertas.php`.
+- **UI**: `/admin/ofertas.php` com abas Ofertas (filtros nicho/estrutura/tráfego/idioma/ordenação + cards com sparkline e badge de escala), Criativos, Páginas e **Curadoria** (só admin: stats, aprovação/rejeição em lote, análise IA, configurações do monitor, CRON_KEY mascarada + comando cron, botões "Buscar agora"/"Atualizar métricas").
+- **Ações integradas**: "Clonar" abre `/admin/clone.php?url=&name=` (prefill); "Espionar" abre `/admin/adspy.php?query=` (prefill + auto-search).
+- **API**: `admin/api/ofertas.php` (list/get/creatives/pages/approve/reject/bulk/analyze/analyze-pending/collect/monitor/settings/cron-key) — ações de admin exigem `isAdmin` (403).
+- **Tabelas**: `offers`, `offer_metrics`, `offer_creatives`, `offer_pages`, `offer_suggestions`, `offer_views` (migrations 14 e 15).
+
 ## Como rodar
 
 ```powershell

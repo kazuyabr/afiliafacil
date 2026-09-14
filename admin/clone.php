@@ -48,7 +48,7 @@ $theme = $_SESSION['theme'] ?? 'light';
                             <form id="cloneUrlForm">
                                 <div class="form-group">
                                     <label>URL da página para clonar</label>
-                                    <input type="url" name="source_url" class="form-control" placeholder="https://exemplo.com/pagina-de-vendas" required>
+                                    <input type="url" name="source_url" class="form-control" placeholder="https://exemplo.com/pagina-de-vendas" required value="<?= htmlspecialchars($_GET['url'] ?? '') ?>">
                                 </div>
                                 <div class="form-group">
                                     <label>Seu link de afiliado (para substituir CTAs)</label>
@@ -56,7 +56,7 @@ $theme = $_SESSION['theme'] ?? 'light';
                                 </div>
                                 <div class="form-group">
                                     <label>Nome da página</label>
-                                    <input type="text" name="page_name" class="form-control" placeholder="Minha Landing Page">
+                                    <input type="text" name="page_name" class="form-control" placeholder="Minha Landing Page" value="<?= htmlspecialchars($_GET['name'] ?? '') ?>">
                                 </div>
                                 <button type="submit" class="btn btn-primary btn-full" id="cloneBtn">
                                     <i class="fas fa-clone"></i> Clonar Página

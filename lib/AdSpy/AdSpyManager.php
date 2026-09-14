@@ -81,9 +81,43 @@ class AdSpyManager
         ];
     }
 
-    public function dossier(array $page, int $userId, string $plan): array
+    public function searchSystem(string $query, array $providerIds = self::PROVIDERS, array $options = []): array
     {
-        $signals = $this->extractSignals($page);
+        $query = trim($query);
+        if ($query === '') return ['results' => [], 'errors' => []];
+
+        $results = [];
+        $errors = [];
+
+        foreach ($providerIds as $pid) {
+            if (!isset($this->providers[$pid])) continue;
+
+            $cacheKey = $this->cacheKey($pid, $query, $options);
+            $cached = $this->getCache($cacheKey);
+            if ($cached !== null) {
+                $results[$pid] = $cached;
+                continue;
+            }
+
+            try {
+                $r = $this->providers[$pid]->search($query, $options);
+            } catch (Throwable $e) {
+                $r = ['ads' => [], 'total' => 0, 'error' => 'Erro inesperado: ' . $e->getMessage()];
+            }
+
+            $results[$pid] = $r;
+            if (empty($r['error'])) {
+                $this->setCache($cacheKey, $pid, $r);
+            } else {
+                $errors[$pid] = $r['error'];
+            }
+        }
+
+        return ['results' => $results, 'errors' => $errors];
+    }
+
+    public function dossier(array $page, int $userId, string $plan): array
+    {        $signals = $this->extractSignals($page);
 
         $query = $signals['domain'] !== '' ? $signals['domain'] : $signals['brand'];
         $search = $this->search($userId, $plan, $query, self::PROVIDERS, ['countries' => ['BR'], 'country' => 'BR']);

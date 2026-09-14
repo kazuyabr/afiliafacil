@@ -43,6 +43,11 @@ require_once Config::getLibDir() . '/Plans.php';
             <i class="fas fa-crosshairs"></i> Espionar Anúncios
         </a>
         <?php endif; ?>
+        <?php if (Plans::hasFeature($_SESSION['user_plan'] ?? '', 'offers') || Auth::isAdmin()): ?>
+        <a href="/admin/ofertas.php" class="nav-item <?= $currentPage === 'ofertas.php' ? 'active' : '' ?>">
+            <i class="fas fa-fire"></i> Ofertas Escalando
+        </a>
+        <?php endif; ?>
         <a href="/admin/ai-settings.php" class="nav-item <?= $currentPage === 'ai-settings.php' ? 'active' : '' ?>">
             <i class="fas fa-robot"></i> IA (BYOK)
         </a>
