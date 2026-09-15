@@ -75,7 +75,7 @@ if ($pageId > 0) {
                     </div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                         <span class="quota-pill"><i class="fas fa-search"></i> Buscas: <strong id="quotaSearch"><?= $quotaSearch['limit'] === -1 ? 'ilimitado' : $quotaSearch['used'] . '/' . $quotaSearch['limit'] ?></strong></span>
-                        <span class="quota-pill"><i class="fas fa-brain"></i> Análises IA: <strong id="quotaAnalysis"><?= $quotaAnalysis['limit'] === -1 ? 'ilimitado' : $quotaAnalysis['used'] . '/' . $quotaAnalysis['limit'] ?></strong></span>
+                        <span class="quota-pill"><i class="fas fa-brain"></i> Análises IA: <strong id="quotaAnalysis"><?= $quotaAnalysis['source'] === 'byok' ? 'BYOK — sem limite' : ($quotaAnalysis['limit'] === -1 ? 'ilimitado' : $quotaAnalysis['used'] . '/' . $quotaAnalysis['limit']) ?></strong></span>
                     </div>
                 </div>
 

@@ -2,9 +2,21 @@
 
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Plans.php';
+require_once __DIR__ . '/SttConfig.php';
 
 class SttQuota
 {
+    public const BYOK_MESSAGE = 'Sua cota de transcrições do mês acabou (%d/%d). Você pode fazer upgrade ou configurar sua própria chave (BYOK) em /admin/ai-settings.php para continuar sem limite.';
+
+    public static function source(int $userId): string
+    {
+        try {
+            return (SttConfig::forUser($userId)['source'] ?? 'platform') === 'byok' ? 'byok' : 'platform';
+        } catch (Throwable $e) {
+            return 'platform';
+        }
+    }
+
     public static function used(int $userId): int
     {
         if (!Database::available()) return 0;
@@ -27,11 +39,17 @@ class SttQuota
 
     public static function check(int $userId, string $plan): array
     {
-        $limit = self::limit($plan);
+        $source = self::source($userId);
         $used = self::used($userId);
 
+        if ($source === 'byok') {
+            return ['allowed' => true, 'used' => $used, 'limit' => -1, 'remaining' => -1, 'source' => 'byok'];
+        }
+
+        $limit = self::limit($plan);
+
         if ($limit === -1) {
-            return ['allowed' => true, 'used' => $used, 'limit' => -1, 'remaining' => -1];
+            return ['allowed' => true, 'used' => $used, 'limit' => -1, 'remaining' => -1, 'source' => 'platform'];
         }
 
         return [
@@ -39,10 +57,11 @@ class SttQuota
             'used' => $used,
             'limit' => $limit,
             'remaining' => max(0, $limit - $used),
+            'source' => 'platform',
         ];
     }
 
-    public static function create(int $userId, string $sourceUrl, string $provider): ?int
+    public static function create(int $userId, string $sourceUrl, string $provider, string $source = 'platform'): ?int
     {
         if (!Database::available()) return null;
 
@@ -51,6 +70,7 @@ class SttQuota
                 'user_id' => $userId,
                 'source_url' => mb_substr($sourceUrl, 0, 500),
                 'provider' => $provider,
+                'source' => $source,
                 'status' => 'processing',
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),

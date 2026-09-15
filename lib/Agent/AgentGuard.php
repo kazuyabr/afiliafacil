@@ -46,19 +46,19 @@ class AgentGuard
                 $quota = AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_ANALYSIS);
                 return $quota['allowed']
                     ? ['allowed' => true, 'cost' => '1 análise de IA do mês']
-                    : ['allowed' => false, 'reason' => 'A cota de análises IA acabou (' . $quota['used'] . '/' . $quota['limit'] . ').'];
+                    : ['allowed' => false, 'reason' => sprintf(AdSpyQuota::BYOK_MESSAGE, $quota['used'], $quota['limit'])];
 
             case 'transcrever_midia':
                 $quota = SttQuota::check($userId, $plan);
                 return $quota['allowed']
                     ? ['allowed' => true, 'cost' => '1 transcrição do mês']
-                    : ['allowed' => false, 'reason' => 'A cota de transcrições acabou (' . $quota['used'] . '/' . $quota['limit'] . ').'];
+                    : ['allowed' => false, 'reason' => sprintf(SttQuota::BYOK_MESSAGE, $quota['used'], $quota['limit'])];
 
             case 'gerar_narracao':
                 $quota = TtsQuota::check($userId, $plan);
                 return $quota['allowed']
                     ? ['allowed' => true, 'cost' => '1 narração do mês']
-                    : ['allowed' => false, 'reason' => 'A cota de narrações acabou (' . $quota['used'] . '/' . $quota['limit'] . ').'];
+                    : ['allowed' => false, 'reason' => sprintf(TtsQuota::BYOK_MESSAGE, $quota['used'], $quota['limit'])];
 
             case 'clonar_pagina':
                 if (!Plans::hasFeature($plan, 'clone')) {

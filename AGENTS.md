@@ -116,6 +116,14 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **Tabelas**: `agent_conversations`, `agent_messages`, `agent_profiles` (migration 20).
 - **Painel de preços**: agora edita TODAS as quotas (ofertas, transcrições, narrações, mensagens do sócio, além das antigas).
 
+## IA, BYOK e quotas (política)
+
+- **BYOK ilimitado**: quando o usuário tem chave própria ativa (`user_ai_configs` capability `chat`/`stt`/`tts`), as quotas de IA **não se aplicam** — o limite passa a ser o da própria chave do cliente (não controlamos planos de terceiros). A quota do plano vale apenas para o provider da plataforma (Cloudflare).
+  - Quotas com detecção de source: `AgentQuota`, `SttQuota`, `TtsQuota` e `AdSpyQuota::KIND_ANALYSIS` (chat). **Buscas de anúncios** e **views de ofertas** não são IA — mantêm quota sempre.
+  - Cada check retorna `source` (`byok|platform`); as tabelas de uso (`ad_spy_searches`, `transcriptions`, `tts_generations`, `agent_messages`) gravam a coluna `source` para auditoria e métrica de % de uso BYOK.
+  - UX: pills mostram "BYOK — sem limite"; ao esgotar a cota da plataforma, a mensagem orienta configurar a chave própria (`/admin/ai-settings.php`) em vez de só bloquear.
+- **Eficácia da plataforma (CF)**: STT (Whisper) e chat (GLM Flash) têm boa eficácia grátis; TTS (MeloTTS) é o ponto fraco — BYOK (ElevenLabs/OpenAI) é o upgrade natural. Gargalo: 10k neurons/dia compartilhados na conta CF.
+
 ## Como rodar
 
 ```powershell

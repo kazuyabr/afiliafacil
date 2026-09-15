@@ -103,7 +103,7 @@ switch ($action) {
         $quota = TtsQuota::check($userId, $user['plan']);
         if (!$quota['allowed']) {
             echo json_encode([
-                'error' => 'Sua cota de narrações do mês foi atingida (' . $quota['used'] . '/' . $quota['limit'] . '). Faça upgrade para continuar.',
+                'error' => sprintf(TtsQuota::BYOK_MESSAGE, $quota['used'], $quota['limit']),
                 'quota' => $quota,
             ]);
             break;
@@ -119,7 +119,7 @@ switch ($action) {
         $voice = trim($_POST['voice'] ?? '') ?: TtsConfig::defaultVoice($provider);
         $format = $config['provider'] === 'google' ? 'wav' : 'mp3';
 
-        $generationId = TtsQuota::create($userId, $provider, (string)$config['model'], $voice, $format, $text);
+        $generationId = TtsQuota::create($userId, $provider, (string)$config['model'], $voice, $format, $text, $config['source'] ?? 'platform');
         if ($generationId === null) {
             echo json_encode(['error' => 'Falha ao registrar a geração.']);
             break;

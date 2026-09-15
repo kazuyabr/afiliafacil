@@ -2,9 +2,21 @@
 
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Plans.php';
+require_once __DIR__ . '/../AdSpy/AiConfig.php';
 
 class AgentQuota
 {
+    public const BYOK_MESSAGE = 'Sua cota de mensagens do sócio neste mês acabou (%d/%d). Você pode fazer upgrade ou configurar sua própria chave de IA (BYOK) em /admin/ai-settings.php para continuar sem limite.';
+
+    public static function source(int $userId): string
+    {
+        try {
+            return (AiConfig::forUser($userId)['source'] ?? 'platform') === 'byok' ? 'byok' : 'platform';
+        } catch (Throwable $e) {
+            return 'platform';
+        }
+    }
+
     public static function used(int $userId): int
     {
         if (!Database::available()) return 0;
@@ -29,11 +41,17 @@ class AgentQuota
 
     public static function check(int $userId, string $plan): array
     {
-        $limit = self::limit($plan);
+        $source = self::source($userId);
         $used = self::used($userId);
 
+        if ($source === 'byok') {
+            return ['allowed' => true, 'used' => $used, 'limit' => -1, 'remaining' => -1, 'source' => 'byok'];
+        }
+
+        $limit = self::limit($plan);
+
         if ($limit === -1) {
-            return ['allowed' => true, 'used' => $used, 'limit' => -1, 'remaining' => -1];
+            return ['allowed' => true, 'used' => $used, 'limit' => -1, 'remaining' => -1, 'source' => 'platform'];
         }
 
         return [
@@ -41,6 +59,12 @@ class AgentQuota
             'used' => $used,
             'limit' => $limit,
             'remaining' => max(0, $limit - $used),
+            'source' => 'platform',
         ];
+    }
+
+    public static function limitMessage(int $used, int $limit): string
+    {
+        return sprintf(self::BYOK_MESSAGE, $used, $limit);
     }
 }

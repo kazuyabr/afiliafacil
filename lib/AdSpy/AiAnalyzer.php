@@ -10,7 +10,7 @@ class AiAnalyzer
     {
         $quota = AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_ANALYSIS);
         if (!$quota['allowed']) {
-            return ['error' => 'Sua cota de análises IA do mês foi atingida (' . $quota['used'] . '/' . $quota['limit'] . '). Faça upgrade para continuar.'];
+            return ['error' => sprintf(AdSpyQuota::BYOK_MESSAGE, $quota['used'], $quota['limit'])];
         }
 
         $config = AiConfig::forUser($userId);

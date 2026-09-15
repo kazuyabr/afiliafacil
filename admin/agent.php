@@ -101,7 +101,7 @@ $profileText = AgentProfile::describe($profile);
                                 <div style="font-size:.72rem;color:var(--text-secondary);margin-top:2px;" id="profileLine">Perfil: <?= htmlspecialchars($profileText) ?></div>
                             </div>
                             <div style="display:flex;gap:8px;align-items:center;">
-                                <span class="quota-pill" id="quotaPill"><i class="fas fa-comments"></i> <strong><?= $quota['limit'] === -1 ? 'ilimitado' : $quota['used'] . '/' . $quota['limit'] ?></strong></span>
+                                <span class="quota-pill" id="quotaPill"><i class="fas fa-comments"></i> <strong><?= $quota['source'] === 'byok' ? 'BYOK — sem limite' : ($quota['limit'] === -1 ? 'ilimitado' : $quota['used'] . '/' . $quota['limit']) ?></strong></span>
                                 <button class="btn btn-outline btn-sm" onclick="editProfile()" title="Editar perfil"><i class="fas fa-user-pen"></i></button>
                             </div>
                         </div>
@@ -130,7 +130,8 @@ $profileText = AgentProfile::describe($profile);
 
     function updateQuota(quota) {
         if (!quota) return;
-        document.getElementById('quotaPill').innerHTML = '<i class="fas fa-comments"></i> <strong>' + (quota.limit === -1 ? 'ilimitado' : quota.used + '/' + quota.limit) + '</strong>';
+        const label = quota.source === 'byok' ? 'BYOK — sem limite' : (quota.limit === -1 ? 'ilimitado' : quota.used + '/' + quota.limit);
+        document.getElementById('quotaPill').innerHTML = '<i class="fas fa-comments"></i> <strong>' + label + '</strong>';
     }
 
     async function loadConversations() {

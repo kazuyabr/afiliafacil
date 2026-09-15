@@ -273,7 +273,7 @@ class AgentTools
             $input = ['url' => $media['media_url']];
         }
 
-        $id = SttQuota::create($userId, $input['url'], $config['provider']);
+        $id = SttQuota::create($userId, $input['url'], $config['provider'], $config['source'] ?? 'platform');
         if ($id === null) {
             return ['success' => false, 'summary' => 'Falha ao registrar a transcrição.', 'render' => null];
         }
@@ -310,7 +310,7 @@ class AgentTools
         }
 
         $voice = trim((string)($args['voice'] ?? '')) ?: TtsConfig::defaultVoice($config['provider']);
-        $id = TtsQuota::create($userId, $config['provider'], (string)$config['model'], $voice, $config['provider'] === 'google' ? 'wav' : 'mp3', $text);
+        $id = TtsQuota::create($userId, $config['provider'], (string)$config['model'], $voice, $config['provider'] === 'google' ? 'wav' : 'mp3', $text, $config['source'] ?? 'platform');
         if ($id === null) {
             return ['success' => false, 'summary' => 'Falha ao registrar a narração.', 'render' => null];
         }

@@ -31,7 +31,7 @@ class Agent
         $quota = AgentQuota::check($userId, $plan);
         if (!$quota['allowed']) {
             return [
-                'error' => 'Sua cota de mensagens do sócio neste mês foi atingida (' . $quota['used'] . '/' . $quota['limit'] . '). Faça upgrade para continuar.',
+                'error' => AgentQuota::limitMessage($quota['used'], $quota['limit']),
                 'quota' => $quota,
             ];
         }
@@ -41,7 +41,7 @@ class Agent
             return ['error' => 'Conversa não encontrada.'];
         }
 
-        $this->saveMessage((int)$conversation->id, 'user', $message);
+        $this->saveMessage((int)$conversation->id, 'user', $message, '', null, null, '', [], AgentQuota::source($userId));
 
         $config = AiConfig::forUser($userId);
         if (($config['api_key'] ?? '') === '') {
@@ -357,7 +357,7 @@ PROMPT;
         return null;
     }
 
-    private function saveMessage(int $conversationId, string $role, string $content, string $toolName = '', ?array $toolArgs = null, ?array $toolResult = null, string $status = '', array $extra = []): int
+    private function saveMessage(int $conversationId, string $role, string $content, string $toolName = '', ?array $toolArgs = null, ?array $toolResult = null, string $status = '', array $extra = [], string $source = ''): int
     {
         $payload = [
             'conversation_id' => $conversationId,
@@ -367,6 +367,7 @@ PROMPT;
             'tool_args' => $toolArgs,
             'tool_result' => $toolResult,
             'status' => $status,
+            'source' => $source !== '' ? $source : 'platform',
             'created_at' => date('Y-m-d H:i:s'),
         ];
         if (!empty($extra['options'])) {

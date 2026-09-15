@@ -53,7 +53,7 @@ $maxUpload = min(24, (int)ini_get('upload_max_filesize') ?: 24);
                         <p style="color:var(--text-secondary);margin-top:4px;font-size:.9rem;">Transcreva VSLs, áudios e vídeos com timestamps — pronto para usar como roteiro, legenda ou análise.</p>
                     </div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <span class="quota-pill" id="quotaPill"><i class="fas fa-microphone-lines"></i> Transcrições: <strong><?= $quota['limit'] === -1 ? 'ilimitado' : $quota['used'] . '/' . $quota['limit'] ?></strong></span>
+                        <span class="quota-pill" id="quotaPill"><i class="fas fa-microphone-lines"></i> Transcrições: <strong><?= $quota['source'] === 'byok' ? 'BYOK — sem limite' : ($quota['limit'] === -1 ? 'ilimitado' : $quota['used'] . '/' . $quota['limit']) ?></strong></span>
                         <span class="quota-pill" title="Provider ativo"><i class="fas fa-robot"></i> <strong><?= htmlspecialchars($config['provider']) ?></strong> <?= $config['source'] === 'byok' ? '(BYOK)' : '(plataforma)' ?></span>
                     </div>
                 </div>
@@ -136,7 +136,8 @@ $maxUpload = min(24, (int)ini_get('upload_max_filesize') ?: 24);
 
     function updateQuota(quota) {
         if (!quota) return;
-        document.getElementById('quotaPill').innerHTML = '<i class="fas fa-microphone-lines"></i> Transcrições: <strong>' + (quota.limit === -1 ? 'ilimitado' : quota.used + '/' + quota.limit) + '</strong>';
+        const label = quota.source === 'byok' ? 'BYOK — sem limite' : (quota.limit === -1 ? 'ilimitado' : quota.used + '/' + quota.limit);
+        document.getElementById('quotaPill').innerHTML = '<i class="fas fa-microphone-lines"></i> Transcrições: <strong>' + label + '</strong>';
     }
 
     function onFileSelected(input) {

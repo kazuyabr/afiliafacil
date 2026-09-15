@@ -52,7 +52,7 @@ $config = TtsConfig::forUser((int)$user['id']);
                         <p style="color:var(--text-secondary);margin-top:4px;font-size:.9rem;">Transforme roteiros e textos em narração — ideal para VSLs, anúncios e vídeos.</p>
                     </div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <span class="quota-pill" id="quotaPill"><i class="fas fa-volume-high"></i> Narrações: <strong><?= $quota['limit'] === -1 ? 'ilimitado' : $quota['used'] . '/' . $quota['limit'] ?></strong></span>
+                        <span class="quota-pill" id="quotaPill"><i class="fas fa-volume-high"></i> Narrações: <strong><?= $quota['source'] === 'byok' ? 'BYOK — sem limite' : ($quota['limit'] === -1 ? 'ilimitado' : $quota['used'] . '/' . $quota['limit']) ?></strong></span>
                         <span class="quota-pill" title="Provider ativo"><i class="fas fa-robot"></i> <strong><?= htmlspecialchars($config['provider']) ?></strong> <?= $config['source'] === 'byok' ? '(BYOK)' : '(plataforma)' ?></span>
                     </div>
                 </div>
@@ -135,7 +135,8 @@ $config = TtsConfig::forUser((int)$user['id']);
 
     function updateQuota(quota) {
         if (!quota) return;
-        document.getElementById('quotaPill').innerHTML = '<i class="fas fa-volume-high"></i> Narrações: <strong>' + (quota.limit === -1 ? 'ilimitado' : quota.used + '/' + quota.limit) + '</strong>';
+        const label = quota.source === 'byok' ? 'BYOK — sem limite' : (quota.limit === -1 ? 'ilimitado' : quota.used + '/' + quota.limit);
+        document.getElementById('quotaPill').innerHTML = '<i class="fas fa-volume-high"></i> Narrações: <strong>' + label + '</strong>';
     }
 
     function askAgentTts() {

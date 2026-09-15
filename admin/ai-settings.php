@@ -49,6 +49,10 @@ $theme = $_SESSION['theme'] ?? 'light';
                 </div>
                 <?php endif; ?>
 
+                <div class="alert alert-info">
+                    <i class="fas fa-infinity"></i> <strong>Com BYOK ativo, as ações de IA (chat, análises, transcrições e narrações) não consomem a cota do plano</strong> — o limite passa a ser o da sua própria chave. Quando a cota da plataforma acabar, configure sua chave e continue sem limite.
+                </div>
+
                 <div class="tabs">
                     <button class="tab-btn active" data-tab="chat" onclick="switchTab('chat')"><i class="fas fa-brain"></i> Análise (Chat)</button>
                     <button class="tab-btn" data-tab="stt" onclick="switchTab('stt')"><i class="fas fa-microphone-lines"></i> Transcrição (STT)</button>

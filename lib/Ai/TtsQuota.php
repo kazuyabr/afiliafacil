@@ -2,9 +2,21 @@
 
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Plans.php';
+require_once __DIR__ . '/TtsConfig.php';
 
 class TtsQuota
 {
+    public const BYOK_MESSAGE = 'Sua cota de narrações do mês acabou (%d/%d). Você pode fazer upgrade ou configurar sua própria chave (BYOK) em /admin/ai-settings.php para continuar sem limite.';
+
+    public static function source(int $userId): string
+    {
+        try {
+            return (TtsConfig::forUser($userId)['source'] ?? 'platform') === 'byok' ? 'byok' : 'platform';
+        } catch (Throwable $e) {
+            return 'platform';
+        }
+    }
+
     public static function used(int $userId): int
     {
         if (!Database::available()) return 0;
@@ -27,11 +39,17 @@ class TtsQuota
 
     public static function check(int $userId, string $plan): array
     {
-        $limit = self::limit($plan);
+        $source = self::source($userId);
         $used = self::used($userId);
 
+        if ($source === 'byok') {
+            return ['allowed' => true, 'used' => $used, 'limit' => -1, 'remaining' => -1, 'source' => 'byok'];
+        }
+
+        $limit = self::limit($plan);
+
         if ($limit === -1) {
-            return ['allowed' => true, 'used' => $used, 'limit' => -1, 'remaining' => -1];
+            return ['allowed' => true, 'used' => $used, 'limit' => -1, 'remaining' => -1, 'source' => 'platform'];
         }
 
         return [
@@ -39,10 +57,11 @@ class TtsQuota
             'used' => $used,
             'limit' => $limit,
             'remaining' => max(0, $limit - $used),
+            'source' => 'platform',
         ];
     }
 
-    public static function create(int $userId, string $provider, string $model, string $voice, string $format, string $text): ?int
+    public static function create(int $userId, string $provider, string $model, string $voice, string $format, string $text, string $source = 'platform'): ?int
     {
         if (!Database::available()) return null;
 
@@ -55,6 +74,7 @@ class TtsQuota
                 'format' => $format,
                 'text' => mb_substr($text, 0, 10000),
                 'chars' => mb_strlen($text),
+                'source' => $source,
                 'status' => 'processing',
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),

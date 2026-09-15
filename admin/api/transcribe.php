@@ -104,7 +104,7 @@ switch ($action) {
         $quota = SttQuota::check($userId, $user['plan']);
         if (!$quota['allowed']) {
             echo json_encode([
-                'error' => 'Sua cota de transcrições do mês foi atingida (' . $quota['used'] . '/' . $quota['limit'] . '). Faça upgrade para continuar.',
+                'error' => sprintf(SttQuota::BYOK_MESSAGE, $quota['used'], $quota['limit']),
                 'quota' => $quota,
             ]);
             break;
@@ -142,7 +142,7 @@ switch ($action) {
             }
         }
 
-        $transcriptionId = SttQuota::create($userId, $sourceLabel, $config['provider']);
+        $transcriptionId = SttQuota::create($userId, $sourceLabel, $config['provider'], $config['source'] ?? 'platform');
         if ($transcriptionId === null) {
             echo json_encode(['error' => 'Falha ao registrar a transcrição.']);
             break;

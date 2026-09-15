@@ -2,11 +2,25 @@
 
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Plans.php';
+require_once __DIR__ . '/AiConfig.php';
 
 class AdSpyQuota
 {
     public const KIND_SEARCH = 'search';
     public const KIND_ANALYSIS = 'analysis';
+
+    public const BYOK_MESSAGE = 'Sua cota de análises IA do mês acabou (%d/%d). Você pode fazer upgrade ou configurar sua própria chave (BYOK) em /admin/ai-settings.php para continuar sem limite.';
+
+    public static function source(int $userId, string $kind): string
+    {
+        if ($kind !== self::KIND_ANALYSIS) return 'platform';
+
+        try {
+            return (AiConfig::forUser($userId)['source'] ?? 'platform') === 'byok' ? 'byok' : 'platform';
+        } catch (Throwable $e) {
+            return 'platform';
+        }
+    }
 
     public static function used(int $userId, string $kind): int
     {
@@ -33,11 +47,17 @@ class AdSpyQuota
 
     public static function check(int $userId, string $plan, string $kind): array
     {
-        $limit = self::limit($plan, $kind);
+        $source = self::source($userId, $kind);
         $used = self::used($userId, $kind);
 
+        if ($source === 'byok') {
+            return ['allowed' => true, 'used' => $used, 'limit' => -1, 'remaining' => -1, 'source' => 'byok'];
+        }
+
+        $limit = self::limit($plan, $kind);
+
         if ($limit === -1) {
-            return ['allowed' => true, 'used' => $used, 'limit' => -1, 'remaining' => -1];
+            return ['allowed' => true, 'used' => $used, 'limit' => -1, 'remaining' => -1, 'source' => 'platform'];
         }
 
         return [
@@ -45,6 +65,7 @@ class AdSpyQuota
             'used' => $used,
             'limit' => $limit,
             'remaining' => max(0, $limit - $used),
+            'source' => 'platform',
         ];
     }
 
@@ -60,6 +81,7 @@ class AdSpyQuota
                 'provider' => $provider,
                 'results_count' => $resultsCount,
                 'from_cache' => $fromCache,
+                'source' => self::source($userId, $kind),
                 'created_at' => date('Y-m-d H:i:s'),
             ]);
         } catch (Throwable $e) {
