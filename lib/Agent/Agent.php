@@ -6,6 +6,7 @@ require_once __DIR__ . '/../Audit.php';
 require_once __DIR__ . '/../AdSpy/AiClient.php';
 require_once __DIR__ . '/../AdSpy/AiConfig.php';
 require_once __DIR__ . '/../Moderation/ContentModerator.php';
+require_once __DIR__ . '/../Training/TrainingCollector.php';
 require_once __DIR__ . '/AgentGuard.php';
 require_once __DIR__ . '/AgentTools.php';
 require_once __DIR__ . '/AgentQuota.php';
@@ -67,7 +68,7 @@ class Agent
             return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
         }
 
-        return $this->handleResponse($userId, $plan, (int)$conversation->id, $response);
+        return $this->handleResponse($userId, $plan, (int)$conversation->id, $response, $message);
     }
 
     public function confirm(int $userId, int $messageId): array
@@ -194,7 +195,7 @@ class Agent
         return true;
     }
 
-    private function handleResponse(int $userId, string $plan, int $conversationId, string $rawResponse): array
+    private function handleResponse(int $userId, string $plan, int $conversationId, string $rawResponse, string $userMessage = ''): array
     {
         $parsed = $this->parseResponse($rawResponse);
 
@@ -214,6 +215,10 @@ class Agent
             $content = ContentModerator::redact(trim((string)($parsed['content'] ?? '')));
             $options = array_slice(array_values(array_filter((array)($parsed['options'] ?? []), 'is_string')), 0, 5);
             $this->saveMessage($conversationId, 'agent', $content, '', null, null, 'question', $options);
+            TrainingCollector::capture($userId, $plan, TrainingCollector::KIND_CHAT, [
+                'user' => $userMessage,
+                'assistant' => $content,
+            ]);
             return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
         }
 
@@ -240,6 +245,10 @@ class Agent
 
         $filtered = AgentGuard::filterResponse(trim((string)($parsed['content'] ?? '')));
         $this->saveMessage($conversationId, 'agent', ContentModerator::redact($filtered['text']));
+        TrainingCollector::capture($userId, $plan, TrainingCollector::KIND_CHAT, [
+            'user' => $userMessage,
+            'assistant' => $filtered['text'],
+        ]);
         return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
     }
 

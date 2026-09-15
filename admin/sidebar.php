@@ -106,6 +106,9 @@ require_once Config::getLibDir() . '/Plans.php';
         <a href="/admin/moderation.php" class="nav-item <?= $currentPage === 'moderation.php' ? 'active' : '' ?>">
             <i class="fas fa-shield-halved"></i> Moderação
         </a>
+        <a href="/admin/training.php" class="nav-item <?= $currentPage === 'training.php' ? 'active' : '' ?>">
+            <i class="fas fa-brain"></i> Treinamento
+        </a>
         <?php endif; ?>
         <?php endif; ?>
 

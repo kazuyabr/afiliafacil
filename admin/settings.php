@@ -2,11 +2,18 @@
 require_once __DIR__ . '/../lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/Settings.php';
+require_once Config::getLibDir() . '/Plans.php';
+require_once Config::getLibDir() . '/Database.php';
+require_once Config::getLibDir() . '/Training/TrainingCollector.php';
 Auth::requireAuth();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['theme'])) {
         $_SESSION['theme'] = $_POST['theme'] === 'dark' ? 'dark' : 'light';
+    }
+
+    if (isset($_POST['privacy'])) {
+        TrainingCollector::setConsent((int)(Auth::user()['id'] ?? 0), !empty($_POST['training_consent']));
     }
 
     if (isset($_POST['system']) && Auth::can('manage_settings')) {
@@ -33,6 +40,14 @@ $saved = isset($_GET['saved']);
 $settings = Settings::all();
 $isAdmin = Auth::can('manage_settings');
 $user = Auth::user();
+$trainingConsent = false;
+if (Database::available()) {
+    try {
+        $trainingConsent = (bool)(\AfiliaFacil\Models\User::find($user['id'])->training_consent ?? false);
+    } catch (Throwable $e) {
+        $trainingConsent = false;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="<?= $theme ?>">
@@ -108,6 +123,37 @@ $user = Auth::user();
                                 <input type="text" class="form-control" value="<?= ucfirst($user['plan']) ?>" disabled>
                             </div>
                             <a href="/admin/plan.php" class="btn btn-outline btn-sm"><i class="fas fa-arrow-up"></i> Ver meu plano</a>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top:24px;">
+                        <div class="card-header"><h3><i class="fas fa-user-shield"></i> Privacidade e meus dados</h3></div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <input type="hidden" name="privacy" value="1">
+                                <div class="form-group" style="font-size:.85rem;line-height:1.5;">
+                                    <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;">
+                                        <input type="checkbox" name="training_consent" value="1" style="margin-top:3px;" <?= $trainingConsent ? 'checked' : '' ?>>
+                                        <span>Autorizo o uso de dados <strong>anonimizados</strong> das minhas interações (conversas, transcrições e narrações) para melhorar a IA da plataforma. Posso revogar a qualquer momento. Veja a <a href="/privacidade" target="_blank">Política de Privacidade</a>.</span>
+                                    </label>
+                                </div>
+                                <button type="submit" class="btn btn-outline btn-sm"><i class="fas fa-save"></i> Salvar preferência</button>
+                            </form>
+
+                            <?php if (Plans::hasFeature($user['plan'], 'agent') || Auth::isAdmin()): ?>
+                            <hr style="border:none;border-top:1px solid var(--border-color);margin:18px 0;">
+                            <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:10px;">
+                                <i class="fas fa-download"></i> Baixe seus dados (conversas, transcrições e textos de narração) em Markdown ou JSONL:
+                            </p>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <a class="btn btn-outline btn-sm" href="/admin/api/export.php?action=my-data&format=md"><i class="fas fa-file-lines"></i> Baixar Markdown</a>
+                                <a class="btn btn-outline btn-sm" href="/admin/api/export.php?action=my-data&format=jsonl"><i class="fas fa-file-code"></i> Baixar JSONL</a>
+                            </div>
+                            <?php else: ?>
+                            <p style="font-size:.8rem;color:var(--text-secondary);margin-top:12px;">
+                                <i class="fas fa-lock"></i> Download dos seus dados disponível nos planos Afiliado Pro, Master Elite e Admin.
+                            </p>
+                            <?php endif; ?>
                         </div>
                     </div>
 

@@ -143,6 +143,21 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **Cadastro**: aceite obrigatório dos Termos/Privacidade (`terms_accepted_at` gravado) + consentimento **opcional** de uso de dados anonimizados para IA (`users.training_consent`) — revogável depois.
 - **Tabelas**: `users.training_consent`, `users.terms_accepted_at` (migration 23).
 
+## Dataset de treinamento (consentido)
+
+- **`lib/Training/TrainingCollector.php`**: captura amostras **somente de usuários com consentimento** (`users.training_consent`), com PII removida e PHI redigida (`ContentModerator::sanitizeForTraining`).
+- **Coleta**: conversas do Sócio (par usuário/assistente), transcrições e textos de narração (chamadas em `Agent::handleResponse`, `api/transcribe.php`, `api/tts.php`).
+- **Consentimento**: checkbox opcional no cadastro + toggle em Admin → Configurações → "Privacidade e meus dados" (revogável a qualquer momento; auditoria `training_consent_granted/revoked`).
+- **Admin** (`/admin/training.php`, só master/admin): contadores por tipo/plano, usuários consentidos e **exportação JSONL** para fine-tuning (formato `{kind,plan,payload,created_at}`) — base para LoRA/AI Search na Cloudflare.
+- **Download do cliente** (`/admin/api/export.php?action=my-data&format=md|jsonl`): dados do próprio usuário (conversas, transcrições, narrações) em Markdown/JSONL — disponível nos planos Afiliado Pro, Master Elite e Admin (botão em Configurações).
+- **Tabela**: `training_samples` (migration 24).
+
+## Roadmap Cloudflare (treinamento)
+
+1. Markdowns curados → **AI Search** (RAG gerenciado) com feedback 👍/👎 nas respostas.
+2. Dataset JSONL → treino de **LoRA adapter** ("Sócio BR" proprietário; upload via `wrangler ai finetune create`, rank ≤8, <300MB, fica na conta CF da empresa).
+3. **Packs de conhecimento por nicho** (markdown + adapter) como produto.
+
 ## Como rodar
 
 ```powershell

@@ -9,6 +9,7 @@ require_once Config::getLibDir() . '/Ai/SttClient.php';
 require_once Config::getLibDir() . '/Ai/SttQuota.php';
 require_once Config::getLibDir() . '/Ai/MediaDetector.php';
 require_once Config::getLibDir() . '/Moderation/ContentModerator.php';
+require_once Config::getLibDir() . '/Training/TrainingCollector.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -174,6 +175,11 @@ switch ($action) {
             SttQuota::complete($transcriptionId, array_merge($result, ['text' => $screen['clean']]));
             $result['text'] = $screen['clean'];
         }
+
+        TrainingCollector::capture($userId, $user['plan'], TrainingCollector::KIND_TRANSCRIPTION, [
+            'url' => $sourceLabel,
+            'text' => $result['text'],
+        ]);
 
         Audit::log('transcription_completed', 'transcription', (string)$transcriptionId, [
             'provider' => $result['provider'] ?? '',

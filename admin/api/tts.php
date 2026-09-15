@@ -8,6 +8,7 @@ require_once Config::getLibDir() . '/Ai/TtsConfig.php';
 require_once Config::getLibDir() . '/Ai/TtsClient.php';
 require_once Config::getLibDir() . '/Ai/TtsQuota.php';
 require_once Config::getLibDir() . '/Moderation/ContentModerator.php';
+require_once Config::getLibDir() . '/Training/TrainingCollector.php';
 
 if (!Auth::check()) {
     http_response_code(401);
@@ -154,6 +155,10 @@ switch ($action) {
         }
 
         TtsQuota::complete($generationId, $filename);
+        TrainingCollector::capture($userId, $user['plan'], TrainingCollector::KIND_TTS, [
+            'voice' => $voice,
+            'text' => $text,
+        ]);
         Audit::log('tts_completed', 'tts', (string)$generationId, [
             'provider' => $result['provider'] ?? '',
             'chars' => mb_strlen($text),
