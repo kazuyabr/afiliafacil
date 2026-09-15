@@ -25,7 +25,7 @@ $profileText = AgentProfile::describe($profile);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sócio - AfiliaFacil</title>
+    <title>Sócio de IA - AfiliaFacil</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="/assets/css/theme-light.css">
@@ -73,6 +73,8 @@ $profileText = AgentProfile::describe($profile);
         .ad-mini .info { font-size:.75rem; min-width:0; }
         .agent-typing { align-self:flex-start; color:var(--text-secondary); font-size:.85rem; display:flex; gap:8px; align-items:center; }
         .principles { font-size:.72rem; color:var(--text-secondary); padding:8px 16px; border-bottom:1px solid var(--border-color); background:var(--bg-secondary); }
+        .subagent-tools { display:flex; flex-wrap:wrap; gap:8px; font-size:.78rem; }
+        .subagent-tools label { display:flex; align-items:center; gap:5px; background:var(--bg-secondary); padding:5px 10px; border-radius:14px; cursor:pointer; }
         @media (max-width: 900px) { .agent-conversations { display:none; } }
     </style>
 </head>
@@ -81,7 +83,7 @@ $profileText = AgentProfile::describe($profile);
         <?php include __DIR__ . '/sidebar.php'; ?>
         <div class="main-content">
             <div class="topbar">
-                <div class="topbar-title">Sócio</div>
+                <div class="topbar-title">Sócio de IA</div>
                 <div class="topbar-actions">
                     <button class="theme-toggle" onclick="toggleTheme()"><i class="fas fa-<?= $theme === 'dark' ? 'sun' : 'moon' ?>"></i></button>
                 </div>
@@ -93,14 +95,20 @@ $profileText = AgentProfile::describe($profile);
                             <button class="btn btn-primary btn-sm btn-full" onclick="newConversation()"><i class="fas fa-plus"></i> Nova conversa</button>
                         </div>
                         <div class="list" id="convList"></div>
+                        <div class="header" style="border-top:1px solid var(--border-color);border-bottom:none;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                            <strong style="font-size:.8rem;"><i class="fas fa-users-gear" style="color:var(--accent);"></i> Subagentes</strong>
+                            <button class="btn btn-outline btn-sm" onclick="editSubagent(0)" id="newSubagentBtn" title="Novo subagente"><i class="fas fa-plus"></i></button>
+                        </div>
+                        <div class="list" id="subagentList" style="max-height:40%;"></div>
                     </aside>
                     <div class="agent-chat">
                         <div class="agent-chat-header">
                             <div>
-                                <strong style="font-size:.95rem;"><i class="fas fa-handshake" style="color:var(--accent);"></i> Seu Sócio</strong>
+                                <strong style="font-size:.95rem;" id="agentHeaderTitle"><i class="fas fa-handshake" style="color:var(--accent);"></i> Sócio de IA</strong>
                                 <div style="font-size:.72rem;color:var(--text-secondary);margin-top:2px;" id="profileLine">Perfil: <?= htmlspecialchars($profileText) ?></div>
                             </div>
                             <div style="display:flex;gap:8px;align-items:center;">
+                                <button class="btn btn-outline btn-sm" id="backToMainBtn" style="display:none;" onclick="backToMain()"><i class="fas fa-arrow-left"></i> Voltar ao Sócio de IA</button>
                                 <span class="quota-pill" id="quotaPill"><i class="fas fa-comments"></i> <strong><?= $quota['source'] === 'byok' ? 'BYOK — sem limite' : ($quota['limit'] === -1 ? 'ilimitado' : $quota['used'] . '/' . $quota['limit']) ?></strong></span>
                                 <button class="btn btn-outline btn-sm" onclick="editProfile()" title="Editar perfil"><i class="fas fa-user-pen"></i></button>
                             </div>
@@ -117,10 +125,61 @@ $profileText = AgentProfile::describe($profile);
         </div>
     </div>
 
+    <div class="modal-overlay" id="subagentModal">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header">
+                <h3 id="subagentModalTitle">Novo subagente</h3>
+                <button class="modal-close" onclick="closeSubagentModal()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="subagentId" value="0">
+                <div class="form-group">
+                    <label>Modelo rápido (opcional)</label>
+                    <select id="subagentTemplate" class="form-control" onchange="applyTemplate(this.value)">
+                        <option value="">Começar do zero</option>
+                    </select>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Nome do especialista</label>
+                        <input type="text" id="subagentName" class="form-control" placeholder="ex: Analista de Meta Ads">
+                    </div>
+                    <div class="form-group">
+                        <label>Especialidade</label>
+                        <input type="text" id="subagentSpecialty" class="form-control" placeholder="ex: Tráfego pago no Facebook">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Instruções (como ele deve trabalhar)</label>
+                    <textarea id="subagentInstructions" class="form-control" rows="4" placeholder="Descreva o foco e o jeito de trabalhar deste especialista..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Ferramentas permitidas</label>
+                    <div class="subagent-tools" id="subagentTools"></div>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;">
+                        <input type="checkbox" id="subagentActive" checked> Ativo (pode ser consultado)
+                    </label>
+                </div>
+                <div id="subagentError"></div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="closeSubagentModal()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="saveSubagent()"><i class="fas fa-save"></i> Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="/assets/js/app.js"></script>
     <script>
     let conversationId = 0;
     let sending = false;
+    let conversationsCache = [];
+    let subagentsCache = [];
+    let templatesCache = [];
+    let availableToolsCache = [];
+    let subagentQuota = null;
 
     function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -137,18 +196,170 @@ $profileText = AgentProfile::describe($profile);
     async function loadConversations() {
         const resp = await fetch('/admin/api/agent.php?action=conversations');
         const data = await resp.json();
+        conversationsCache = data.conversations || [];
         const list = document.getElementById('convList');
-        const items = data.conversations || [];
-        if (!items.length) {
+        if (!conversationsCache.length) {
             list.innerHTML = '<div style="padding:16px;font-size:.78rem;color:var(--text-secondary);text-align:center;">Nenhuma conversa ainda.</div>';
             return;
         }
-        list.innerHTML = items.map(c =>
+        list.innerHTML = conversationsCache.map(c =>
             '<div class="agent-conv-item ' + (c.id === conversationId ? 'active' : '') + '" onclick="openConversation(' + c.id + ')">' +
-                '<span class="title">' + esc(c.title) + '</span>' +
+                '<span class="title">' + (c.subagent_name ? '<i class="fas fa-user-gear" style="font-size:.68rem;color:var(--accent);"></i> ' : '') + esc(c.title) + '</span>' +
                 '<span class="del" onclick="event.stopPropagation();deleteConversation(' + c.id + ')" title="Excluir"><i class="fas fa-trash"></i></span>' +
             '</div>'
         ).join('');
+    }
+
+    async function loadSubagents() {
+        const resp = await fetch('/admin/api/agent.php?action=subagents');
+        const data = await resp.json();
+        if (!data.success) return;
+
+        subagentsCache = data.subagents || [];
+        templatesCache = data.templates || [];
+        availableToolsCache = data.available_tools || [];
+        subagentQuota = data.quota;
+
+        const tpl = document.getElementById('subagentTemplate');
+        if (tpl.options.length <= 1 && templatesCache.length) {
+            templatesCache.forEach(t => tpl.appendChild(new Option(t.name + ' — ' + t.specialty, t.slug)));
+        }
+
+        const btn = document.getElementById('newSubagentBtn');
+        if (subagentQuota && subagentQuota.limit !== -1 && !subagentQuota.allowed) {
+            btn.disabled = true;
+            btn.title = 'Limite de subagentes do plano atingido (' + subagentQuota.used + '/' + subagentQuota.limit + ')';
+        }
+
+        const list = document.getElementById('subagentList');
+        if (!subagentsCache.length) {
+            list.innerHTML = '<div style="padding:12px;font-size:.75rem;color:var(--text-secondary);text-align:center;">Nenhum subagente ainda.<br>Peça ao Sócio de IA para criar um ou clique em +.</div>';
+            return;
+        }
+        list.innerHTML = subagentsCache.map(s =>
+            '<div class="agent-conv-item" style="opacity:' + (s.active ? '1' : '.5') + ';">' +
+                '<span class="title" title="' + esc(s.specialty) + '" onclick="openSubagentChat(' + s.id + ')"><i class="fas fa-user-gear" style="color:var(--accent);font-size:.72rem;"></i> ' + esc(s.name) + '</span>' +
+                '<span style="display:flex;gap:7px;flex-shrink:0;">' +
+                    '<span class="del" onclick="editSubagent(' + s.id + ')" title="Editar"><i class="fas fa-pen"></i></span>' +
+                    '<span class="del" onclick="toggleSubagent(' + s.id + ')" title="' + (s.active ? 'Desativar' : 'Ativar') + '"><i class="fas fa-' + (s.active ? 'pause' : 'play') + '"></i></span>' +
+                    '<span class="del" onclick="deleteSubagent(' + s.id + ')" title="Excluir"><i class="fas fa-trash"></i></span>' +
+                '</span>' +
+            '</div>'
+        ).join('');
+    }
+
+    async function openSubagentChat(id) {
+        const resp = await fetch('/admin/api/agent.php', { method: 'POST', body: new URLSearchParams({ action: 'new', subagent_id: id }) });
+        const data = await resp.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
+        conversationId = data.conversation_id;
+        await openConversation(conversationId);
+        loadConversations();
+        document.getElementById('agentInput').focus();
+    }
+
+    function backToMain() {
+        const main = conversationsCache.find(c => !c.subagent_id);
+        if (main) {
+            openConversation(main.id);
+        } else {
+            newConversation();
+        }
+    }
+
+    function updateChatHeader(conversation) {
+        const conv = conversation || conversationsCache.find(c => c.id === conversationId);
+        const sub = conv && conv.subagent_id
+            ? (subagentsCache.find(s => s.id === conv.subagent_id) || { name: conv.subagent_name || 'Subagente', specialty: '' })
+            : null;
+        const title = document.getElementById('agentHeaderTitle');
+        const backBtn = document.getElementById('backToMainBtn');
+
+        if (sub) {
+            title.innerHTML = '<i class="fas fa-user-gear" style="color:var(--accent);"></i> ' + esc(sub.name) +
+                ' <span style="font-size:.7rem;color:var(--text-secondary);font-weight:400;">(' + esc(sub.specialty || 'especialista') + ')</span>';
+            backBtn.style.display = 'inline-flex';
+        } else {
+            title.innerHTML = '<i class="fas fa-handshake" style="color:var(--accent);"></i> Sócio de IA';
+            backBtn.style.display = 'none';
+        }
+    }
+
+    function editSubagent(id) {
+        const modal = document.getElementById('subagentModal');
+        const sub = id > 0 ? subagentsCache.find(s => s.id === id) : null;
+
+        document.getElementById('subagentId').value = id;
+        document.getElementById('subagentModalTitle').textContent = sub ? 'Editar: ' + sub.name : 'Novo subagente';
+        document.getElementById('subagentName').value = sub ? sub.name : '';
+        document.getElementById('subagentSpecialty').value = sub ? sub.specialty : '';
+        document.getElementById('subagentInstructions').value = sub ? (sub.instructions || '') : '';
+        document.getElementById('subagentActive').checked = sub ? sub.active : true;
+        document.getElementById('subagentTemplate').value = '';
+        document.getElementById('subagentError').innerHTML = '';
+
+        const toolsBox = document.getElementById('subagentTools');
+        const selected = sub ? (sub.tools || []) : [];
+        toolsBox.innerHTML = availableToolsCache.map(t =>
+            '<label><input type="checkbox" class="subagent-tool" value="' + esc(t) + '"' + (selected.includes(t) ? ' checked' : '') + '> ' + esc(t) + '</label>'
+        ).join('');
+
+        modal.classList.add('active');
+    }
+
+    function closeSubagentModal() {
+        document.getElementById('subagentModal').classList.remove('active');
+    }
+
+    function applyTemplate(slug) {
+        if (!slug) return;
+        const tpl = templatesCache.find(t => t.slug === slug);
+        if (!tpl) return;
+
+        document.getElementById('subagentName').value = tpl.name;
+        document.getElementById('subagentSpecialty').value = tpl.specialty;
+        document.getElementById('subagentInstructions').value = tpl.instructions;
+        document.querySelectorAll('.subagent-tool').forEach(c => { c.checked = (tpl.tools || []).includes(c.value); });
+    }
+
+    async function saveSubagent() {
+        const id = parseInt(document.getElementById('subagentId').value || '0', 10);
+        const name = document.getElementById('subagentName').value.trim();
+        if (name.length < 3) { document.getElementById('subagentError').innerHTML = '<div class="alert alert-danger">Informe um nome com ao menos 3 caracteres.</div>'; return; }
+
+        const body = new URLSearchParams();
+        body.append('action', 'subagent-save');
+        body.append('id', String(id));
+        body.append('name', name);
+        body.append('specialty', document.getElementById('subagentSpecialty').value);
+        body.append('instructions', document.getElementById('subagentInstructions').value);
+        body.append('active', document.getElementById('subagentActive').checked ? '1' : '0');
+        document.querySelectorAll('.subagent-tool:checked').forEach(c => body.append('tools[]', c.value));
+
+        const resp = await fetch('/admin/api/agent.php', { method: 'POST', body });
+        const data = await resp.json();
+        if (data.error) { document.getElementById('subagentError').innerHTML = '<div class="alert alert-danger">' + esc(data.error) + '</div>'; return; }
+
+        closeSubagentModal();
+        showToast(id > 0 ? 'Subagente atualizado' : 'Subagente criado', 'success');
+        loadSubagents();
+    }
+
+    async function toggleSubagent(id) {
+        const resp = await fetch('/admin/api/agent.php', { method: 'POST', body: new URLSearchParams({ action: 'subagent-toggle', id }) });
+        const data = await resp.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
+        loadSubagents();
+    }
+
+    async function deleteSubagent(id) {
+        const sub = subagentsCache.find(s => s.id === id);
+        if (!confirm('Excluir o subagente "' + (sub ? sub.name : id) + '"?')) return;
+        const resp = await fetch('/admin/api/agent.php', { method: 'POST', body: new URLSearchParams({ action: 'subagent-delete', id }) });
+        const data = await resp.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
+        showToast('Subagente excluído', 'success');
+        loadSubagents();
     }
 
     async function openConversation(id) {
@@ -157,7 +368,8 @@ $profileText = AgentProfile::describe($profile);
         const data = await resp.json();
         if (data.error) { showToast(data.error, 'error'); return; }
         renderMessages(data.messages || []);
-        loadConversations();
+        await loadConversations();
+        updateChatHeader(data.conversation || null);
     }
 
     async function newConversation() {
@@ -245,7 +457,7 @@ $profileText = AgentProfile::describe($profile);
             return '<div style="display:flex;gap:6px;flex-wrap:wrap;font-size:.75rem;">' +
                 Object.entries(data).filter(([k]) => k !== 'plano').map(([k, v]) => {
                     if (typeof v !== 'object') return '';
-                    const label = { paginas: 'Páginas', dominios: 'Domínios', adspy: 'Buscas', ia: 'Análises IA', ofertas: 'Ofertas', transcricoes: 'Transcrições', narracoes: 'Narrações', agente: 'Sócio' }[k] || k;
+                    const label = { paginas: 'Páginas', dominios: 'Domínios', adspy: 'Buscas', ia: 'Análises IA', ofertas: 'Ofertas', transcricoes: 'Transcrições', narracoes: 'Narrações', agente: 'Sócio de IA' }[k] || k;
                     const used = v.used ?? 0;
                     const limit = v.limit === -1 ? '∞' : v.limit;
                     return '<span class="quota-pill" style="padding:4px 10px;">' + esc(label) + ': ' + used + '/' + limit + '</span>';
@@ -311,6 +523,16 @@ $profileText = AgentProfile::describe($profile);
         if (render.type === 'clone') {
             return '<div style="font-size:.82rem;">Página criada: <strong>' + esc(data.name) + '</strong>' + (data.failed_assets ? ' (' + data.failed_assets + ' assets com falha)' : '') + '</div>' +
                 '<div style="margin-top:8px;"><a class="btn btn-outline btn-sm" href="/admin/pages.php" target="_blank"><i class="fas fa-arrow-up-right-from-square"></i> Ver minhas páginas</a></div>';
+        }
+
+        if (render.type === 'subagente') {
+            return '<div style="font-size:.85rem;"><i class="fas fa-user-gear" style="color:var(--accent);"></i> <strong>' + esc(data.name) + '</strong> — ' + esc(data.specialty || 'especialista') + '</div>' +
+                '<div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="openSubagentChat(' + data.id + ')"><i class="fas fa-comments"></i> Conversar com ele</button></div>';
+        }
+
+        if (render.type === 'subagente_resposta') {
+            return '<div style="font-size:.8rem;font-weight:600;margin-bottom:6px;"><i class="fas fa-user-gear" style="color:var(--accent);"></i> ' + esc(data.name) + ' respondeu:</div>' +
+                '<div style="font-size:.82rem;line-height:1.7;white-space:pre-wrap;">' + esc(data.text) + '</div>';
         }
 
         if (render.type === 'paginas' || render.type === 'transcricoes' || render.type === 'narracoes') {
@@ -400,14 +622,17 @@ $profileText = AgentProfile::describe($profile);
     }
 
     (async () => {
+        await loadSubagents();
         const resp = await fetch('/admin/api/agent.php?action=conversations');
         const data = await resp.json();
-        const items = data.conversations || [];
+        conversationsCache = data.conversations || [];
+        const items = conversationsCache;
         if (items.length) {
             await openConversation(items[0].id);
         } else {
             await newConversation();
         }
+        loadConversations();
         const input = document.getElementById('agentInput');
         if (input.value.trim() !== '') input.focus();
     })();

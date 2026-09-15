@@ -75,7 +75,7 @@ $theme = $_SESSION['theme'] ?? 'light';
                             <?php if (Plans::hasFeature($user['plan'], 'agent') || Auth::isAdmin()): ?>
                             <a href="/admin/agent.php" class="feature-card" style="text-decoration:none;">
                                 <div class="feature-icon" style="background:#e0f2fe;color:#0369a1;"><i class="fas fa-handshake"></i></div>
-                                <h3>Fale com seu Sócio</h3>
+                                <h3>Fale com seu Sócio de IA</h3>
                                 <p>Seu parceiro de tráfego: pergunta, orienta e protege</p>
                             </a>
                             <?php endif; ?>

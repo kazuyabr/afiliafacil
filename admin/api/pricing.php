@@ -50,6 +50,7 @@ switch ($action) {
                 'max_transcriptions' => (int)($p->max_transcriptions ?? 0),
                 'max_tts' => (int)($p->max_tts ?? 0),
                 'max_agent_messages' => (int)($p->max_agent_messages ?? 0),
+                'max_subagents' => (int)($p->max_subagents ?? 0),
                 'active' => (bool)$p->active,
                 'prices' => $prices,
             ];
@@ -75,6 +76,7 @@ switch ($action) {
         if (isset($_POST['max_transcriptions'])) $plan->max_transcriptions = (int)$_POST['max_transcriptions'];
         if (isset($_POST['max_tts'])) $plan->max_tts = (int)$_POST['max_tts'];
         if (isset($_POST['max_agent_messages'])) $plan->max_agent_messages = (int)$_POST['max_agent_messages'];
+        if (isset($_POST['max_subagents'])) $plan->max_subagents = (int)$_POST['max_subagents'];
         if (isset($_POST['active'])) $plan->active = (bool)$_POST['active'];
         if (isset($_POST['features'])) {
             $features = $_POST['features'];

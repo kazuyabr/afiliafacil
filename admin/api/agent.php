@@ -6,6 +6,7 @@ require_once Config::getLibDir() . '/Plans.php';
 require_once Config::getLibDir() . '/Agent/Agent.php';
 require_once Config::getLibDir() . '/Agent/AgentQuota.php';
 require_once Config::getLibDir() . '/Agent/AgentProfile.php';
+require_once Config::getLibDir() . '/Agent/AgentSubagents.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -21,7 +22,7 @@ $isAdmin = Auth::isAdmin();
 
 if (!Plans::hasFeature($user['plan'], 'agent') && !$isAdmin) {
     http_response_code(403);
-    echo json_encode(['error' => 'Seu plano não inclui o Sócio (agente).']);
+    echo json_encode(['error' => 'Seu plano não inclui o Sócio de IA (agente).']);
     exit;
 }
 
@@ -55,6 +56,60 @@ switch ($action) {
         echo json_encode(['success' => true, 'conversations' => $agent->listConversations($userId)]);
         break;
 
+    case 'subagents':
+        echo json_encode([
+            'success' => true,
+            'subagents' => AgentSubagents::list($userId),
+            'quota' => AgentSubagents::quota($userId, $user['plan']),
+            'templates' => AgentSubagents::TEMPLATES,
+            'available_tools' => array_column(AgentTools::definitions(), 'name'),
+        ], JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'subagent':
+        $id = (int)($_GET['id'] ?? 0);
+        $subagent = AgentSubagents::get($userId, $id);
+        if (!$subagent) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Subagente não encontrado']);
+            break;
+        }
+        echo json_encode(['success' => true, 'subagent' => $subagent], JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'subagent-save':
+        $id = (int)($_POST['id'] ?? 0);
+        $data = [
+            'name' => (string)($_POST['name'] ?? ''),
+            'specialty' => (string)($_POST['specialty'] ?? ''),
+            'instructions' => (string)($_POST['instructions'] ?? ''),
+            'tools' => $_POST['tools'] ?? [],
+            'active' => !empty($_POST['active']),
+        ];
+
+        if ($id > 0) {
+            $result = AgentSubagents::update($userId, $id, $data);
+        } else {
+            $quota = AgentSubagents::quota($userId, $user['plan']);
+            if (!$quota['allowed']) {
+                echo json_encode(['error' => 'Limite de subagentes do plano atingido (' . $quota['used'] . '/' . $quota['limit'] . ').']);
+                break;
+            }
+            $result = AgentSubagents::create($userId, $data, 'user');
+        }
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'subagent-toggle':
+        $id = (int)($_POST['id'] ?? 0);
+        echo json_encode(AgentSubagents::toggle($userId, $id));
+        break;
+
+    case 'subagent-delete':
+        $id = (int)($_POST['id'] ?? 0);
+        echo json_encode(AgentSubagents::delete($userId, $id));
+        break;
+
     case 'conversation':
         $id = (int)($_GET['id'] ?? 0);
         $conversation = $agent->getConversation($userId, $id);
@@ -63,24 +118,36 @@ switch ($action) {
             echo json_encode(['error' => 'Conversa não encontrada']);
             break;
         }
+        $subagentName = '';
+        if (!empty($conversation->subagent_id)) {
+            $subagent = AgentSubagents::get($userId, (int)$conversation->subagent_id);
+            $subagentName = $subagent['name'] ?? '';
+        }
         echo json_encode([
             'success' => true,
-            'conversation' => ['id' => (int)$conversation->id, 'title' => $conversation->title],
+            'conversation' => [
+                'id' => (int)$conversation->id,
+                'title' => $conversation->title,
+                'subagent_id' => $conversation->subagent_id ? (int)$conversation->subagent_id : null,
+                'subagent_name' => $subagentName,
+            ],
             'messages' => $agent->listMessages($userId, $id),
         ], JSON_UNESCAPED_UNICODE);
         break;
 
     case 'new':
-        $result = $agent->newConversation($userId);
+        $subagentId = (int)($_POST['subagent_id'] ?? 0);
+        $result = $agent->newConversation($userId, $subagentId);
         echo json_encode($result);
         break;
 
     case 'send':
         $conversationId = (int)($_POST['conversation_id'] ?? 0);
         $message = (string)($_POST['message'] ?? '');
+        $subagentId = (int)($_POST['subagent_id'] ?? 0);
 
         if ($conversationId <= 0) {
-            $created = $agent->newConversation($userId);
+            $created = $agent->newConversation($userId, $subagentId);
             if (!empty($created['conversation_id'])) {
                 $conversationId = (int)$created['conversation_id'];
             }

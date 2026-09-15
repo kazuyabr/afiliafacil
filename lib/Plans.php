@@ -55,6 +55,7 @@ class Plans
             'max_transcriptions' => 10,
             'max_tts' => 10,
             'max_agent_messages' => 100,
+            'max_subagents' => 2,
             'label' => '5 páginas, 2 domínios',
         ],
         'master' => [
@@ -73,6 +74,7 @@ class Plans
             'max_transcriptions' => 100,
             'max_tts' => 100,
             'max_agent_messages' => 500,
+            'max_subagents' => 5,
             'label' => 'Tudo ilimitado + integrações',
         ],
         'premium' => [
@@ -85,6 +87,7 @@ class Plans
             'max_transcriptions' => -1,
             'max_tts' => -1,
             'max_agent_messages' => -1,
+            'max_subagents' => -1,
             'label' => 'Acesso de administrador',
         ],
     ];
@@ -126,6 +129,7 @@ class Plans
                     'max_transcriptions' => (int)($plan->max_transcriptions ?? 0),
                     'max_tts' => (int)($plan->max_tts ?? 0),
                     'max_agent_messages' => (int)($plan->max_agent_messages ?? 0),
+                    'max_subagents' => (int)($plan->max_subagents ?? 0),
                     'label' => $plan->label ?? '',
                 ];
             }
@@ -196,6 +200,11 @@ class Plans
     public static function maxAgentMessages(string $plan): int
     {
         return self::get($plan)['max_agent_messages'] ?? 0;
+    }
+
+    public static function maxSubagents(string $plan): int
+    {
+        return self::get($plan)['max_subagents'] ?? 0;
     }
 
     public static function maxDomains(string $plan): int

@@ -98,7 +98,7 @@ $config = TtsConfig::forUser((int)$user['id']);
                         <div class="card-header">
                             <h3><i class="fas fa-circle-play"></i> Narração gerada</h3>
                             <div style="display:flex;gap:8px;">
-                                <button class="btn btn-outline btn-sm" onclick="askAgentTts()"><i class="fas fa-handshake"></i> Discutir com o sócio</button>
+                                <button class="btn btn-outline btn-sm" onclick="askAgentTts()"><i class="fas fa-handshake"></i> Discutir com o Sócio de IA</button>
                                 <a class="btn btn-outline btn-sm" id="ttsDownload" href="#" download><i class="fas fa-download"></i> Baixar áudio</a>
                             </div>
                         </div>

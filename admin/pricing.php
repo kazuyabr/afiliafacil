@@ -118,8 +118,12 @@ $theme = $_SESSION['theme'] ?? 'light';
                             <input type="number" class="form-control plan-max-tts" value="${p.max_tts ?? 0}">
                         </div>
                         <div class="form-group">
-                            <label>Mensagens do Sócio/mês (-1 = ilimitado)</label>
+                            <label>Mensagens do Sócio de IA/mês (-1 = ilimitado)</label>
                             <input type="number" class="form-control plan-max-agent" value="${p.max_agent_messages ?? 0}">
+                        </div>
+                        <div class="form-group">
+                            <label>Subagentes (máx, -1 = ilimitado)</label>
+                            <input type="number" class="form-control plan-max-subagents" value="${p.max_subagents ?? 0}">
                         </div>
                     </div>
                     <div class="form-group">
@@ -155,6 +159,7 @@ $theme = $_SESSION['theme'] ?? 'light';
         body.append('max_transcriptions', card.querySelector('.plan-max-transcriptions').value);
         body.append('max_tts', card.querySelector('.plan-max-tts').value);
         body.append('max_agent_messages', card.querySelector('.plan-max-agent').value);
+        body.append('max_subagents', card.querySelector('.plan-max-subagents').value);
         body.append('features', card.querySelector('.plan-features').value);
         body.append('active', card.querySelector('.plan-active').checked ? '1' : '0');
         card.querySelectorAll('.plan-price').forEach(input => {

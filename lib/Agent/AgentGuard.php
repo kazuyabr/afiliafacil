@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../Plans.php';
 require_once __DIR__ . '/../PageManager.php';
 require_once __DIR__ . '/AgentQuota.php';
+require_once __DIR__ . '/AgentSubagents.php';
 require_once __DIR__ . '/../Offers/OfferQuota.php';
 require_once __DIR__ . '/../AdSpy/AdSpyQuota.php';
 require_once __DIR__ . '/../Ai/SttQuota.php';
@@ -74,6 +75,21 @@ class AgentGuard
                 }
                 return ['allowed' => true, 'cost' => '1 página do plano'];
 
+            case 'criar_subagente':
+                if (!Plans::hasFeature($plan, 'agent')) {
+                    return ['allowed' => false, 'reason' => 'O plano atual não inclui o Sócio de IA.'];
+                }
+                $quota = AgentSubagents::quota($userId, $plan);
+                return $quota['allowed']
+                    ? ['allowed' => true, 'cost' => '1 subagente do plano']
+                    : ['allowed' => false, 'reason' => 'Limite de subagentes do plano atingido (' . $quota['used'] . '/' . $quota['limit'] . '). Faça upgrade para criar mais especialistas.'];
+
+            case 'delegar_subagente':
+                $active = array_values(array_filter(AgentSubagents::list($userId), fn($s) => !empty($s['active'])));
+                return count($active) > 0
+                    ? ['allowed' => true, 'cost' => 'consulta ao subagente (sem cota extra)']
+                    : ['allowed' => false, 'reason' => 'Você ainda não tem subagentes ativos. Crie um primeiro (ex.: analista de tráfego, copywriter) ou peça para eu criar.'];
+
             case 'consultar_quotas':
             case 'listar_ofertas':
             case 'listar_minhas_paginas':
@@ -91,6 +107,7 @@ class AgentGuard
         return in_array($tool, [
             'ver_oferta', 'espionar_anuncios', 'analisar_oferta',
             'transcrever_midia', 'gerar_narracao', 'clonar_pagina',
+            'criar_subagente', 'delegar_subagente',
         ], true);
     }
 
@@ -111,7 +128,7 @@ class AgentGuard
         }
 
         if ($flagged) {
-            $text = "⚠️ Lembrete do Sócio: nenhum resultado é garantido — desconfie de promessas de ganho fácil.\n\n" . $text;
+            $text = "⚠️ Lembrete do Sócio de IA: nenhum resultado é garantido — desconfie de promessas de ganho fácil.\n\n" . $text;
         }
 
         return ['text' => $text, 'flagged' => $flagged];

@@ -6,7 +6,7 @@ require_once __DIR__ . '/../AdSpy/AiConfig.php';
 
 class AgentQuota
 {
-    public const BYOK_MESSAGE = 'Sua cota de mensagens do sócio neste mês acabou (%d/%d). Você pode fazer upgrade ou configurar sua própria chave de IA (BYOK) em /admin/ai-settings.php para continuar sem limite.';
+    public const BYOK_MESSAGE = 'Sua cota de mensagens do Sócio de IA neste mês acabou (%d/%d). Você pode fazer upgrade ou configurar sua própria chave de IA (BYOK) em /admin/ai-settings.php para continuar sem limite.';
 
     public static function source(int $userId): string
     {

@@ -19,6 +19,8 @@ require_once __DIR__ . '/../Ai/TtsClient.php';
 require_once __DIR__ . '/../Ai/TtsQuota.php';
 require_once __DIR__ . '/../Ai/MediaDetector.php';
 require_once __DIR__ . '/../Moderation/ContentModerator.php';
+require_once __DIR__ . '/AgentSubagents.php';
+require_once __DIR__ . '/AgentPrompts.php';
 
 class AgentTools
 {
@@ -38,10 +40,12 @@ class AgentTools
             ['name' => 'transcrever_midia', 'params' => ['url' => 'URL da página/VSL/áudio'], 'desc' => 'Transcreve um vídeo/áudio (com timestamps). Consome 1 transcrição.'],
             ['name' => 'gerar_narracao', 'params' => ['text' => 'texto (máx 5000)', 'voice?' => 'voz'], 'desc' => 'Gera narração (TTS) a partir de um texto. Consome 1 narração.'],
             ['name' => 'clonar_pagina', 'params' => ['url' => 'URL da página', 'affiliate_link' => 'link de afiliado', 'name?' => 'nome'], 'desc' => 'Clona uma página de vendas e aplica o link de afiliado. Consome 1 página do plano.'],
+            ['name' => 'criar_subagente', 'params' => ['name' => 'nome do especialista', 'specialty?' => 'especialidade', 'instructions?' => 'instruções', 'tools?' => 'ferramentas permitidas'], 'desc' => 'Cria um subagente especializado (ex.: analista de Meta Ads) que você e o usuário poderão consultar depois.'],
+            ['name' => 'delegar_subagente', 'params' => ['subagent' => 'nome ou id do subagente', 'question' => 'pergunta'], 'desc' => 'Consulta um subagente ativo e traz a resposta dele para a conversa (sem custo de cota extra).'],
         ];
     }
 
-    public static function execute(string $tool, array $args, array $user, int $userId): array
+    public static function execute(string $tool, array $args, array $user, int $userId, array $context = []): array
     {
         try {
             return match ($tool) {
@@ -56,11 +60,75 @@ class AgentTools
                 'transcrever_midia' => self::transcrever($args, $user, $userId),
                 'gerar_narracao' => self::gerarNarracao($args, $user, $userId),
                 'clonar_pagina' => self::clonar($args, $userId),
+                'criar_subagente' => self::criarSubagente($args, $user, $userId, $context),
+                'delegar_subagente' => self::delegarSubagente($args, $user, $userId, $context),
                 default => ['success' => false, 'summary' => 'Ferramenta desconhecida.', 'render' => null],
             };
         } catch (Throwable $e) {
             return ['success' => false, 'summary' => 'Erro ao executar: ' . $e->getMessage(), 'render' => null];
         }
+    }
+
+    private static function criarSubagente(array $args, array $user, int $userId, array $context): array
+    {
+        if (!empty($context['is_subagent'])) {
+            return ['success' => false, 'summary' => 'Subagentes não podem criar outros subagentes. Volte ao Sócio de IA principal para isso.', 'render' => null];
+        }
+
+        $quota = AgentSubagents::quota($userId, $user['plan']);
+        if (!$quota['allowed']) {
+            return ['success' => false, 'summary' => 'Limite de subagentes do plano atingido (' . $quota['used'] . '/' . $quota['limit'] . '). Faça upgrade para criar mais especialistas.', 'render' => null];
+        }
+
+        $result = AgentSubagents::create($userId, $args, 'agent');
+        if (isset($result['error'])) {
+            return ['success' => false, 'summary' => $result['error'], 'render' => null];
+        }
+
+        return [
+            'success' => true,
+            'summary' => 'Subagente "' . $result['subagent']['name'] . '" criado (' . ($result['subagent']['specialty'] ?: 'especialista') . '). Você já pode consultá-lo na aba Subagentes.',
+            'render' => ['type' => 'subagente', 'data' => $result['subagent']],
+        ];
+    }
+
+    private static function delegarSubagente(array $args, array $user, int $userId, array $context): array
+    {
+        if (!empty($context['is_subagent'])) {
+            return ['success' => false, 'summary' => 'Subagentes não podem delegar para outros subagentes.', 'render' => null];
+        }
+
+        $question = trim((string)($args['question'] ?? ''));
+        if ($question === '') {
+            return ['success' => false, 'summary' => 'Informe a pergunta que o subagente deve responder.', 'render' => null];
+        }
+
+        $subagent = AgentSubagents::findActive($userId, $args['subagent'] ?? '');
+        if (!$subagent) {
+            return ['success' => false, 'summary' => 'Subagente não encontrado ou inativo. Verifique os subagentes disponíveis.', 'render' => null];
+        }
+
+        $config = AiConfig::forUser($userId);
+        if (($config['api_key'] ?? '') === '') {
+            return ['success' => false, 'summary' => 'IA não configurada (CF_AI_TOKEN da plataforma ou BYOK).', 'render' => null];
+        }
+
+        $response = AiClient::chat([
+            ['role' => 'system', 'content' => AgentPrompts::subagent($subagent)],
+            ['role' => 'user', 'content' => $question],
+        ], $config);
+
+        if ($response === null) {
+            return ['success' => false, 'summary' => 'O subagente não conseguiu responder agora (falha na IA).', 'render' => null];
+        }
+
+        $text = ContentModerator::redact(trim($response));
+
+        return [
+            'success' => true,
+            'summary' => 'Resposta do subagente "' . $subagent['name'] . '": ' . mb_substr($text, 0, 800),
+            'render' => ['type' => 'subagente_resposta', 'data' => ['name' => $subagent['name'], 'text' => $text]],
+        ];
     }
 
     private static function consultarQuotas(array $user, int $userId): array

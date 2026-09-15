@@ -107,7 +107,7 @@ $maxUpload = min(24, (int)ini_get('upload_max_filesize') ?: 24);
                                 <button class="btn btn-outline btn-sm" onclick="copyTranscript()"><i class="fas fa-copy"></i> Copiar</button>
                                 <button class="btn btn-outline btn-sm" onclick="downloadSrt()"><i class="fas fa-closed-captioning"></i> Baixar SRT</button>
                                 <button class="btn btn-outline btn-sm" onclick="downloadTxt()"><i class="fas fa-download"></i> Baixar TXT</button>
-                                <button class="btn btn-outline btn-sm" onclick="askAgentTranscript()"><i class="fas fa-handshake"></i> Discutir com o sócio</button>
+                                <button class="btn btn-outline btn-sm" onclick="askAgentTranscript()"><i class="fas fa-handshake"></i> Discutir com o Sócio de IA</button>
                             </div>
                         </div>
                         <div class="card-body">

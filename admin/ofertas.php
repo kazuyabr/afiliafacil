@@ -443,7 +443,7 @@ $quota = OfferQuota::check((int)$user['id'], $user['plan']);
             (o.source_url || o.domain ? '<button class="btn btn-primary btn-sm" onclick="cloneCurrentOffer()"><i class="fas fa-clone"></i> Clonar página principal</button>' : '') +
             '<button class="btn btn-outline btn-sm" onclick="spyCurrentOffer()"><i class="fas fa-crosshairs"></i> Espionar campanha</button>' +
             '<button class="btn btn-outline btn-sm" onclick="transcribeCurrentOffer()"><i class="fas fa-microphone-lines"></i> Transcrever VSL</button>' +
-            '<button class="btn btn-outline btn-sm" onclick="askAgentCurrentOffer()"><i class="fas fa-handshake"></i> Discutir com o sócio</button>' +
+            '<button class="btn btn-outline btn-sm" onclick="askAgentCurrentOffer()"><i class="fas fa-handshake"></i> Discutir com o Sócio de IA</button>' +
         '</div>';
 
         if ((o.creatives || []).length) {

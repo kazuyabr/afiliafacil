@@ -15,7 +15,7 @@ require_once Config::getLibDir() . '/Plans.php';
         </a>
         <?php if (Plans::hasFeature($_SESSION['user_plan'] ?? '', 'agent') || Auth::isAdmin()): ?>
         <a href="/admin/agent.php" class="nav-item <?= $currentPage === 'agent.php' ? 'active' : '' ?>">
-            <i class="fas fa-handshake"></i> Sócio
+            <i class="fas fa-handshake"></i> Sócio de IA
         </a>
         <?php endif; ?>
 
