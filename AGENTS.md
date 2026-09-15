@@ -160,6 +160,21 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 2. Dataset JSONL → treino de **LoRA adapter** ("Sócio BR" proprietário; upload via `wrangler ai finetune create`, rank ≤8, <300MB, fica na conta CF da empresa).
 3. **Packs de conhecimento por nicho** (markdown + adapter) como produto.
 
+## Homologação e validação
+
+- **`bin/smoke.php`** — smoke automatizado (login, todas as páginas, APIs, fluxos com limpeza): `docker exec afiliafacil php bin/smoke.php` → deve terminar com **SMOKE OK** (exit code 0/1)
+- **`bin/seed-demo.php`** — dados de demonstração: contas `demo.trial@` / `demo.pro@` / `demo.master@afiliafacil.com` (senha `demo123456`), 5 ofertas fictícias aprovadas e 1 página de exemplo na conta Master. `--clean` remove tudo
+- **`bin/homol.ps1`** — sobe container + túnel **cloudflared** e mostra a URL pública (`*.trycloudflare.com`); `-Stop` encerra o túnel
+- **`bin/roteiro-pdf.ps1`** + **`bin/roteiro-html.js`** — gera PDF de docs via `npx marked` + Chrome headless (sem pandoc)
+- **Docs**: `docs/deploy-homol.md` (checklist técnico), `docs/validacao-manual.md` (checklist pré-homol do responsável), `docs/roteiro-testes-homol.md` (+ PDF para envio ao cliente, linguagem leiga)
+- **`Config::getBaseUrl()`** respeita `X-Forwarded-Proto` (HTTPS atrás de túnel/proxy — necessário para o Stripe)
+
+## Roadmap (próximos épicos)
+
+1. **Documentação do usuário (help center)**: central de ajuda interna com guias por módulo (primeiros passos, clonagem, editor, ofertas, IA, planos).
+2. **Documentação de API (OpenAPI)**: especificação dos endpoints (`/admin/api/*`, `/cron/monitor.php`) para viabilizar integrações de terceiros no futuro.
+3. **Cloudflare (treinamento)**: markdowns → **AI Search** (RAG) com feedback 👍/👎; dataset JSONL → **LoRA adapter** ("Sócio BR" proprietário); **packs de conhecimento por nicho**.
+
 ## Como rodar
 
 ```powershell

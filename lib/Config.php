@@ -44,6 +44,14 @@ class Config
     public static function getBaseUrl(): string
     {
         $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+
+        $forwarded = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+        if ($forwarded !== '') {
+            $first = strtolower(trim(explode(',', $forwarded)[0]));
+            if ($first === 'https') $proto = 'https';
+            if ($first === 'http') $proto = 'http';
+        }
+
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         return $proto . '://' . $host;
     }
