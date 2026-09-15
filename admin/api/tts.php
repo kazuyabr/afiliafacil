@@ -7,6 +7,7 @@ require_once Config::getLibDir() . '/Audit.php';
 require_once Config::getLibDir() . '/Ai/TtsConfig.php';
 require_once Config::getLibDir() . '/Ai/TtsClient.php';
 require_once Config::getLibDir() . '/Ai/TtsQuota.php';
+require_once Config::getLibDir() . '/Moderation/ContentModerator.php';
 
 if (!Auth::check()) {
     http_response_code(401);
@@ -99,6 +100,13 @@ switch ($action) {
     case 'generate':
         $text = trim($_POST['text'] ?? '');
         if ($text === '') { echo json_encode(['error' => 'Informe o texto para narração.']); break; }
+
+        $screen = ContentModerator::screen($text, 'tts', $userId);
+        if (!$screen['allowed']) {
+            echo json_encode(['error' => $screen['reason']]);
+            break;
+        }
+        $text = $screen['clean'];
 
         $quota = TtsQuota::check($userId, $user['plan']);
         if (!$quota['allowed']) {

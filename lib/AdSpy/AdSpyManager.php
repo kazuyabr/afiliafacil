@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../Database.php';
+require_once __DIR__ . '/../Moderation/ContentModerator.php';
 require_once __DIR__ . '/AdSpyQuota.php';
 require_once __DIR__ . '/Providers/MetaAdLibraryProvider.php';
 require_once __DIR__ . '/Providers/GoogleTransparencyProvider.php';
@@ -28,6 +29,12 @@ class AdSpyManager
         if ($query === '') {
             return ['results' => [], 'errors' => ['query' => 'Informe um termo, domínio ou anunciante.'], 'quota' => AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_SEARCH)];
         }
+
+        $screen = ContentModerator::screen($query, 'adspy', $userId);
+        if (!$screen['allowed']) {
+            return ['results' => [], 'errors' => ['query' => $screen['reason']], 'quota' => AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_SEARCH)];
+        }
+        $query = $screen['clean'];
 
         $quota = AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_SEARCH);
         if (!$quota['allowed']) {

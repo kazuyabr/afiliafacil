@@ -102,6 +102,11 @@ require_once Config::getLibDir() . '/Plans.php';
             <i class="fas fa-clipboard-list"></i> Auditoria
         </a>
         <?php endif; ?>
+        <?php if (Auth::isAdmin()): ?>
+        <a href="/admin/moderation.php" class="nav-item <?= $currentPage === 'moderation.php' ? 'active' : '' ?>">
+            <i class="fas fa-shield-halved"></i> Moderação
+        </a>
+        <?php endif; ?>
         <?php endif; ?>
 
         <div class="nav-section">Conta</div>

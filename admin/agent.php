@@ -105,7 +105,7 @@ $profileText = AgentProfile::describe($profile);
                                 <button class="btn btn-outline btn-sm" onclick="editProfile()" title="Editar perfil"><i class="fas fa-user-pen"></i></button>
                             </div>
                         </div>
-                        <div class="principles"><i class="fas fa-shield-halved"></i> Sem promessa de ganho fácil. Comece pequeno e teste. Eu pergunto antes de agir — e te aviso quando algo parece furada.</div>
+                        <div class="principles"><i class="fas fa-shield-halved"></i> Sem promessa de ganho fácil. Comece pequeno e teste. Eu pergunto antes de agir — e te aviso quando algo parece furada. <strong>Uso ilegal é bloqueado e registrado.</strong></div>
                         <div class="agent-messages" id="agentMessages"></div>
                         <div class="agent-input">
                             <textarea id="agentInput" placeholder="Escreva para o seu sócio... (Enter envia, Shift+Enter quebra linha)" onkeydown="handleKey(event)"><?= htmlspecialchars($_GET['ask'] ?? '') ?></textarea>

@@ -27,6 +27,7 @@ class AgentQuota
                 ->join('agent_conversations', 'agent_conversations.id', '=', 'agent_messages.conversation_id')
                 ->where('agent_conversations.user_id', $userId)
                 ->where('agent_messages.role', 'user')
+                ->where('agent_messages.status', '!=', 'blocked')
                 ->where('agent_messages.created_at', '>=', $start)
                 ->count();
         } catch (Throwable $e) {

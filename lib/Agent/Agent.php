@@ -5,6 +5,7 @@ require_once __DIR__ . '/../Plans.php';
 require_once __DIR__ . '/../Audit.php';
 require_once __DIR__ . '/../AdSpy/AiClient.php';
 require_once __DIR__ . '/../AdSpy/AiConfig.php';
+require_once __DIR__ . '/../Moderation/ContentModerator.php';
 require_once __DIR__ . '/AgentGuard.php';
 require_once __DIR__ . '/AgentTools.php';
 require_once __DIR__ . '/AgentQuota.php';
@@ -27,6 +28,17 @@ class Agent
         if (mb_strlen($message) > 2000) {
             return ['error' => 'Mensagem muito longa (máximo 2000 caracteres).'];
         }
+
+        $screen = ContentModerator::screen($message, 'agent', $userId);
+        if (!$screen['allowed']) {
+            $conversation = $this->getConversation($userId, $conversationId);
+            if ($conversation) {
+                $this->saveMessage((int)$conversation->id, 'user', $message, '', null, null, 'blocked', [], AgentQuota::source($userId));
+                $this->saveMessage((int)$conversation->id, 'agent', $screen['reason']);
+            }
+            return ['success' => true, 'blocked' => true, 'quota' => AgentQuota::check($userId, $plan)];
+        }
+        $message = $screen['clean'];
 
         $quota = AgentQuota::check($userId, $plan);
         if (!$quota['allowed']) {
@@ -199,7 +211,7 @@ class Agent
         $type = $parsed['type'] ?? 'message';
 
         if ($type === 'question') {
-            $content = trim((string)($parsed['content'] ?? ''));
+            $content = ContentModerator::redact(trim((string)($parsed['content'] ?? '')));
             $options = array_slice(array_values(array_filter((array)($parsed['options'] ?? []), 'is_string')), 0, 5);
             $this->saveMessage($conversationId, 'agent', $content, '', null, null, 'question', $options);
             return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
@@ -227,7 +239,7 @@ class Agent
         }
 
         $filtered = AgentGuard::filterResponse(trim((string)($parsed['content'] ?? '')));
-        $this->saveMessage($conversationId, 'agent', $filtered['text']);
+        $this->saveMessage($conversationId, 'agent', ContentModerator::redact($filtered['text']));
         return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
     }
 
@@ -248,7 +260,7 @@ class Agent
         if ($commentary === null) return null;
 
         $filtered = AgentGuard::filterResponse(trim($commentary));
-        $this->saveMessage($conversationId, 'agent', $filtered['text']);
+        $this->saveMessage($conversationId, 'agent', ContentModerator::redact($filtered['text']));
         return $filtered['text'];
     }
 

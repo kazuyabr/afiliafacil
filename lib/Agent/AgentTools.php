@@ -18,6 +18,7 @@ require_once __DIR__ . '/../Ai/TtsConfig.php';
 require_once __DIR__ . '/../Ai/TtsClient.php';
 require_once __DIR__ . '/../Ai/TtsQuota.php';
 require_once __DIR__ . '/../Ai/MediaDetector.php';
+require_once __DIR__ . '/../Moderation/ContentModerator.php';
 
 class AgentTools
 {
@@ -285,12 +286,26 @@ class AgentTools
         }
 
         SttQuota::complete($id, $result);
+
+        $screen = ContentModerator::screen((string)$result['text'], 'transcription', $userId);
+        if (!$screen['allowed']) {
+            SttQuota::complete($id, array_merge($result, ['text' => $screen['reason'], 'words' => []]));
+            return [
+                'success' => false,
+                'summary' => 'A transcrição foi bloqueada pela moderação: ' . $screen['reason'],
+                'render' => null,
+            ];
+        }
+        if ($screen['action'] === 'redact') {
+            SttQuota::complete($id, array_merge($result, ['text' => $screen['clean']]));
+        }
+
         return [
             'success' => true,
-            'summary' => 'Transcrição concluída (' . mb_strlen($result['text']) . ' caracteres). Início: ' . mb_substr($result['text'], 0, 500),
+            'summary' => 'Transcrição concluída (' . mb_strlen($screen['clean']) . ' caracteres). Início: ' . mb_substr($screen['clean'], 0, 500),
             'render' => ['type' => 'transcricao', 'data' => [
                 'id' => $id,
-                'text' => $result['text'],
+                'text' => $screen['clean'],
                 'words' => count($result['words'] ?? []),
                 'duration' => $result['duration'] ?? 0,
             ]],
@@ -303,6 +318,12 @@ class AgentTools
         if ($text === '') {
             return ['success' => false, 'summary' => 'Informe o texto para narração.', 'render' => null];
         }
+
+        $screen = ContentModerator::screen($text, 'tts', $userId);
+        if (!$screen['allowed']) {
+            return ['success' => false, 'summary' => $screen['reason'], 'render' => null];
+        }
+        $text = $screen['clean'];
 
         $config = TtsConfig::forUser($userId);
         if (($config['api_key'] ?? '') === '') {

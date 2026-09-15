@@ -94,6 +94,7 @@ switch ($action) {
 
         echo json_encode([
             'success' => true,
+            'blocked' => !empty($result['blocked']),
             'conversation_id' => $conversationId,
             'messages' => $agent->listMessages($userId, $conversationId),
             'quota' => $result['quota'] ?? AgentQuota::check($userId, $user['plan']),

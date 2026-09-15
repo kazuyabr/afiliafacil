@@ -8,6 +8,7 @@ require_once Config::getLibDir() . '/Ai/SttConfig.php';
 require_once Config::getLibDir() . '/Ai/SttClient.php';
 require_once Config::getLibDir() . '/Ai/SttQuota.php';
 require_once Config::getLibDir() . '/Ai/MediaDetector.php';
+require_once Config::getLibDir() . '/Moderation/ContentModerator.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -162,6 +163,18 @@ switch ($action) {
         }
 
         SttQuota::complete($transcriptionId, $result);
+
+        $screen = ContentModerator::screen((string)($result['text'] ?? ''), 'transcription', $userId);
+        if (!$screen['allowed']) {
+            SttQuota::complete($transcriptionId, array_merge($result, ['text' => $screen['reason'], 'words' => []]));
+            echo json_encode(['error' => 'A transcrição foi bloqueada pela moderação e registrada.', 'id' => $transcriptionId], JSON_UNESCAPED_UNICODE);
+            break;
+        }
+        if ($screen['action'] === 'redact') {
+            SttQuota::complete($transcriptionId, array_merge($result, ['text' => $screen['clean']]));
+            $result['text'] = $screen['clean'];
+        }
+
         Audit::log('transcription_completed', 'transcription', (string)$transcriptionId, [
             'provider' => $result['provider'] ?? '',
             'duration' => $result['duration'] ?? 0,

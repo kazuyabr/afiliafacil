@@ -124,6 +124,17 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
   - UX: pills mostram "BYOK — sem limite"; ao esgotar a cota da plataforma, a mensagem orienta configurar a chave própria (`/admin/ai-settings.php`) em vez de só bloquear.
 - **Eficácia da plataforma (CF)**: STT (Whisper) e chat (GLM Flash) têm boa eficácia grátis; TTS (MeloTTS) é o ponto fraco — BYOK (ElevenLabs/OpenAI) é o upgrade natural. Gargalo: 10k neurons/dia compartilhados na conta CF.
 
+## Moderação e segurança de conteúdo (todos os planos)
+
+- **`lib/Moderation/ContentModerator.php`**: moderação determinística (listas pt-BR + regex, sem custo de IA):
+  - **Bloqueio** (`crime`): padrões de intenção criminosa (matar/roubar/assaltar/sequestrar/traficar/golpe/documento falso/hackear...) + termos explícitos (estelionato, pedofilia, tráfico, lavagem...). Falsos positivos figurativos são evitados (ex.: "matar a concorrência" passa).
+  - **Redaction** (`pii`/`profanity`): CPF, CNPJ, telefone, e-mail, cartão, CEP → `[removido]`; palavras torpes → `[redigido]`.
+  - `sanitizeForTraining()` remove PII e marca/redige PHI (dados de saúde) para o dataset de treino.
+- **Registro obrigatório**: `moderation_events` (user_id, contexto, categoria, ação, motivo, conteúdo original + limpo, **IP**, user agent, data/hora) — retenção para eventual solicitação de autoridades. Bloqueios também vão para o `audit_log`.
+- **Onde aplica**: Sócio (mensagem do usuário — bloqueada **não consome quota** e não chama a IA), respostas da IA (redact), TTS (texto), Transcrições (conteúdo resultante), Ad Spy (query). O banner do Sócio informa: "Uso ilegal é bloqueado e registrado".
+- **Admin**: `/admin/moderation.php` (só master/admin) — stats, filtros por categoria/ação/usuário, detalhe do conteúdo e **exportação CSV/JSON** para autoridades.
+- **Tabela**: `moderation_events` (migration 22).
+
 ## Como rodar
 
 ```powershell
