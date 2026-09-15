@@ -17,6 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['pix_city'])) Settings::set('pix_city', trim($_POST['pix_city']));
         if (isset($_POST['stripe_secret_key'])) Settings::set('stripe_secret_key', trim($_POST['stripe_secret_key']));
         if (isset($_POST['stripe_webhook_secret'])) Settings::set('stripe_webhook_secret', trim($_POST['stripe_webhook_secret']));
+        if (isset($_POST['company_name'])) Settings::set('company_name', trim($_POST['company_name']));
+        if (isset($_POST['company_cnpj'])) Settings::set('company_cnpj', trim($_POST['company_cnpj']));
+        if (isset($_POST['company_email'])) Settings::set('company_email', trim($_POST['company_email']));
+        if (isset($_POST['company_dpo_email'])) Settings::set('company_dpo_email', trim($_POST['company_dpo_email']));
+        if (isset($_POST['company_address'])) Settings::set('company_address', trim($_POST['company_address']));
     }
 
     header('Location: /admin/settings.php?saved=1');
@@ -215,6 +220,32 @@ $user = Auth::user();
                                     <label>Stripe Webhook Secret</label>
                                     <input type="text" name="stripe_webhook_secret" class="form-control" value="<?= htmlspecialchars($settings['stripe_webhook_secret'] ?? '') ?>" placeholder="whsec_... (ou via env STRIPE_WEBHOOK_SECRET)">
                                 </div>
+                            </div>
+
+                            <h4 style="margin:20px 0 10px;font-size:.95rem;"><i class="fas fa-building"></i> Dados da empresa (usados nos documentos legais)</h4>
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Razão social / nome</label>
+                                    <input type="text" name="company_name" class="form-control" value="<?= htmlspecialchars($settings['company_name'] ?? 'AfiliaFacil') ?>">
+                                </div>
+                                <div class="form-group">
+                                    <label>CNPJ</label>
+                                    <input type="text" name="company_cnpj" class="form-control" value="<?= htmlspecialchars($settings['company_cnpj'] ?? '') ?>" placeholder="00.000.000/0000-00">
+                                </div>
+                            </div>
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>E-mail de contato</label>
+                                    <input type="text" name="company_email" class="form-control" value="<?= htmlspecialchars($settings['company_email'] ?? 'contato@afiliafacil.com') ?>">
+                                </div>
+                                <div class="form-group">
+                                    <label>E-mail do encarregado (DPO/LGPD)</label>
+                                    <input type="text" name="company_dpo_email" class="form-control" value="<?= htmlspecialchars($settings['company_dpo_email'] ?? '') ?>" placeholder="dpo@suaempresa.com">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Endereço</label>
+                                <input type="text" name="company_address" class="form-control" value="<?= htmlspecialchars($settings['company_address'] ?? '') ?>" placeholder="Rua, número, cidade/UF">
                             </div>
 
                             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Salvar configurações do sistema</button>

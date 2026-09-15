@@ -211,8 +211,11 @@ $trialDays = (int)Settings::get('trial_days', 3);
         </div>
     </section>
 
-    <footer class="lp-footer">
-        <p>AfiliaFacil &copy; <?= date('Y') ?> — Todos os direitos reservados. <a href="/login">Entrar</a> · <a href="/register">Criar conta</a></p>
-    </footer>
+            <footer class="lp-footer">
+                <p>AfiliaFacil &copy; <?= date('Y') ?> - Todos os direitos reservados. <a href="/login">Entrar</a> · <a href="/register">Criar conta</a></p>
+                <p style="margin-top:8px;font-size:.8rem;">
+                    <a href="/termos">Termos de Uso</a> · <a href="/privacidade">Política de Privacidade</a> · <a href="/cookies">Cookies</a> · <a href="/degustacao">Degustação</a>
+                </p>
+            </footer>
 </body>
 </html>

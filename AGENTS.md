@@ -135,6 +135,14 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **Admin**: `/admin/moderation.php` (só master/admin) — stats, filtros por categoria/ação/usuário, detalhe do conteúdo e **exportação CSV/JSON** para autoridades.
 - **Tabela**: `moderation_events` (migration 22).
 
+## Documentos legais e consentimento
+
+- **Páginas públicas**: `/termos`, `/privacidade`, `/cookies`, `/degustacao` (layout compartilhado em `partials/legal.php`) — templates pt-BR com placeholders dos dados da empresa (⚠️ revisão jurídica recomendada antes de publicar). Links no footer da landing e no cadastro.
+- **Aviso da Degustação** (`degustacao.php`): tabela de limites **dinâmica** (lida do `Plans`), o que não está incluído, regras de uso (moderação/LGPD) e dica do BYOK quando a cota acabar.
+- **Dados da empresa** (razão social, CNPJ, e-mail, DPO, endereço) editáveis em Admin → Configurações (settings `company_*`) e usados nas páginas legais.
+- **Cadastro**: aceite obrigatório dos Termos/Privacidade (`terms_accepted_at` gravado) + consentimento **opcional** de uso de dados anonimizados para IA (`users.training_consent`) — revogável depois.
+- **Tabelas**: `users.training_consent`, `users.terms_accepted_at` (migration 23).
+
 ## Como rodar
 
 ```powershell

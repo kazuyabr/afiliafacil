@@ -36,7 +36,7 @@ class Auth
         file_put_contents(self::$usersFile, json_encode($users, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
 
-    public static function register(string $name, string $email, string $password): ?array
+    public static function register(string $name, string $email, string $password, bool $trainingConsent = false): ?array
     {
         $email = strtolower(trim($email));
 
@@ -58,6 +58,8 @@ class Auth
                 'plan' => 'trial',
                 'trial_until' => $trialUntil,
                 'active' => true,
+                'training_consent' => $trainingConsent,
+                'terms_accepted_at' => date('Y-m-d H:i:s'),
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);

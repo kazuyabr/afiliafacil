@@ -20,6 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($name === '' || $email === '' || $password === '') {
         $error = 'Preencha todos os campos.';
+    } elseif (empty($_POST['accept_terms'])) {
+        $error = 'Você precisa aceitar os Termos de Uso e a Política de Privacidade.';
     } elseif (strlen($password) < 6) {
         $error = 'A senha deve ter pelo menos 6 caracteres.';
     } elseif ($password !== $password2) {
@@ -29,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (strlen(trim($_POST['website'] ?? '')) > 0) {
         $error = 'Registro recusado.';
     } else {
-        $user = Auth::register($name, $email, $password);
+        $user = Auth::register($name, $email, $password, !empty($_POST['training_consent']));
         if ($user === null) {
             $error = 'Este e-mail já está cadastrado.';
         } else {
@@ -82,6 +84,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-group">
                         <label>Confirmar senha</label>
                         <input type="password" name="password2" class="form-control" placeholder="Repita a senha" required>
+                    </div>
+                    <div class="form-group" style="font-size:.8rem;line-height:1.5;">
+                        <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;">
+                            <input type="checkbox" name="accept_terms" value="1" required style="margin-top:3px;" <?= !empty($_POST['accept_terms']) ? 'checked' : '' ?>>
+                            <span>Li e aceito os <a href="/termos" target="_blank">Termos de Uso</a> e a <a href="/privacidade" target="_blank">Política de Privacidade</a>. Declaro que usarei a plataforma apenas para atividades lícitas.</span>
+                        </label>
+                    </div>
+                    <div class="form-group" style="font-size:.8rem;line-height:1.5;">
+                        <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;">
+                            <input type="checkbox" name="training_consent" value="1" style="margin-top:3px;" <?= !empty($_POST['training_consent']) ? 'checked' : '' ?>>
+                            <span>Autorizo (opcional) o uso de dados <strong>anonimizados</strong> das minhas interações para melhorar a IA da plataforma. Você pode mudar isso depois em Configurações. Veja o <a href="/degustacao" target="_blank">aviso da degustação</a>.</span>
+                        </label>
                     </div>
                     <input type="text" name="website" style="display:none;" tabindex="-1" autocomplete="off">
                     <button type="submit" class="btn btn-primary btn-full">
