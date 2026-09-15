@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/AdSpyProvider.php';
+require_once __DIR__ . '/../AdSpyKeys.php';
 
 class GoogleTransparencyProvider extends AdSpyProvider
 {
@@ -11,9 +12,16 @@ class GoogleTransparencyProvider extends AdSpyProvider
 
     public function search(string $query, array $options = []): array
     {
-        $apiKey = $options['serpapi_key'] ?? (getenv('SERPAPI_KEY') ?: '');
+        $userId = (int)($options['user_id'] ?? 0);
+        $apiKey = (string)($options['serpapi_key'] ?? '');
         if ($apiKey === '') {
-            return $this->emptyResult('Google: configure SERPAPI_KEY (free: 250 buscas/mês) ou sua chave em BYOK.');
+            $apiKey = AdSpyKeys::serpapi($userId);
+        }
+        if ($apiKey === '' && $userId === 0) {
+            $apiKey = getenv('SERPAPI_KEY') ?: '';
+        }
+        if ($apiKey === '') {
+            return $this->emptyResult('Google: configure sua chave SerpApi em IA (BYOK) > Busca de Anuncios (gratis: 250 buscas/mes em serpapi.com).');
         }
 
         $params = [

@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Plans.php';
 require_once __DIR__ . '/AiConfig.php';
+require_once __DIR__ . '/AdSpyKeys.php';
 
 class AdSpyQuota
 {
@@ -13,10 +14,12 @@ class AdSpyQuota
 
     public static function source(int $userId, string $kind): string
     {
-        if ($kind !== self::KIND_ANALYSIS) return 'platform';
-
         try {
-            return (AiConfig::forUser($userId)['source'] ?? 'platform') === 'byok' ? 'byok' : 'platform';
+            if ($kind === self::KIND_ANALYSIS) {
+                return (AiConfig::forUser($userId)['source'] ?? 'platform') === 'byok' ? 'byok' : 'platform';
+            }
+
+            return AdSpyKeys::hasAny($userId) ? 'byok' : 'platform';
         } catch (Throwable $e) {
             return 'platform';
         }

@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/AdSpyProvider.php';
+require_once __DIR__ . '/../AdSpyKeys.php';
 
 class MetaAdLibraryProvider extends AdSpyProvider
 {
@@ -11,7 +12,8 @@ class MetaAdLibraryProvider extends AdSpyProvider
 
     public function search(string $query, array $options = []): array
     {
-        $token = getenv('META_AD_ACCESS_TOKEN') ?: '';
+        $userId = (int)($options['user_id'] ?? 0);
+        $token = AdSpyKeys::meta($userId) ?: (getenv('META_AD_ACCESS_TOKEN') ?: '');
         if ($token !== '') {
             $result = $this->searchOfficialApi($query, $options, $token);
             if ($result['total'] > 0 || $result['error'] === null) return $result;

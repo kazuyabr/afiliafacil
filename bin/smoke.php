@@ -22,7 +22,7 @@ $warnings = [];
 $failures = [];
 $cookieJar = sys_get_temp_dir() . '/af-smoke-cookies-' . getmypid() . '.txt';
 
-function smoke_http(string $method, string $url, array $data = [], bool $followRedirect = false): array
+function smoke_http(string $method, string $url, array $data = [], bool $followRedirect = false, int $timeout = 30): array
 {
     global $cookieJar;
 
@@ -30,7 +30,7 @@ function smoke_http(string $method, string $url, array $data = [], bool $followR
     $opts = [
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 30,
+        CURLOPT_TIMEOUT => $timeout,
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_COOKIEJAR => $cookieJar,
         CURLOPT_COOKIEFILE => $cookieJar,
@@ -51,9 +51,9 @@ function smoke_http(string $method, string $url, array $data = [], bool $followR
     return ['status' => $status, 'body' => $body === false ? '' : $body, 'type' => $contentType];
 }
 
-function smoke_json(string $method, string $url, array $data = []): array
+function smoke_json(string $method, string $url, array $data = [], int $timeout = 30): array
 {
-    $r = smoke_http($method, $url, $data);
+    $r = smoke_http($method, $url, $data, false, $timeout);
     $decoded = json_decode($r['body'], true);
     return ['status' => $r['status'], 'json' => is_array($decoded) ? $decoded : null, 'body' => $r['body']];
 }
@@ -172,7 +172,7 @@ try {
             'action' => 'send',
             'conversation_id' => $convId,
             'message' => 'teste automatizado de smoke',
-        ]);
+        ], 150);
         check('agente: enviar mensagem', ($send['json']['success'] ?? false) === true, 'resposta invalida');
     }
 

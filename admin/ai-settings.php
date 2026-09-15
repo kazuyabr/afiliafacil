@@ -57,6 +57,7 @@ $theme = $_SESSION['theme'] ?? 'light';
                     <button class="tab-btn active" data-tab="chat" onclick="switchTab('chat')"><i class="fas fa-brain"></i> Análise (Chat)</button>
                     <button class="tab-btn" data-tab="stt" onclick="switchTab('stt')"><i class="fas fa-microphone-lines"></i> Transcrição (STT)</button>
                     <button class="tab-btn" data-tab="tts" onclick="switchTab('tts')"><i class="fas fa-volume-high"></i> Narração (TTS)</button>
+                    <button class="tab-btn" data-tab="adspy" onclick="switchTab('adspy')"><i class="fas fa-crosshairs"></i> Busca de Anúncios</button>
                 </div>
 
                 <div id="tab-chat">
@@ -205,13 +206,65 @@ $theme = $_SESSION['theme'] ?? 'light';
                         </div>
                     </div>
                 </div>
+
+                <div id="tab-adspy" style="display:none;">
+                    <div class="card" style="margin-bottom:24px;">
+                        <div class="card-header"><h3><i class="fas fa-crosshairs"></i> Busca de Anúncios (Ad Spy)</h3></div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-key"></i> Configure <strong>suas chaves</strong> para as buscas usarem a sua conta — sem chave própria, o provedor correspondente fica indisponível (não consumimos a chave da plataforma). Com chave própria, a cota de buscas do plano é liberada.
+                            </div>
+
+                            <div style="border:1px solid var(--border-color);border-radius:var(--radius);padding:16px;margin-bottom:16px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                                    <strong><i class="fab fa-google" style="color:#4285f4;"></i> Google Ads Transparency (SerpApi)</strong>
+                                    <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:400;cursor:pointer;">
+                                        <input type="checkbox" id="serpapiEnabled"> Ativo
+                                    </label>
+                                </div>
+                                <p style="font-size:.8rem;color:var(--text-secondary);margin:8px 0;">
+                                    Crie sua chave em <a href="https://serpapi.com" target="_blank">serpapi.com</a> — plano gratuito com 250 buscas/mês.
+                                </p>
+                                <div class="form-group">
+                                    <label>SerpApi Key <small id="serpapiKeyHint" style="color:var(--text-secondary);"></small></label>
+                                    <input type="password" id="serpapiKey" class="form-control" placeholder="deixe vazio para manter">
+                                </div>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button class="btn btn-primary btn-sm" onclick="saveAdSpy('adspy_serpapi')"><i class="fas fa-save"></i> Salvar</button>
+                                    <button class="btn btn-outline btn-sm" onclick="testAdSpy('adspy_serpapi')"><i class="fas fa-plug"></i> Testar</button>
+                                </div>
+                                <div id="serpapiResult" style="margin-top:10px;"></div>
+                            </div>
+
+                            <div style="border:1px solid var(--border-color);border-radius:var(--radius);padding:16px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                                    <strong><i class="fab fa-facebook" style="color:#1877f2;"></i> Meta Ad Library (opcional)</strong>
+                                    <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:400;cursor:pointer;">
+                                        <input type="checkbox" id="metaEnabled"> Ativo
+                                    </label>
+                                </div>
+                                <p style="font-size:.8rem;color:var(--text-secondary);margin:8px 0;">
+                                    Token da API oficial (gratuita) — melhora a estabilidade da busca no Meta. Sem token, usamos a biblioteca pública (gratuita, porém menos estável).
+                                </p>
+                                <div class="form-group">
+                                    <label>Meta Access Token <small id="metaKeyHint" style="color:var(--text-secondary);"></small></label>
+                                    <input type="password" id="metaKey" class="form-control" placeholder="deixe vazio para manter">
+                                </div>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button class="btn btn-primary btn-sm" onclick="saveAdSpy('adspy_meta')"><i class="fas fa-save"></i> Salvar</button>
+                                    <button class="btn btn-outline btn-sm" onclick="testAdSpy('adspy_meta')"><i class="fas fa-plug"></i> Testar</button>
+                                </div>
+                                <div id="metaResult" style="margin-top:10px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
     <script src="/assets/js/app.js"></script>
     <script>
     let catalog = null;
-
     const STT_MODELS = {
         cloudflare: [['@cf/openai/whisper-large-v3-turbo', 'Whisper Large v3 Turbo (grátis)'], ['@cf/openai/whisper', 'Whisper (grátis)']],
         deepgram: [['nova-3', 'Nova 3'], ['nova-2', 'Nova 2'], ['whisper-large', 'Whisper Large']],
@@ -234,6 +287,7 @@ $theme = $_SESSION['theme'] ?? 'light';
         document.getElementById('tab-chat').style.display = tab === 'chat' ? 'block' : 'none';
         document.getElementById('tab-stt').style.display = tab === 'stt' ? 'block' : 'none';
         document.getElementById('tab-tts').style.display = tab === 'tts' ? 'block' : 'none';
+        document.getElementById('tab-adspy').style.display = tab === 'adspy' ? 'block' : 'none';
     }
 
     async function loadCatalog() {
@@ -402,7 +456,55 @@ $theme = $_SESSION['theme'] ?? 'light';
     document.getElementById('aiProvider').addEventListener('change', updateModels);
     updateSttModels();
     updateTtsModels();
-    loadCatalog().then(() => { loadConfig('chat'); loadConfig('stt'); loadConfig('tts'); });
+
+    async function loadAdSpy(cap) {
+        const prefix = cap === 'adspy_serpapi' ? 'serpapi' : 'meta';
+        const resp = await fetch('/admin/api/ai-settings.php?action=get&capability=' + cap);
+        const data = await resp.json();
+        if (!data.success) return;
+        document.getElementById(prefix + 'Enabled').checked = !!data.config.enabled;
+        document.getElementById(prefix + 'KeyHint').textContent = data.config.has_key ? '(configurada — vazio mantém)' : '';
+    }
+
+    async function saveAdSpy(cap) {
+        const prefix = cap === 'adspy_serpapi' ? 'serpapi' : 'meta';
+        const body = new URLSearchParams();
+        body.append('action', 'save');
+        body.append('capability', cap);
+        body.append('provider', cap === 'adspy_serpapi' ? 'serpapi' : 'meta');
+        body.append('api_key', document.getElementById(prefix + 'Key').value);
+        body.append('enabled', document.getElementById(prefix + 'Enabled').checked ? '1' : '0');
+
+        const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body });
+        const data = await resp.json();
+        if (data.success) {
+            showToast('Chave salva', 'success');
+            document.getElementById(prefix + 'Key').value = '';
+            loadAdSpy(cap);
+        } else {
+            showToast(data.error || 'Erro ao salvar', 'error');
+        }
+    }
+
+    async function testAdSpy(cap) {
+        const prefix = cap === 'adspy_serpapi' ? 'serpapi' : 'meta';
+        const el = document.getElementById(prefix + 'Result');
+        el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testando...';
+        const body = new URLSearchParams({ action: 'test', capability: cap });
+        const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body });
+        const data = await resp.json();
+        el.innerHTML = data.ok
+            ? '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + esc(data.message) + '</div>'
+            : '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> ' + esc(data.error || 'Falha') + '</div>';
+    }
+
+    loadCatalog().then(() => {
+        loadConfig('chat');
+        loadConfig('stt');
+        loadConfig('tts');
+        loadAdSpy('adspy_serpapi');
+        loadAdSpy('adspy_meta');
+    });
     </script>
 </body>
 </html>

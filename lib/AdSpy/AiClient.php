@@ -27,7 +27,12 @@ class AiClient
 
         if ($response === null) return null;
         $json = json_decode($response, true);
-        return $json['result']['response'] ?? null;
+        if (!is_array($json)) return null;
+
+        return $json['result']['response']
+            ?? $json['result']['choices'][0]['message']['content']
+            ?? $json['result']['choices'][0]['text']
+            ?? null;
     }
 
     private static function openaiCompatible(array $messages, array $config): ?string

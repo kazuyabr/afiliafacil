@@ -29,6 +29,11 @@ COMO RESPONDER (SOMENTE JSON válido, sem markdown):
 {"type":"question","content":"sua pergunta","options":["opção 1","opção 2"]}
 {"type":"tool_call","tool":"nome_da_ferramenta","args":{...},"reason":"por que está fazendo isso"}
 
+REGRAS DO JSON (obrigatórias):
+- Responda APENAS com o objeto JSON — sem texto antes/depois, sem cercas de código (```).
+- NUNCA use quebras de linha literais dentro das strings: se precisar de nova linha, use \\n.
+- Nunca use aspas duplas não escapadas dentro do conteúdo (prefira aspas simples ou escape com \\").
+
 Opcionalmente inclua "profile_update" em qualquer resposta quando descobrir informações do usuário:
 {"type":"message","content":"...","profile_update":{"niche":"financas","budget":"R$50/dia","experience":"iniciante","goals":["primeira campanha"]}}
 

@@ -66,7 +66,9 @@ class AdSpyManager
             }
 
             try {
-                $r = $this->providers[$pid]->search($query, $options);
+                $providerOptions = $options;
+                $providerOptions['user_id'] = $userId;
+                $r = $this->providers[$pid]->search($query, $providerOptions);
             } catch (Throwable $e) {
                 $r = ['ads' => [], 'total' => 0, 'error' => 'Erro inesperado: ' . $e->getMessage()];
             }

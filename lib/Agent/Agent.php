@@ -376,14 +376,64 @@ class Agent
     {
         $text = trim($raw);
 
-        if (preg_match('/\{[\s\S]*\}/', $text, $m)) {
-            $decoded = json_decode($m[0], true);
+        // Remove cercas de código markdown (```json ... ```)
+        $text = preg_replace('/^```[a-zA-Z]*\s*/', '', $text);
+        $text = preg_replace('/\s*```$/', '', $text);
+        $text = trim($text);
+
+        if (!preg_match('/\{[\s\S]*\}/', $text, $m)) {
+            return null;
+        }
+
+        $jsonText = $m[0];
+
+        // 1) Tentativa direta
+        $decoded = json_decode($jsonText, true);
+        if (is_array($decoded) && isset($decoded['type'])) {
+            return $decoded;
+        }
+
+        // 2) Reparo: quebras de linha literais dentro de strings viram \n (JSON válido)
+        $repaired = preg_replace_callback('/"(?:\\\\.|[^"\\\\])*"/s', function ($match) {
+            return str_replace(["\r\n", "\r", "\n"], ['\\n', '\\n', '\\n'], $match[0]);
+        }, $jsonText);
+
+        if (is_string($repaired)) {
+            $decoded = json_decode($repaired, true);
             if (is_array($decoded) && isset($decoded['type'])) {
                 return $decoded;
             }
         }
 
-        return null;
+        // 3) Último recurso: extrai campos manualmente de um JSON malformado
+        $type = null;
+        if (preg_match('/"type"\s*:\s*"([a-z_]+)"/i', $jsonText, $tm)) {
+            $type = $tm[1];
+        }
+        if ($type === null) {
+            return null;
+        }
+
+        $parsed = ['type' => $type];
+        if (preg_match('/"content"\s*:\s*"(.*?)"\s*(?:,\s*"(?:options|profile_update|tool|args|reason)"|})/s', $jsonText, $cm)) {
+            $parsed['content'] = stripcslashes($cm[1]);
+        }
+        if (preg_match('/"tool"\s*:\s*"([a-z_]+)"/i', $jsonText, $toolMatch)) {
+            $parsed['tool'] = $toolMatch[1];
+        }
+        if (preg_match('/"reason"\s*:\s*"(.*?)"\s*(?:,\s*"(?:tool|args|profile_update)"|})/s', $jsonText, $rm)) {
+            $parsed['reason'] = stripcslashes($rm[1]);
+        }
+        if (preg_match('/"args"\s*:\s*(\{[\s\S]*?\})\s*(?:,\s*"[a-z_]+"|})/i', $jsonText, $am)) {
+            $args = json_decode($am[1], true);
+            if (is_array($args)) $parsed['args'] = $args;
+        }
+        if (preg_match('/"options"\s*:\s*\[([\s\S]*?)\]/i', $jsonText, $om)) {
+            $options = json_decode('[' . $om[1] . ']', true);
+            if (is_array($options)) $parsed['options'] = array_values(array_filter($options, 'is_string'));
+        }
+
+        return isset($parsed['content']) || isset($parsed['tool']) ? $parsed : null;
     }
 
     private function saveMessage(int $conversationId, string $role, string $content, string $toolName = '', ?array $toolArgs = null, ?array $toolResult = null, string $status = '', array $extra = [], string $source = ''): int
