@@ -1,35 +1,43 @@
 function toggleTheme() {
     const html = document.documentElement;
-    const current = html.getAttribute('data-theme');
-    const next = current === 'dark' ? 'light' : 'dark';
-    html.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
-
-    fetch('/admin/settings.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'theme=' + next
-    });
-
-    const icon = document.querySelector('.theme-toggle i');
-    if (icon) {
-        icon.className = next === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
-    }
+    const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    applyTheme(next, true);
 }
 
-(function() {
-    const saved = localStorage.getItem('theme');
-    if (!saved) return;
-    const html = document.documentElement;
-    const current = html.getAttribute('data-theme');
-    if (saved !== current) {
-        html.setAttribute('data-theme', saved);
-        fetch('/admin/settings.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'theme=' + saved
-        });
+function applyTheme(theme, persist) {
+    document.documentElement.setAttribute('data-theme', theme);
+
+    if (persist) {
+        try { localStorage.setItem('theme', theme); } catch (e) {}
+        try { document.cookie = 'theme=' + theme + '; path=/; max-age=31536000; SameSite=Lax'; } catch (e) {}
+
+        if (location.pathname.indexOf('/admin') === 0) {
+            fetch('/admin/settings.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'theme=' + theme
+            }).catch(function () {});
+        }
     }
+
+    document.querySelectorAll('.theme-toggle i').forEach(function (icon) {
+        icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+    });
+}
+
+(function () {
+    try {
+        const saved = localStorage.getItem('theme');
+        const system = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+        const theme = saved || system;
+
+        if (saved) {
+            // migra escolhas antigas (localStorage) para o cookie usado no SSR
+            try { document.cookie = 'theme=' + saved + '; path=/; max-age=31536000; SameSite=Lax'; } catch (e) {}
+        }
+
+        applyTheme(theme, false);
+    } catch (e) {}
 })();
 
 function showToast(message, type = 'success') {

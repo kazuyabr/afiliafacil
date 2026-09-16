@@ -1,6 +1,12 @@
 <?php
 session_start();
 
+// Sincroniza o tema escolhido (cookie, fonte unica) com a sessao —
+// assim as paginas que leem $_SESSION['theme'] acompanham a escolha do usuario.
+if (!empty($_COOKIE['theme']) && in_array($_COOKIE['theme'], ['light', 'dark'], true)) {
+    $_SESSION['theme'] = $_COOKIE['theme'];
+}
+
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Settings.php';
 require_once __DIR__ . '/Audit.php';

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../lib/Config.php';
 require_once Config::getLibDir() . '/Settings.php';
+require_once Config::getLibDir() . '/Theme.php';
 
 $legalTitle = $legalTitle ?? 'Documento Legal';
 $legalContent = $legalContent ?? '';
@@ -14,10 +15,11 @@ $companyAddress = Settings::get('company_address', '');
 $updatedAt = Settings::get('legal_updated_at', date('d/m/Y'));
 ?>
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light">
+<html lang="pt-BR" data-theme="<?= Theme::current() ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?= Theme::antiFlashScript() ?>
     <title><?= htmlspecialchars($legalTitle) ?> - <?= htmlspecialchars($companyName) ?></title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -53,6 +55,7 @@ $updatedAt = Settings::get('legal_updated_at', date('d/m/Y'));
             <a href="/privacidade" class="<?= $legalActive === 'privacidade' ? 'active' : '' ?>">Privacidade</a>
             <a href="/cookies" class="<?= $legalActive === 'cookies' ? 'active' : '' ?>">Cookies</a>
             <a href="/degustacao" class="<?= $legalActive === 'degustacao' ? 'active' : '' ?>">Degustação</a>
+            <?= Theme::toggleButton('theme-toggle', 'border:1px solid var(--border-color);') ?>
             <a href="/register" class="btn btn-sm btn-primary" style="padding:4px 12px;">Criar conta</a>
         </nav>
     </header>
@@ -73,5 +76,6 @@ $updatedAt = Settings::get('legal_updated_at', date('d/m/Y'));
         </p>
         <p style="margin-top:10px;font-size:.75rem;">Este documento é um modelo e deve ser revisado por profissional jurídico antes da publicação.</p>
     </footer>
+    <script src="/assets/js/app.js"></script>
 </body>
 </html>

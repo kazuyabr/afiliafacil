@@ -3,8 +3,9 @@ require_once __DIR__ . '/lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/Plans.php';
 require_once Config::getLibDir() . '/Settings.php';
+require_once Config::getLibDir() . '/Theme.php';
 
-$theme = isset($_COOKIE['theme']) ? $_COOKIE['theme'] : 'light';
+$theme = Theme::current();
 $trialDays = (int)Settings::get('trial_days', 3);
 ?>
 <!DOCTYPE html>
@@ -12,6 +13,7 @@ $trialDays = (int)Settings::get('trial_days', 3);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?= Theme::antiFlashScript() ?>
     <title>AfiliaFacil - Clone, Crie e Hospede Páginas para Afiliados</title>
     <meta name="description" content="Clone páginas de vendas, gere pressels e hospede sua estrutura de afiliado em minutos. Plano grátis por <?= $trialDays ?> dias.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -21,14 +23,15 @@ $trialDays = (int)Settings::get('trial_days', 3);
     <link rel="stylesheet" href="/assets/css/app.css">
     <style>
         .lp-header { position: fixed; top: 0; left: 0; right: 0; height: 64px; background: rgba(255,255,255,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border-color); z-index: 100; }
-        body[data-theme="dark"] .lp-header { background: rgba(10,12,16,.92); }
+        body[data-theme="dark"] .lp-header, [data-theme="dark"] .lp-header { background: rgba(10,12,16,.92); }
         .lp-header-inner { max-width: 1100px; margin: 0 auto; height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
         .lp-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.15rem; color: var(--text-primary); }
         .lp-logo-box { width: 34px; height: 34px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; color: #fff; }
         .lp-nav { display: flex; align-items: center; gap: 24px; font-size: .9rem; }
-        .lp-nav a { color: var(--text-secondary); }
-        .lp-nav a:hover { color: var(--accent); }
-        .lp-hero { background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%); color: #fff; padding: 120px 20px 80px; text-align: center; }
+        .lp-nav a:not(.btn) { color: var(--text-secondary); }
+        .lp-nav a:not(.btn):hover { color: var(--accent); }
+        .lp-nav .btn-primary { color: #fff; }
+        .lp-hero { background: linear-gradient(135deg, #0b5ed7 0%, #5b21b6 100%); color: #fff; padding: 120px 20px 80px; text-align: center; }
         .lp-hero h1 { font-size: 2.8rem; font-weight: 800; max-width: 800px; margin: 0 auto 16px; line-height: 1.15; }
         .lp-hero p { font-size: 1.15rem; opacity: .9; max-width: 620px; margin: 0 auto 32px; line-height: 1.6; }
         .lp-hero-badges { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 40px; opacity: .85; font-size: .85rem; }
@@ -59,10 +62,10 @@ $trialDays = (int)Settings::get('trial_days', 3);
         .lp-faq summary { font-weight: 600; font-size: .95rem; cursor: pointer; }
         .lp-faq p { font-size: .9rem; color: var(--text-secondary); margin-top: 10px; line-height: 1.5; }
         .lp-footer { border-top: 1px solid var(--border-color); padding: 32px 20px; text-align: center; font-size: .85rem; color: var(--text-secondary); }
-        @media (max-width: 768px) { .lp-hero h1 { font-size: 2rem; } .lp-nav { display: none; } }
+        @media (max-width: 768px) { .lp-hero h1 { font-size: 2rem; } .lp-nav a { display: none; } .lp-nav { gap: 12px; } }
     </style>
 </head>
-<body data-theme="<?= $theme ?>">
+<body>
     <header class="lp-header">
         <div class="lp-header-inner">
             <div class="lp-logo"><div class="lp-logo-box"><i class="fas fa-bolt"></i></div> AfiliaFacil</div>
@@ -70,6 +73,7 @@ $trialDays = (int)Settings::get('trial_days', 3);
                 <a href="#features">Funcionalidades</a>
                 <a href="#plans">Planos</a>
                 <a href="#faq">FAQ</a>
+                <?= Theme::toggleButton('theme-toggle lp-theme-toggle') ?>
                 <?php if (Auth::check()): ?>
                     <a href="/admin/" class="btn btn-sm btn-primary">Ir para o painel</a>
                 <?php else: ?>
@@ -217,5 +221,6 @@ $trialDays = (int)Settings::get('trial_days', 3);
                     <a href="/termos">Termos de Uso</a> · <a href="/privacidade">Política de Privacidade</a> · <a href="/cookies">Cookies</a> · <a href="/degustacao">Degustação</a>
                 </p>
             </footer>
+    <script src="/assets/js/app.js"></script>
 </body>
 </html>

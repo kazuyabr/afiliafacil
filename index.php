@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
+require_once Config::getLibDir() . '/Theme.php';
 
 if (Auth::check()) {
     header('Location: /admin/');
@@ -47,10 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light">
+<html lang="pt-BR" data-theme="<?= Theme::current() ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?= Theme::antiFlashScript() ?>
     <title>AfiliaFacil - Entrar</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -60,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
+    <?= Theme::toggleButton('theme-toggle', 'position:fixed;top:18px;right:18px;z-index:60;background:var(--bg-card);border:1px solid var(--border-color);') ?>
     <div class="login-wrapper">
         <div class="login-left">
             <div>
@@ -133,5 +136,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+    <script src="/assets/js/app.js"></script>
 </body>
 </html>
