@@ -31,8 +31,10 @@ $updatedAt = Settings::get('legal_updated_at', date('d/m/Y'));
         .legal-header .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; color: var(--text-primary); text-decoration: none; }
         .legal-header .brand .logo { width: 34px; height: 34px; border-radius: 10px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; }
         .legal-nav { display: flex; gap: 14px; flex-wrap: wrap; font-size: .85rem; }
-        .legal-nav a { color: var(--text-secondary); text-decoration: none; padding: 4px 2px; }
-        .legal-nav a.active, .legal-nav a:hover { color: var(--accent); }
+        .legal-nav a:not(.btn) { color: var(--text-secondary); text-decoration: none; padding: 4px 2px; }
+        .legal-nav a:not(.btn).active, .legal-nav a:not(.btn):hover { color: var(--accent); }
+        .legal-nav .btn-primary { color: #fff; }
+        .legal-nav .btn-primary:hover { color: #fff; }
         .legal-wrap { max-width: 860px; margin: 0 auto; padding: 32px 24px 60px; }
         .legal-wrap h1 { font-size: 1.7rem; margin-bottom: 6px; }
         .legal-wrap .updated { font-size: .8rem; color: var(--text-secondary); margin-bottom: 24px; }
