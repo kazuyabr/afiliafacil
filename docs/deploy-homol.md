@@ -48,7 +48,8 @@ O script mostra a URL `https://xxxx.trycloudflare.com` para enviar ao cliente.
 
 - [ ] `bin/smoke.php` retornou **SMOKE OK** (0 falhas)
 - [ ] `bin/seed-demo.php` criou contas e ofertas demo
-- [ ] Login nas 4 contas (admin + 3 demo) funcionando
+- [ ] Login nas 4 contas (admin + 3 demo) funcionando — **cada conta demo tem senha própria**:
+      `demo.trial` → `Trial.Demo@2026` · `demo.pro` → `Pro.Demo@2026` · `demo.master` → `Master.Demo@2026` · admin → `admin123`
 - [ ] Sócio de IA responde de verdade (chave CF configurada) — não apenas a mensagem de fallback
 - [ ] Transcrição de um áudio/vídeo curto funcionando
 - [ ] Narração de um texto curto funcionando

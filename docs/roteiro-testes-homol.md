@@ -13,15 +13,15 @@ A ideia é simples: siga os passos, veja se o resultado acontece como descrito e
 |---|---|
 | **Endereço** | `URL_DA_HOMOLOGACAO` *(preencher antes de enviar)* |
 | **Sua conta de teste** | `demo.master@afiliafacil.com` |
-| **Sua senha** | `demo123456` |
+| **Sua senha** | `Master.Demo@2026` |
 
 Outras contas disponíveis para comparar planos:
 
 | Conta | Senha | Plano |
 |---|---|---|
-| `demo.trial@afiliafacil.com` | `demo123456` | Grátis (3 dias) |
-| `demo.pro@afiliafacil.com` | `demo123456` | Afiliado Pro |
-| `demo.master@afiliafacil.com` | `demo123456` | Master Elite |
+| `demo.trial@afiliafacil.com` | `Trial.Demo@2026` | Grátis (3 dias) |
+| `demo.pro@afiliafacil.com` | `Pro.Demo@2026` | Afiliado Pro |
+| `demo.master@afiliafacil.com` | `Master.Demo@2026` | Master Elite |
 
 > **Importante**: este é um ambiente de testes. Não coloque dados reais/sensíveis e não faça pagamentos de verdade.
 
@@ -176,6 +176,18 @@ Outras contas disponíveis para comparar planos:
 
 ---
 
+## 12. Mande seu feedback (sua opinião vale muito!)
+
+1. No menu, clique em **Feedback**.
+2. Escolha o tipo (sugestão, reclamação, elogio ou problema) e escreva sua mensagem.
+3. Clique em **Enviar feedback**.
+
+**Deve acontecer**: sua mensagem aparece em "Meus envios" e a equipe pode responder por lá — você verá a resposta na mesma tela.
+
+> Use este espaço à vontade: é ele que guia o que vamos melhorar e construir. Se algo não fez sentido, diga! 😉
+
+---
+
 # Formulário de feedback
 
 Preencha e devolva para nós (pode copiar a tabela):
@@ -196,6 +208,7 @@ Preencha e devolva para nós (pode copiar a tabela):
 | 12 | Documentos legais | ✅ / ❌ | |
 | 13 | Privacidade / meus dados | ✅ / ❌ | |
 | 14 | Administração | ✅ / ❌ | |
+| 15 | Feedback (envio + histórico) | ✅ / ❌ | |
 
 **Dúvidas gerais / sugestões:**
 

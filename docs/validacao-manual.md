@@ -84,6 +84,13 @@ Acesse `http://localhost:9876` (ou a URL do túnel) e marque cada item.
 - [ ] Auditoria: registros das ações
 - [ ] Storage R2: salvar config e testar conexão (se tiver R2)
 
+## 13. Feedback
+- [ ] Enviar feedback (sugestão/reclamação/elogio/bug) como conta demo e ver no histórico
+- [ ] Validação: mensagem com menos de 10 caracteres é recusada
+- [ ] Admin responde → o usuário vê a resposta e o status "respondido"
+- [ ] Badge de novos no menu (admin)
+- [ ] Exportar CSV e JSON (admin) — insumo para o especialista de mercado
+
 ---
 
 **Se algo falhar**: anote o módulo, o passo e o que aconteceu (print ajuda) — isso vira o plano de correção antes da homologação.

@@ -88,11 +88,11 @@ Write-Host "=====================================================" -ForegroundCo
 Write-Host " URL PUBLICA: $url" -ForegroundColor Green
 Write-Host "=====================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Credenciais de teste:" -ForegroundColor White
+Write-Host "Credenciais de teste (senha individual por conta):" -ForegroundColor White
 Write-Host "  Admin:        admin@afiliafacil.com / admin123"
-Write-Host "  Demo Trial:   demo.trial@afiliafacil.com / demo123456"
-Write-Host "  Demo Pro:     demo.pro@afiliafacil.com / demo123456"
-Write-Host "  Demo Master:  demo.master@afiliafacil.com / demo123456"
+Write-Host "  Demo Trial:   demo.trial@afiliafacil.com / Trial.Demo@2026"
+Write-Host "  Demo Pro:     demo.pro@afiliafacil.com / Pro.Demo@2026"
+Write-Host "  Demo Master:  demo.master@afiliafacil.com / Master.Demo@2026"
 Write-Host ""
 Write-Host "Avisos:" -ForegroundColor Yellow
 Write-Host "  - O tunel depende deste computador ligado e do container rodando."

@@ -25,11 +25,10 @@ if (!Database::available()) {
 
 $clean = in_array('--clean', $argv, true);
 
-const DEMO_PASSWORD = 'demo123456';
 const DEMO_ACCOUNTS = [
-    ['email' => 'demo.trial@afiliafacil.com', 'name' => 'Demo Trial', 'plan' => 'trial', 'days' => 3],
-    ['email' => 'demo.pro@afiliafacil.com', 'name' => 'Demo Afiliado Pro', 'plan' => 'essencial', 'days' => 0],
-    ['email' => 'demo.master@afiliafacil.com', 'name' => 'Demo Master Elite', 'plan' => 'master', 'days' => 0],
+    ['email' => 'demo.trial@afiliafacil.com', 'name' => 'Demo Trial', 'plan' => 'trial', 'days' => 3, 'password' => 'Trial.Demo@2026'],
+    ['email' => 'demo.pro@afiliafacil.com', 'name' => 'Demo Afiliado Pro', 'plan' => 'essencial', 'days' => 0, 'password' => 'Pro.Demo@2026'],
+    ['email' => 'demo.master@afiliafacil.com', 'name' => 'Demo Master Elite', 'plan' => 'master', 'days' => 0, 'password' => 'Master.Demo@2026'],
 ];
 
 const DEMO_PAGE_NAME = 'DEMO - Página de Exemplo';
@@ -93,7 +92,7 @@ function demo_create(): void
                 'id' => time() + random_int(1, 99999),
                 'name' => $account['name'],
                 'email' => $account['email'],
-                'password' => password_hash(DEMO_PASSWORD, PASSWORD_DEFAULT),
+                'password' => password_hash($account['password'], PASSWORD_DEFAULT),
                 'role_id' => $role->id ?? null,
                 'plan' => $account['plan'],
                 'trial_until' => $account['days'] > 0 ? date('Y-m-d H:i:s', time() + $account['days'] * 86400) : null,
@@ -107,7 +106,7 @@ function demo_create(): void
         } else {
             $user->plan = $account['plan'];
             $user->trial_until = $account['days'] > 0 ? date('Y-m-d H:i:s', time() + $account['days'] * 86400) : null;
-            $user->password = password_hash(DEMO_PASSWORD, PASSWORD_DEFAULT);
+            $user->password = password_hash($account['password'], PASSWORD_DEFAULT);
             $user->updated_at = date('Y-m-d H:i:s');
             $user->save();
             echo '  atualizada: ' . $account['email'] . ' (' . $account['plan'] . ')' . "\n";
@@ -319,9 +318,9 @@ HTML;
     }
 
     echo "\n=== SEED DEMO CONCLUÍDO ===\n";
-    echo "Contas (senha: " . DEMO_PASSWORD . "):\n";
+    echo "Contas (senha individual por conta):\n";
     foreach (DEMO_ACCOUNTS as $account) {
-        echo '  - ' . $account['email'] . ' (' . $account['plan'] . ")\n";
+        echo '  - ' . $account['email'] . ' (' . $account['plan'] . ') -> senha: ' . $account['password'] . "\n";
     }
     echo "\nOfertas: " . \AfiliaFacil\Models\Offer::where('slug', 'like', 'demo-%')->count() . " no swipe file (aprovadas)\n";
     echo "Para remover: php bin/seed-demo.php --clean\n";

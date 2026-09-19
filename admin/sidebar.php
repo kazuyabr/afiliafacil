@@ -113,6 +113,17 @@ require_once Config::getLibDir() . '/Plans.php';
         <?php endif; ?>
 
         <div class="nav-section">Conta</div>
+        <?php
+        $feedbackBadge = 0;
+        if (Auth::isAdmin()) {
+            require_once Config::getLibDir() . '/Feedback.php';
+            $feedbackBadge = Feedback::newCount();
+        }
+        ?>
+        <a href="/admin/feedback.php" class="nav-item <?= $currentPage === 'feedback.php' ? 'active' : '' ?>">
+            <i class="fas fa-comment-dots"></i> Feedback
+            <?php if ($feedbackBadge > 0): ?><span class="badge" style="background:var(--danger);"><?= $feedbackBadge ?></span><?php endif; ?>
+        </a>
         <a href="/admin/plan.php" class="nav-item <?= $currentPage === 'plan.php' ? 'active' : '' ?>">
             <i class="fas fa-rocket"></i> Meu Plano
         </a>
