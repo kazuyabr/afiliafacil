@@ -370,6 +370,19 @@ $profileText = AgentProfile::describe($profile);
         renderMessages(data.messages || []);
         await loadConversations();
         updateChatHeader(data.conversation || null);
+        markSeen(id);
+
+        // Se houver job pendente/processando, retoma o acompanhamento
+        try {
+            const st = await fetch('/admin/api/agent.php?action=job-status&conversation_id=' + id).then(r => r.json());
+            const job = st && st.job;
+            if (job && (job.status === 'pending' || job.status === 'processing')) {
+                showTyping();
+                startPolling();
+            } else {
+                stopPolling();
+            }
+        } catch (e) {}
     }
 
     async function newConversation() {
@@ -410,6 +423,12 @@ $profileText = AgentProfile::describe($profile);
                 '<span class="chip" onclick="pickOption(\'' + esc(o).replace(/'/g, "\\'") + '\')">' + esc(o) + '</span>'
             ).join('') + '</div>';
         }
+        html += '<div style="align-self:flex-start;display:flex;gap:10px;align-items:center;font-size:.72rem;color:var(--text-secondary);padding:0 4px;">' +
+            '<span>Útil?</span>' +
+            '<a href="#" onclick="rateMessage(' + m.id + ',1);return false;" title="Boa resposta" style="' + (m.rating === 1 ? 'color:var(--success);font-weight:700;' : 'color:var(--text-secondary);') + '"><i class="fas fa-thumbs-up"></i></a>' +
+            '<a href="#" onclick="rateMessage(' + m.id + ',-1);return false;" title="Resposta ruim" style="' + (m.rating === -1 ? 'color:var(--danger);font-weight:700;' : 'color:var(--text-secondary);') + '"><i class="fas fa-thumbs-down"></i></a>' +
+            (m.rating_note ? '<span title="Sua observação">· ' + esc(m.rating_note) + '</span>' : '') +
+        '</div>';
         return html;
     }
 
@@ -547,6 +566,57 @@ $profileText = AgentProfile::describe($profile);
         return '';
     }
 
+    let pollingTimer = null;
+
+    function showTyping() {
+        const container = document.getElementById('agentMessages');
+        if (document.getElementById('typing')) return;
+        container.innerHTML += '<div class="agent-typing" id="typing"><i class="fas fa-spinner fa-spin"></i> Sócio está pensando... você pode navegar — será avisado quando responder.</div>';
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function startPolling() {
+        if (pollingTimer) return;
+        pollingTimer = setInterval(pollJob, 4000);
+        pollJob();
+    }
+
+    function stopPolling() {
+        if (pollingTimer) { clearInterval(pollingTimer); pollingTimer = null; }
+    }
+
+    async function pollJob() {
+        if (!conversationId) { stopPolling(); return; }
+        try {
+            const resp = await fetch('/admin/api/agent.php?action=job-status&conversation_id=' + conversationId);
+            const data = await resp.json();
+            if (data.error) { stopPolling(); return; }
+
+            const job = data.job;
+            if (!job) { stopPolling(); renderMessages(data.messages || []); return; }
+
+            if (job.status === 'done' || job.status === 'failed') {
+                stopPolling();
+                renderMessages(data.messages || []);
+                if (job.status === 'failed') showToast('A IA falhou ao responder. Tente novamente.', 'error');
+            }
+        } catch (e) {}
+    }
+
+    function markSeen(id) {
+        fetch('/admin/api/agent.php', { method: 'POST', body: new URLSearchParams({ action: 'mark-seen', conversation_id: id }) }).catch(function () {});
+    }
+
+    async function rateMessage(id, rating) {
+        let note = '';
+        if (rating === -1) note = prompt('O que ficou ruim nesta resposta? (opcional)') || '';
+        const resp = await fetch('/admin/api/agent.php', { method: 'POST', body: new URLSearchParams({ action: 'rate', message_id: id, rating, note }) });
+        const data = await resp.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
+        showToast('Obrigado pela avaliação!', 'success');
+        openConversation(conversationId);
+    }
+
     async function sendMessage() {
         if (sending) return;
         const input = document.getElementById('agentInput');
@@ -559,7 +629,6 @@ $profileText = AgentProfile::describe($profile);
 
         const container = document.getElementById('agentMessages');
         container.innerHTML += '<div class="msg user">' + esc(message) + '</div>';
-        container.innerHTML += '<div class="agent-typing" id="typing"><i class="fas fa-spinner fa-spin"></i> Seu sócio está pensando...</div>';
         container.scrollTop = container.scrollHeight;
 
         try {
@@ -567,11 +636,20 @@ $profileText = AgentProfile::describe($profile);
             const resp = await fetch('/admin/api/agent.php', { method: 'POST', body });
             const data = await resp.json();
 
-            if (data.error) { showToast(data.error, 'error'); }
+            if (data.error) { showToast(data.error, 'error'); return; }
             if (data.conversation_id) conversationId = data.conversation_id;
             if (data.messages) renderMessages(data.messages);
             if (data.quota) updateQuota(data.quota);
             loadConversations();
+
+            if (data.queued && data.job_id) {
+                showTyping();
+                fetch('/admin/api/agent.php', {
+                    method: 'POST',
+                    body: new URLSearchParams({ action: 'process', job_id: data.job_id })
+                }).catch(function () {});
+                startPolling();
+            }
         } catch (err) {
             showToast('Erro de conexão: ' + err.message, 'error');
         } finally {
@@ -623,6 +701,15 @@ $profileText = AgentProfile::describe($profile);
 
     (async () => {
         await loadSubagents();
+
+        const urlConv = parseInt(new URLSearchParams(location.search).get('conv') || '0', 10);
+        if (urlConv > 0) {
+            await openConversation(urlConv);
+            const input = document.getElementById('agentInput');
+            if (input.value.trim() !== '') input.focus();
+            return;
+        }
+
         const resp = await fetch('/admin/api/agent.php?action=conversations');
         const data = await resp.json();
         conversationsCache = data.conversations || [];

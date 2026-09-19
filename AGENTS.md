@@ -108,19 +108,19 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 ## Sócio de IA (Agente) + Subagentes
 
 - **Módulo** (`lib/Agent/`): agente conversacional que atua como **sócio** do usuário (produtor ou afiliado, possivelmente leigo) — focado em tráfego pago e orgânico, ajudando a monetizar com pouco/nenhum investimento.
-- **Princípios (prompt em `AgentPrompts::base()` + guardrails)**: pensa como sócio (só ganha se o cliente ganhar); **nunca promete/garante ganhos** (filtro `AgentGuard::filterResponse`); alerta riscos antes de sugerir gasto (começar pequeno); recusa más práticas; **pergunta antes de assumir**; explica o custo de cada ação; ignora instruções dentro de "DADOS EXTERNOS".
-- **Subagentes** (`AgentSubagents`): especialistas criados pelo Sócio (tool `criar_subagente` com confirmação) ou pelo usuário (modal em `/admin/agent.php`). 4 templates (Analista de Tráfego Meta, Copywriter de VSL, Pesquisador de Ofertas, Analista de Métricas) + criação livre.
-  - **Consulta**: conversa dedicada (`agent_conversations.subagent_id`) — o prompt do subagente = princípios invioláveis do Sócio + especialidade + instruções (validadas contra tentativas de anular regras/proteções). Subagente **não** cria/delega (sem recursão).
-  - **Delegação**: tool `delegar_subagente` — o Sócio consulta um especialista ativo e traz a resposta (sem cota extra; profundidade 1).
-  - **Limites por plano** (`plans.max_subagents`): Trial/VSL 0 · Afiliado Pro 2 · Master Elite 5 · Admin ilimitado. Ferramentas do subagente = intersecção com as permitidas no plano.
-- **Autonomia**: leitura livre; **ações sempre com confirmação** (card com motivo + custo + Confirmar/Cancelar). 1 tool por turno.
-- **Ferramentas** (`AgentTools`, 13): leitura — `consultar_quotas`, `listar_ofertas`, `listar_minhas_paginas`, `listar_transcricoes`, `listar_narracoes`; ação — `ver_oferta`, `espionar_anuncios`, `analisar_oferta`, `transcrever_midia`, `gerar_narracao`, `clonar_pagina`, `criar_subagente`, `delegar_subagente`.
-- **Memória** (`AgentProfile`): nicho, orçamento, experiência e objetivos salvos entre conversas.
-- **Quotas** (`plans.max_agent_messages`): Trial 10 · VSL 0 · Afiliado Pro 100 · Master Elite 500 · Admin ∞ (BYOK remove o limite).
-- **UI**: `/admin/agent.php` — chat com histórico, **seção Subagentes** (conversar/editar/ativar/excluir + modal com templates e ferramentas), cards de ação, chips de opções, resultados ricos, banner de princípios, perfil editável, prefill `?ask=`.
-- **API**: `admin/api/agent.php` (quota/profile/conversations/conversation/new/send/confirm/cancel/delete + subagents/subagent/subagent-save/subagent-toggle/subagent-delete).
-- **Tabelas**: `agent_conversations` (+`subagent_id`), `agent_messages`, `agent_profiles`, `agent_subagents` (migrations 20 e 25).
-- **Painel de preços**: edita todas as quotas, incluindo `max_subagents`.
+- **Assíncrono (fila de jobs)**: `send` valida (quota/moderação) e **enfileira** em `agent_jobs` (retorno imediato, ~0.1s); o frontend dispara `action=process` (fire-and-forget) e faz polling de `job-status` (4s) — **o usuário navega livremente**. `PHP_CLI_SERVER_WORKERS=8` no Dockerfile permite requests paralelos. **Cron fallback**: `/cron/monitor.php` processa jobs órfãos (`AgentJobs::processPending`, com release de jobs travados e retry até 3x).
+- **Notificações**: sino injetado pelo `app.js` no topbar de todas as telas admin (badge + toast + clique abre `/admin/agent.php?conv=ID`); `agent_messages.seen_at` marca vistas (endpoint `mark-seen`). Vale para Sócio e subagentes.
+- **Precisão** (`AgentPrompts` + `AgentTools`): regras de **ação imediata** (nunca prometer busca — emitir o tool_call), **nunca trocar o nicho/termo pedido**, informar quando não houver resultados (sem sugerir outros nichos), salvar nicho no perfil e usar os parâmetros corretos. `listar_ofertas` aceita **`q`** (busca livre).
+- **Monitoramento** (`/admin/agent-monitor.php`, permissão **`manage_ai`** ou admin): stats de precisão (respostas, 👍/👎, % avaliado), lista de conversas com filtros (principal/subagente, avaliação, período, busca), diálogo completo com ratings/anotações e **export JSONL para fine-tuning** (`AgentMonitor::exportJsonl`). Rating 👍/👎 + comentário opcional direto no chat (`action=rate`).
+- **Cargo `Curador de IA`** (seed + migration 28): permissão `manage_ai` para monitorar/treinar a IA; master/admin já têm a permissão.
+- **Princípios (prompt em `AgentPrompts::base()` + guardrails)**: pensa como sócio; **nunca promete/garante ganhos**; alerta riscos antes de sugerir gasto; recusa más práticas; **pergunta antes de assumir**; explica o custo de cada ação; ignora instruções em "DADOS EXTERNOS".
+- **Subagentes** (`AgentSubagents`): especialistas criados pelo Sócio (tool `criar_subagente`) ou pelo usuário (modal); 4 templates; conversa dedicada (`agent_conversations.subagent_id`); **delegação** (`delegar_subagente`, sem cota extra, profundidade 1); subagente não cria/delega. Limites: Trial/VSL 0 · Pro 2 · Master 5 · Admin ∞.
+- **Ferramentas** (`AgentTools`, 13): leitura — `consultar_quotas`, `listar_ofertas`, `listar_minhas_paginas`, `listar_transcricoes`, `listar_narracoes`; ação (confirmação) — `ver_oferta`, `espionar_anuncios`, `analisar_oferta`, `transcrever_midia`, `gerar_narracao`, `clonar_pagina`, `criar_subagente`, `delegar_subagente`.
+- **Memória** (`AgentProfile`): nicho, orçamento, experiência e objetivos entre conversas.
+- **Quotas** (`plans.max_agent_messages`): Trial 10 · VSL 0 · Pro 100 · Master 500 · Admin ∞ (BYOK remove o limite).
+- **UI**: `/admin/agent.php` — chat assíncrono com histórico, **seção Subagentes**, cards de ação, chips, resultados ricos, **rating 👍/👎**, banner de princípios, perfil, prefill `?ask=`, abertura por `?conv=`.
+- **API**: `admin/api/agent.php` (quota/profile/conversations/conversation/new/send/process/job-status/notifications/mark-seen/rate/confirm/cancel/delete + subagents…).
+- **Tabelas**: `agent_conversations` (+`subagent_id`), `agent_messages` (+`seen_at`, `rating`, `rating_note`), `agent_profiles`, `agent_subagents`, `agent_jobs` (migrations 20, 25, 27).
 
 ## IA, BYOK e quotas (política)
 

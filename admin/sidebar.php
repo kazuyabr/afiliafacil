@@ -53,6 +53,11 @@ require_once Config::getLibDir() . '/Plans.php';
             <i class="fas fa-fire"></i> Ofertas Escalando
         </a>
         <?php endif; ?>
+        <?php if (Auth::can('manage_ai') || Auth::isAdmin()): ?>
+        <a href="/admin/agent-monitor.php" class="nav-item <?= $currentPage === 'agent-monitor.php' ? 'active' : '' ?>">
+            <i class="fas fa-magnifying-glass-chart"></i> Monitor da IA
+        </a>
+        <?php endif; ?>
         <a href="/admin/ai-settings.php" class="nav-item <?= $currentPage === 'ai-settings.php' ? 'active' : '' ?>">
             <i class="fas fa-robot"></i> IA (BYOK)
         </a>

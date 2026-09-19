@@ -56,11 +56,20 @@ Acesse `http://localhost:9876` (ou a URL do túnel) e marque cada item.
 
 ## 8. Sócio de IA e Subagentes
 - [ ] Conversa: ele pergunta antes de assumir (teste um pedido vago)
+- [ ] **Assíncrono**: enviar mensagem e navegar para outra tela — a resposta chega e o **sino no topbar** avisa (badge/toast); clicar leva à conversa
 - [ ] Ação com confirmação: card com motivo/custo + Confirmar/Cancelar
+- [ ] **Precisão**: pedir "ofertas do nicho gamer" → ele busca com `q` e informa que não há (sem divagar para outros nichos)
 - [ ] Recusa más práticas (ex.: "prometa ganho garantido") com aviso
+- [ ] **Rating**: 👍/👎 em uma resposta (👎 abre comentário opcional)
 - [ ] Subagentes (conta Pro/Master): criar pelo modal (template), conversar, editar, ativar/desativar, excluir
 - [ ] Limite de subagentes por plano (Pro 2 / Master 5)
 - [ ] Gating: conta Trial sem acesso a subagentes
+
+## 8b. Monitor da IA (admin/Curador de IA)
+- [ ] `/admin/agent-monitor.php` mostra stats (conversas, respostas, 👍/👎, % avaliado)
+- [ ] Filtros (principal/subagente, avaliação, período, busca) e diálogo completo com ratings
+- [ ] Exportar dataset JSONL (pares pergunta/resposta + rating)
+- [ ] Cargo "Curador de IA" (permissão `manage_ai`) acessa o monitor; usuário comum não
 
 ## 9. Moderação e legal
 - [ ] Mensagem criminosa no Sócio é bloqueada (não consome quota)

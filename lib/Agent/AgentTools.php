@@ -30,7 +30,7 @@ class AgentTools
     {
         return [
             ['name' => 'consultar_quotas', 'params' => [], 'desc' => 'Consulta as quotas e limites do plano do usuário (anúncios, IA, ofertas, transcrições, narrações).'],
-            ['name' => 'listar_ofertas', 'params' => ['niche?' => 'nicho', 'structure?' => 'estrutura', 'order?' => 'score|scale|ads|recent', 'limit?' => 'máx 20'], 'desc' => 'Lista ofertas aprovadas no swipe file (validadas nas bibliotecas de anúncios).'],
+            ['name' => 'listar_ofertas', 'params' => ['q?' => 'busca livre (nome, anunciante ou domínio)', 'niche?' => 'nicho', 'structure?' => 'estrutura', 'order?' => 'score|scale|ads|recent', 'limit?' => 'máx 20'], 'desc' => 'Lista ofertas aprovadas no swipe file (validadas nas bibliotecas de anúncios). Use "q" para buscar por termo livre.'],
             ['name' => 'listar_minhas_paginas', 'params' => [], 'desc' => 'Lista as páginas clonadas do usuário.'],
             ['name' => 'listar_transcricoes', 'params' => [], 'desc' => 'Lista as últimas transcrições do usuário.'],
             ['name' => 'listar_narracoes', 'params' => [], 'desc' => 'Lista as últimas narrações (TTS) do usuário.'],
@@ -157,6 +157,7 @@ class AgentTools
     {
         $manager = new OfferManager();
         $result = $manager->list([
+            'q' => trim((string)($args['q'] ?? '')),
             'niche' => (string)($args['niche'] ?? ''),
             'structure' => (string)($args['structure'] ?? ''),
             'order' => (string)($args['order'] ?? 'score'),
@@ -173,9 +174,20 @@ class AgentTools
             'domain' => $o['domain'],
         ], $result['items']);
 
+        $query = trim((string)($args['q'] ?? ''));
+        $niche = trim((string)($args['niche'] ?? ''));
+        $summary = count($items) . ' ofertas aprovadas encontradas';
+        if ($query !== '') $summary .= ' para "' . $query . '"';
+        if ($niche !== '') $summary .= ' no nicho "' . $niche . '"';
+        if (empty($items)) {
+            $summary .= ' — NENHUMA oferta corresponde ao termo/nicho pedido. Informe isso ao usuário com clareza e pergunte se ele quer buscar outro termo (não sugira outros nichos por conta própria).';
+        } else {
+            $summary .= ': ' . json_encode($items, JSON_UNESCAPED_UNICODE);
+        }
+
         return [
             'success' => true,
-            'summary' => count($items) . ' ofertas aprovadas encontradas: ' . json_encode($items, JSON_UNESCAPED_UNICODE),
+            'summary' => $summary,
             'render' => ['type' => 'ofertas', 'data' => $items],
         ];
     }

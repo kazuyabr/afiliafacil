@@ -23,4 +23,6 @@ RUN printf 'upload_max_filesize=24M\npost_max_size=26M\nmax_execution_time=300\n
 
 EXPOSE 9876
 
+ENV PHP_CLI_SERVER_WORKERS=8
+
 CMD ["sh", "-c", "php bin/migrate.php; php -S 0.0.0.0:9876 router.php"]

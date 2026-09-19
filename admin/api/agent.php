@@ -162,10 +162,49 @@ switch ($action) {
         echo json_encode([
             'success' => true,
             'blocked' => !empty($result['blocked']),
+            'queued' => !empty($result['queued']),
+            'job_id' => $result['job_id'] ?? null,
             'conversation_id' => $conversationId,
             'messages' => $agent->listMessages($userId, $conversationId),
             'quota' => $result['quota'] ?? AgentQuota::check($userId, $user['plan']),
         ], JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'process':
+        $jobId = (int)($_POST['job_id'] ?? 0);
+        if ($jobId <= 0) { echo json_encode(['error' => 'Job inválido']); break; }
+        echo json_encode($agent->processJob($jobId), JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'job-status':
+        $conversationId = (int)($_GET['conversation_id'] ?? 0);
+        if ($conversationId <= 0) { echo json_encode(['error' => 'Conversa inválida']); break; }
+        $conversation = $agent->getConversation($userId, $conversationId);
+        if (!$conversation) { echo json_encode(['error' => 'Conversa não encontrada']); break; }
+        echo json_encode([
+            'success' => true,
+            'job' => \AgentJobs::lastForConversation($conversationId),
+            'messages' => $agent->listMessages($userId, $conversationId),
+        ], JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'notifications':
+        echo json_encode(['success' => true] + $agent->notifications($userId), JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'mark-seen':
+        $conversationId = (int)($_POST['conversation_id'] ?? 0);
+        $agent->markSeen($userId, $conversationId);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'rate':
+        echo json_encode($agent->rate(
+            $userId,
+            (int)($_POST['message_id'] ?? 0),
+            (int)($_POST['rating'] ?? 0),
+            (string)($_POST['note'] ?? '')
+        ), JSON_UNESCAPED_UNICODE);
         break;
 
     case 'confirm':

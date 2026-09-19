@@ -59,3 +59,64 @@ document.querySelectorAll('.modal-overlay').forEach(modal => {
         if (e.target === this) this.classList.remove('active');
     });
 });
+
+// ---------------------------------------------------------------------------
+// Notificacoes do Socio de IA (sino no topbar do painel)
+// ---------------------------------------------------------------------------
+(function () {
+    if (location.pathname.indexOf('/admin') !== 0) return;
+
+    let lastCount = 0;
+    let initialized = false;
+
+    function ensureBell() {
+        const actions = document.querySelector('.topbar-actions');
+        if (!actions || document.getElementById('agentBell')) return;
+
+        const btn = document.createElement('button');
+        btn.id = 'agentBell';
+        btn.className = 'theme-toggle';
+        btn.title = 'Notificacoes do Socio de IA';
+        btn.style.position = 'relative';
+        btn.innerHTML = '<i class="fas fa-bell"></i>' +
+            '<span id="agentBellBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;font-size:.6rem;font-weight:700;border-radius:10px;padding:1px 5px;"></span>';
+        btn.addEventListener('click', function () {
+            location.href = btn.dataset.conv ? '/admin/agent.php?conv=' + btn.dataset.conv : '/admin/agent.php';
+        });
+        actions.insertBefore(btn, actions.firstChild);
+    }
+
+    async function pollNotifications() {
+        ensureBell();
+        try {
+            const resp = await fetch('/admin/api/agent.php?action=notifications');
+            const data = await resp.json();
+            const badge = document.getElementById('agentBellBadge');
+            const bell = document.getElementById('agentBell');
+            if (!badge || !bell) return;
+
+            const count = data.count || 0;
+            if (count > 0) {
+                badge.textContent = count > 9 ? '9+' : count;
+                badge.style.display = 'inline-block';
+                bell.dataset.conv = (data.items && data.items[0]) ? data.items[0].conversation_id : '';
+            } else {
+                badge.style.display = 'none';
+                bell.dataset.conv = '';
+            }
+
+            if (initialized && count > lastCount && data.items && data.items.length) {
+                const item = data.items[0];
+                const who = item.subagent_name ? item.subagent_name : 'Socio de IA';
+                if (typeof showToast === 'function') {
+                    showToast(who + ' respondeu: ' + item.preview, 'info');
+                }
+            }
+            lastCount = count;
+            initialized = true;
+        } catch (e) {}
+    }
+
+    setTimeout(pollNotifications, 1500);
+    setInterval(pollNotifications, 25000);
+})();

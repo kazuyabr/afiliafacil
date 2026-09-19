@@ -13,6 +13,7 @@ class ImportJsonData
         'manage_settings',
         'manage_payments',
         'manage_storage',
+        'manage_ai',
     ];
 
     public static function run(): void
@@ -33,6 +34,7 @@ class ImportJsonData
             ['name' => 'master', 'label' => 'Master', 'permissions' => self::PERMISSIONS, 'is_system' => true],
             ['name' => 'admin', 'label' => 'Administrador', 'permissions' => self::PERMISSIONS, 'is_system' => true],
             ['name' => 'gerente', 'label' => 'Gerente', 'permissions' => ['manage_pages', 'manage_settings'], 'is_system' => false],
+            ['name' => 'curador', 'label' => 'Curador de IA', 'permissions' => ['manage_ai'], 'is_system' => false],
             ['name' => 'afiliado', 'label' => 'Afiliado', 'permissions' => [], 'is_system' => false],
         ];
 

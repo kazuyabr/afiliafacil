@@ -13,6 +13,7 @@ require_once __DIR__ . '/AgentQuota.php';
 require_once __DIR__ . '/AgentProfile.php';
 require_once __DIR__ . '/AgentSubagents.php';
 require_once __DIR__ . '/AgentPrompts.php';
+require_once __DIR__ . '/AgentJobs.php';
 
 class Agent
 {
@@ -58,19 +59,155 @@ class Agent
 
         $this->saveMessage((int)$conversation->id, 'user', $message, '', null, null, '', [], AgentQuota::source($userId));
 
-        $config = AiConfig::forUser($userId);
-        if (($config['api_key'] ?? '') === '') {
-            $this->saveMessage((int)$conversation->id, 'agent', 'Não consigo pensar agora: a IA não está configurada. Peça ao administrador para configurar o Cloudflare Workers AI da plataforma (CF_AI_TOKEN) ou configure sua própria chave em IA (BYOK).');
+        $kind = !empty($conversation->subagent_id) ? 'subagent' : 'agent';
+        $jobId = AgentJobs::enqueue((int)$conversation->id, $userId, $kind);
+
+        if ($jobId === null) {
+            $this->saveMessage((int)$conversation->id, 'agent', 'Não consegui iniciar o processamento agora. Tente novamente em instantes.');
             return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
         }
 
-        $response = AiClient::chat($this->buildMessages($userId, $plan, (int)$conversation->id, $message), $config);
-        if ($response === null) {
-            $this->saveMessage((int)$conversation->id, 'agent', 'Tive um problema para responder agora (falha na chamada da IA). Tente novamente em instantes.');
-            return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
+        return [
+            'success' => true,
+            'queued' => true,
+            'job_id' => $jobId,
+            'conversation_id' => (int)$conversation->id,
+            'quota' => AgentQuota::check($userId, $plan),
+        ];
+    }
+
+    public function processJob(int $jobId): array
+    {
+        if (!Database::available()) return ['error' => 'Banco de dados indisponível.'];
+
+        $job = AgentJobs::claim($jobId);
+        if ($job === null) {
+            return ['skipped' => true];
         }
 
-        return $this->handleResponse($userId, $plan, (int)$conversation->id, $response, $message);
+        $userId = (int)$job->user_id;
+        $conversationId = (int)$job->conversation_id;
+
+        try {
+            $conversation = $this->getConversation($userId, $conversationId);
+            if (!$conversation) {
+                AgentJobs::fail($jobId, 'Conversa não encontrada');
+                return ['error' => 'Conversa não encontrada.'];
+            }
+
+            $user = \AfiliaFacil\Models\User::find($userId);
+            $plan = $user->plan ?? 'trial';
+
+            $lastUserMessage = \AfiliaFacil\Models\AgentMessage::where('conversation_id', $conversationId)
+                ->where('role', 'user')
+                ->orderByDesc('id')
+                ->first();
+            $message = (string)($lastUserMessage->content ?? '');
+
+            $config = AiConfig::forUser($userId);
+            if (($config['api_key'] ?? '') === '') {
+                $this->saveMessage($conversationId, 'agent', 'Não consigo pensar agora: a IA não está configurada. Peça ao administrador para configurar o Cloudflare Workers AI da plataforma (CF_AI_TOKEN) ou configure sua própria chave em IA (BYOK).');
+                AgentJobs::complete($jobId);
+                return ['success' => true];
+            }
+
+            $response = AiClient::chat($this->buildMessages($userId, $plan, $conversationId, $message), $config);
+            if ($response === null) {
+                $this->saveMessage($conversationId, 'agent', 'Tive um problema para responder agora (falha na chamada da IA). Tente novamente em instantes.');
+                AgentJobs::complete($jobId);
+                return ['success' => true];
+            }
+
+            $this->handleResponse($userId, $plan, $conversationId, $response, $message);
+            AgentJobs::complete($jobId);
+
+            return ['success' => true, 'conversation_id' => $conversationId];
+        } catch (Throwable $e) {
+            AgentJobs::fail($jobId, $e->getMessage());
+            return ['error' => 'Falha ao processar: ' . $e->getMessage()];
+        }
+    }
+
+    public function notifications(int $userId): array
+    {
+        if (!Database::available()) return ['count' => 0, 'items' => []];
+
+        try {
+            $rows = \AfiliaFacil\Models\AgentMessage::query()
+                ->join('agent_conversations', 'agent_conversations.id', '=', 'agent_messages.conversation_id')
+                ->where('agent_conversations.user_id', $userId)
+                ->where('agent_messages.role', 'agent')
+                ->whereNull('agent_messages.seen_at')
+                ->orderByDesc('agent_messages.id')
+                ->limit(10)
+                ->get([
+                    'agent_messages.id',
+                    'agent_messages.conversation_id',
+                    'agent_messages.content',
+                    'agent_messages.created_at',
+                    'agent_conversations.subagent_id',
+                    'agent_conversations.title',
+                ]);
+
+            $items = [];
+            foreach ($rows as $row) {
+                $subagentName = '';
+                if (!empty($row->subagent_id)) {
+                    $subagent = \AfiliaFacil\Models\AgentSubagent::find($row->subagent_id);
+                    $subagentName = $subagent->name ?? '';
+                }
+                $items[] = [
+                    'message_id' => (int)$row->id,
+                    'conversation_id' => (int)$row->conversation_id,
+                    'preview' => mb_substr((string)$row->content, 0, 140),
+                    'subagent_name' => $subagentName,
+                    'created_at' => (string)$row->created_at,
+                ];
+            }
+
+            return ['count' => count($items), 'items' => $items];
+        } catch (Throwable $e) {
+            return ['count' => 0, 'items' => []];
+        }
+    }
+
+    public function markSeen(int $userId, int $conversationId): void
+    {
+        if (!Database::available()) return;
+
+        try {
+            $conversation = $this->getConversation($userId, $conversationId);
+            if (!$conversation) return;
+
+            \AfiliaFacil\Models\AgentMessage::where('conversation_id', $conversationId)
+                ->where('role', 'agent')
+                ->whereNull('seen_at')
+                ->update(['seen_at' => date('Y-m-d H:i:s')]);
+        } catch (Throwable $e) {
+        }
+    }
+
+    public function rate(int $userId, int $messageId, int $rating, string $note = ''): array
+    {
+        if (!Database::available()) return ['error' => 'Banco de dados indisponível.'];
+        if (!in_array($rating, [1, -1], true)) return ['error' => 'Avaliação inválida'];
+
+        try {
+            $message = \AfiliaFacil\Models\AgentMessage::where('id', $messageId)->where('role', 'agent')->first();
+            if (!$message) return ['error' => 'Resposta não encontrada'];
+
+            $conversation = $this->getConversation($userId, (int)$message->conversation_id);
+            if (!$conversation) return ['error' => 'Sem acesso a esta resposta'];
+
+            $message->rating = $rating;
+            $message->rating_note = mb_substr(trim($note), 0, 500);
+            $message->save();
+
+            Audit::log('agent_rated', 'agent', (string)$messageId, ['rating' => $rating]);
+            return ['success' => true];
+        } catch (Throwable $e) {
+            return ['error' => 'Falha ao avaliar: ' . $e->getMessage()];
+        }
     }
 
     public function confirm(int $userId, int $messageId): array
@@ -207,6 +344,8 @@ class Agent
                 'tool_args' => $m->tool_args,
                 'tool_result' => $m->tool_result,
                 'status' => $m->status,
+                'rating' => $m->rating !== null ? (int)$m->rating : null,
+                'rating_note' => $m->rating_note ?? '',
                 'created_at' => (string)$m->created_at,
             ])->all();
     }

@@ -3,6 +3,7 @@ require_once __DIR__ . '/../lib/Config.php';
 require_once Config::getLibDir() . '/Settings.php';
 require_once Config::getLibDir() . '/Offers/OfferCollector.php';
 require_once Config::getLibDir() . '/Offers/OfferAi.php';
+require_once Config::getLibDir() . '/Agent/AgentJobs.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -33,6 +34,9 @@ try {
     $result['collect'] = $collector->collect($terms, ['meta', 'google', 'tiktok'], (int)Settings::get('offers_collect_limit', '8'));
 
     $result['ai'] = (new OfferAi())->analyzePending((int)Settings::get('offers_ai_limit', '10'));
+
+    // Fallback: processa jobs pendentes do Socio de IA (caso o navegador tenha fechado)
+    $result['agent_jobs'] = AgentJobs::processPending(5);
 
     $result['success'] = true;
 } catch (Throwable $e) {
