@@ -20,6 +20,9 @@ $user = Auth::user();
 $userId = (int)$user['id'];
 $plan = $user['plan'];
 
+// Libera o lock da sessao antes de operacoes longas (busca/análise pode demorar)
+session_write_close();
+
 if (!Plans::hasFeature($plan, 'adspy') && !Auth::isAdmin()) {
     http_response_code(403);
     echo json_encode(['error' => 'A espionagem de anúncios está disponível nos planos Afiliado Pro e Master Elite. Faça upgrade em "Meu Plano".']);

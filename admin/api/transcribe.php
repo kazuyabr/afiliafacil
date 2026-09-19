@@ -24,6 +24,9 @@ $userId = (int)$user['id'];
 $isAdmin = Auth::isAdmin();
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
+// Libera o lock da sessao antes de operacoes longas (STT pode levar minutos)
+session_write_close();
+
 switch ($action) {
     case 'quota':
         echo json_encode([

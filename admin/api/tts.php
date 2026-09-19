@@ -22,6 +22,9 @@ $userId = (int)$user['id'];
 $isAdmin = Auth::isAdmin();
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
+// Libera o lock da sessao antes de operacoes longas (TTS pode demorar)
+session_write_close();
+
 if ($action === 'audio') {
     $id = (int)($_GET['id'] ?? 0);
     $generation = \AfiliaFacil\Models\TtsGeneration::where('id', $id)->where('user_id', $userId)->first();

@@ -18,6 +18,9 @@ $userId = (int)$user['id'];
 $action = $_GET['action'] ?? '';
 $format = ($_GET['format'] ?? 'md') === 'jsonl' ? 'jsonl' : 'md';
 
+// Exportacao pode ser longa: libera o lock da sessao
+session_write_close();
+
 switch ($action) {
     case 'my-data':
         if (!Plans::hasFeature($user['plan'], 'agent') && !Auth::isAdmin()) {

@@ -20,6 +20,9 @@ if (!Auth::can('manage_ai') && !Auth::isAdmin()) {
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
+// Exportacao/listagem podem ser longas: libera o lock da sessao
+session_write_close();
+
 switch ($action) {
     case 'list':
         $result = AgentMonitor::conversations([

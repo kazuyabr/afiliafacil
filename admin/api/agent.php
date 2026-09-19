@@ -20,6 +20,10 @@ $user = Auth::user();
 $userId = (int)$user['id'];
 $isAdmin = Auth::isAdmin();
 
+// Libera o lock da sessao antes de operacoes longas (IA em background):
+// sem isso, qualquer outra pagina do mesmo usuario fica bloqueada esperando o lock.
+session_write_close();
+
 if (!Plans::hasFeature($user['plan'], 'agent') && !$isAdmin) {
     http_response_code(403);
     echo json_encode(['error' => 'Seu plano não inclui o Sócio de IA (agente).']);

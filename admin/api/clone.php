@@ -22,6 +22,9 @@ if (!Plans::hasFeature($user['plan'], 'clone')) {
     exit;
 }
 
+// Libera o lock da sessao antes da clonagem (operacao longa)
+session_write_close();
+
 $pm = new PageManager();
 $plan = $user['plan'];
 if (Plans::maxPages($plan) !== -1) {
