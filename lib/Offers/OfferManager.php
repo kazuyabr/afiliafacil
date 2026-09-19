@@ -21,7 +21,13 @@ class OfferManager
             } else {
                 $query->where('status', 'approved');
             }
-            if (!empty($filters['niche'])) $query->where('niche', $filters['niche']);
+            if (!empty($filters['niche'])) {
+                $niche = trim((string)$filters['niche']);
+                $query->where(function ($sub) use ($niche) {
+                    $sub->where('niche', 'like', '%' . $niche . '%')
+                        ->orWhere('niche', 'like', '%' . self::stripAccents($niche) . '%');
+                });
+            }
             if (!empty($filters['language'])) $query->where('language', $filters['language']);
             if (!empty($filters['structure'])) $query->where('structure', $filters['structure']);
             if (!empty($filters['platform'])) $query->where('platform', $filters['platform']);
@@ -29,11 +35,14 @@ class OfferManager
                 $query->where('traffic_sources', 'like', '%' . $filters['traffic'] . '%');
             }
             if (!empty($filters['q'])) {
-                $q = '%' . $filters['q'] . '%';
-                $query->where(function ($sub) use ($q) {
-                    $sub->where('name', 'like', $q)
-                        ->orWhere('advertiser', 'like', $q)
-                        ->orWhere('domain', 'like', $q);
+                $raw = trim((string)$filters['q']);
+                $normalized = self::stripAccents($raw);
+                $likeRaw = '%' . $raw . '%';
+                $likeNorm = '%' . $normalized . '%';
+                $query->where(function ($sub) use ($likeRaw, $likeNorm) {
+                    foreach (['name', 'advertiser', 'domain', 'niche', 'structure'] as $field) {
+                        $sub->orWhere($field, 'like', $likeRaw)->orWhere($field, 'like', $likeNorm);
+                    }
                 });
             }
 
@@ -413,6 +422,18 @@ class OfferManager
             $data['sparkline'] = $offer->sparkline();
         }
         return $data;
+    }
+
+    private static function stripAccents(string $value): string
+    {
+        return strtr(mb_strtolower($value), [
+            'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a',
+            'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
+            'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+            'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o',
+            'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u',
+            'ç' => 'c', 'ñ' => 'n',
+        ]);
     }
 
     private function makeSlug(string $value): string

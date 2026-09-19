@@ -89,6 +89,10 @@ class Agent
         $conversationId = (int)$job->conversation_id;
 
         try {
+            if (($job->kind ?? '') === 'tool') {
+                return $this->processToolJob($job);
+            }
+
             $conversation = $this->getConversation($userId, $conversationId);
             if (!$conversation) {
                 AgentJobs::fail($jobId, 'Conversa não encontrada');
@@ -130,7 +134,7 @@ class Agent
 
     public function notifications(int $userId): array
     {
-        if (!Database::available()) return ['count' => 0, 'items' => []];
+        if (!Database::available()) return ['count' => 0, 'items' => [], 'working' => 0, 'pending_confirmations' => 0];
 
         try {
             $rows = \AfiliaFacil\Models\AgentMessage::query()
@@ -165,9 +169,30 @@ class Agent
                 ];
             }
 
-            return ['count' => count($items), 'items' => $items];
+            $pendingRow = \AfiliaFacil\Models\AgentMessage::query()
+                ->join('agent_conversations', 'agent_conversations.id', '=', 'agent_messages.conversation_id')
+                ->where('agent_conversations.user_id', $userId)
+                ->where('agent_messages.role', 'tool')
+                ->where('agent_messages.status', 'pending_confirmation')
+                ->orderByDesc('agent_messages.id')
+                ->first(['agent_messages.conversation_id']);
+
+            $pendingCount = (int)\AfiliaFacil\Models\AgentMessage::query()
+                ->join('agent_conversations', 'agent_conversations.id', '=', 'agent_messages.conversation_id')
+                ->where('agent_conversations.user_id', $userId)
+                ->where('agent_messages.role', 'tool')
+                ->where('agent_messages.status', 'pending_confirmation')
+                ->count();
+
+            return [
+                'count' => count($items),
+                'items' => $items,
+                'working' => AgentJobs::workingCount($userId),
+                'pending_confirmations' => $pendingCount,
+                'pending_conversation_id' => $pendingRow ? (int)$pendingRow->conversation_id : null,
+            ];
         } catch (Throwable $e) {
-            return ['count' => 0, 'items' => []];
+            return ['count' => 0, 'items' => [], 'working' => 0, 'pending_confirmations' => 0];
         }
     }
 
@@ -218,33 +243,65 @@ class Agent
         if (!$toolMessage) return ['error' => 'Ação não encontrada.'];
         if ($toolMessage->status !== 'pending_confirmation') return ['error' => 'Esta ação já foi processada.'];
 
+        // Marca como em execucao e enfileira (assincrono — a acao pode ser longa)
+        $toolMessage->status = 'processing';
+        $toolMessage->save();
+
+        $jobId = AgentJobs::enqueue((int)$toolMessage->conversation_id, $userId, 'tool', (int)$toolMessage->id);
+        if ($jobId === null) {
+            $toolMessage->status = 'pending_confirmation';
+            $toolMessage->save();
+            return ['error' => 'Falha ao iniciar a execução. Tente novamente.'];
+        }
+
+        return [
+            'success' => true,
+            'queued' => true,
+            'job_id' => $jobId,
+            'status' => 'processing',
+            'messages' => $this->listMessages($userId, (int)$toolMessage->conversation_id),
+        ];
+    }
+
+    private function processToolJob($job): array
+    {
+        $userId = (int)$job->user_id;
+        $messageId = (int)$job->tool_message_id;
+        $jobId = (int)$job->id;
+
+        $toolMessage = \AfiliaFacil\Models\AgentMessage::find($messageId);
+        if (!$toolMessage || $toolMessage->role !== 'tool') {
+            AgentJobs::fail($jobId, 'Ação não encontrada');
+            return ['error' => 'Ação não encontrada'];
+        }
+
         $user = \AfiliaFacil\Models\User::with('role')->find($userId);
-        if (!$user) return ['error' => 'Usuário não encontrado.'];
+        if (!$user) {
+            AgentJobs::fail($jobId, 'Usuário não encontrado');
+            return ['error' => 'Usuário não encontrado'];
+        }
 
         $userArray = ['id' => $userId, 'name' => $user->name, 'plan' => $user->plan];
 
         $access = AgentGuard::checkToolAccess($toolMessage->tool_name, $user->plan, $userId);
         if (!$access['allowed']) {
-            $this->updateToolMessage((int)$toolMessage->id, 'failed', ['success' => false, 'summary' => $access['reason']]);
-            return ['success' => true, 'result' => ['success' => false, 'summary' => $access['reason'], 'render' => null], 'status' => 'failed'];
+            $this->updateToolMessage($messageId, 'failed', ['success' => false, 'summary' => $access['reason']]);
+            AgentJobs::complete($jobId);
+            return ['success' => true, 'status' => 'failed'];
         }
 
         $result = AgentTools::execute($toolMessage->tool_name, $toolMessage->tool_args ?? [], $userArray, $userId, [
             'is_subagent' => !empty(\AfiliaFacil\Models\AgentConversation::find($toolMessage->conversation_id)->subagent_id ?? null),
         ]);
         $status = !empty($result['success']) ? 'executed' : 'failed';
-        $this->updateToolMessage((int)$toolMessage->id, $status, $result);
+        $this->updateToolMessage($messageId, $status, $result);
 
         Audit::log('agent_tool_' . $status, 'agent', (string)$messageId, ['tool' => $toolMessage->tool_name]);
 
-        $commentary = $this->commentOnResult($userId, (int)$toolMessage->conversation_id, $toolMessage->tool_name, $result);
+        $this->commentOnResult($userId, (int)$toolMessage->conversation_id, $toolMessage->tool_name, $result);
 
-        return [
-            'success' => true,
-            'result' => $result,
-            'status' => $status,
-            'commentary' => $commentary,
-        ];
+        AgentJobs::complete($jobId);
+        return ['success' => true, 'status' => $status, 'result' => $result];
     }
 
     public function cancel(int $userId, int $messageId): array

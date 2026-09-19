@@ -12,7 +12,7 @@ class AgentJobs
     public const MAX_ATTEMPTS = 3;
     public const STUCK_MINUTES = 5;
 
-    public static function enqueue(int $conversationId, int $userId, string $kind = 'agent'): ?int
+    public static function enqueue(int $conversationId, int $userId, string $kind = 'agent', ?int $toolMessageId = null): ?int
     {
         if (!Database::available()) return null;
 
@@ -20,7 +20,8 @@ class AgentJobs
             $job = \AfiliaFacil\Models\AgentJob::create([
                 'conversation_id' => $conversationId,
                 'user_id' => $userId,
-                'kind' => $kind === 'subagent' ? 'subagent' : 'agent',
+                'kind' => in_array($kind, ['agent', 'subagent', 'tool'], true) ? $kind : 'agent',
+                'tool_message_id' => $toolMessageId,
                 'status' => self::STATUS_PENDING,
                 'attempts' => 0,
                 'created_at' => date('Y-m-d H:i:s'),
@@ -28,6 +29,22 @@ class AgentJobs
             return (int)$job->id;
         } catch (Throwable $e) {
             return null;
+        }
+    }
+
+    public static function workingCount(int $userId): int
+    {
+        if (!Database::available()) return 0;
+
+        try {
+            // Considera apenas jobs recentes: jobs orfaos antigos nao deixam o sino "trabalhando" eternamente
+            // (o cron reprocessa pendentes antigos via processPending/releaseStuck).
+            return (int)\AfiliaFacil\Models\AgentJob::where('user_id', $userId)
+                ->whereIn('status', [self::STATUS_PENDING, self::STATUS_PROCESSING])
+                ->where('created_at', '>=', date('Y-m-d H:i:s', time() - 600))
+                ->count();
+        } catch (Throwable $e) {
+            return 0;
         }
     }
 

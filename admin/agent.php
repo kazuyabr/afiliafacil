@@ -56,6 +56,7 @@ $profileText = AgentProfile::describe($profile);
         .tool-result { padding:14px 15px; border-top:1px solid var(--border-color); }
         .status-badge { font-size:.68rem; padding:2px 8px; border-radius:10px; text-transform:uppercase; font-weight:700; letter-spacing:.03em; }
         .status-pending_confirmation { background:#fef3c7; color:#92400e; }
+        .status-processing { background:#dbeafe; color:#1e40af; }
         .status-executed { background:#dcfce7; color:#166534; }
         .status-failed { background:#fee2e2; color:#991b1b; }
         .status-cancelled { background:var(--bg-secondary); color:var(--text-secondary); }
@@ -114,6 +115,9 @@ $profileText = AgentProfile::describe($profile);
                             </div>
                         </div>
                         <div class="principles"><i class="fas fa-shield-halved"></i> Sem promessa de ganho fácil. Comece pequeno e teste. Eu pergunto antes de agir — e te aviso quando algo parece furada. <strong>Uso ilegal é bloqueado e registrado.</strong></div>
+                        <div id="pendingBanner" style="display:none;background:var(--warning);color:#1a1a2e;padding:10px 16px;font-size:.82rem;font-weight:600;">
+                            <i class="fas fa-triangle-exclamation"></i> O Sócio aguarda sua confirmação — confira o cartão de ação abaixo.
+                        </div>
                         <div class="agent-messages" id="agentMessages"></div>
                         <div class="agent-input">
                             <textarea id="agentInput" placeholder="Escreva para o seu sócio... (Enter envia, Shift+Enter quebra linha)" onkeydown="handleKey(event)"><?= htmlspecialchars($_GET['ask'] ?? '') ?></textarea>
@@ -193,6 +197,14 @@ $profileText = AgentProfile::describe($profile);
         document.getElementById('quotaPill').innerHTML = '<i class="fas fa-comments"></i> <strong>' + label + '</strong>';
     }
 
+    function formatDate(s) {
+        if (!s) return '';
+        const d = new Date(String(s).replace(' ', 'T'));
+        if (isNaN(d.getTime())) return String(s).substring(0, 16);
+        return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' +
+            d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
+
     async function loadConversations() {
         const resp = await fetch('/admin/api/agent.php?action=conversations');
         const data = await resp.json();
@@ -204,7 +216,10 @@ $profileText = AgentProfile::describe($profile);
         }
         list.innerHTML = conversationsCache.map(c =>
             '<div class="agent-conv-item ' + (c.id === conversationId ? 'active' : '') + '" onclick="openConversation(' + c.id + ')">' +
-                '<span class="title">' + (c.subagent_name ? '<i class="fas fa-user-gear" style="font-size:.68rem;color:var(--accent);"></i> ' : '') + esc(c.title) + '</span>' +
+                '<span class="title" style="display:flex;flex-direction:column;gap:2px;min-width:0;">' +
+                    '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (c.subagent_name ? '<i class="fas fa-user-gear" style="font-size:.68rem;color:var(--accent);"></i> ' : '') + esc(c.title) + '</span>' +
+                    '<span style="font-size:.64rem;color:var(--text-secondary);">' + esc(formatDate(c.updated_at)) + '</span>' +
+                '</span>' +
                 '<span class="del" onclick="event.stopPropagation();deleteConversation(' + c.id + ')" title="Excluir"><i class="fas fa-trash"></i></span>' +
             '</div>'
         ).join('');
@@ -404,6 +419,11 @@ $profileText = AgentProfile::describe($profile);
     function renderMessages(messages) {
         const container = document.getElementById('agentMessages');
         container.innerHTML = messages.map(m => renderMessage(m)).join('');
+
+        const hasPending = messages.some(m => m.role === 'tool' && m.status === 'pending_confirmation');
+        const banner = document.getElementById('pendingBanner');
+        if (banner) banner.style.display = hasPending ? 'block' : 'none';
+
         container.scrollTop = container.scrollHeight;
     }
 
@@ -448,16 +468,20 @@ $profileText = AgentProfile::describe($profile);
         let html = '<div class="msg tool-card">' +
             '<div class="tool-head">' +
                 '<span class="name"><i class="fas fa-bolt" style="color:var(--accent);"></i> ' + esc(label) + '</span>' +
-                '<span class="status-badge status-' + esc(status) + '">' + (status === 'pending_confirmation' ? 'aguardando você' : status === 'executed' ? 'executada' : status === 'cancelled' ? 'cancelada' : 'falhou') + '</span>' +
+                '<span class="status-badge status-' + esc(status) + '">' + (status === 'pending_confirmation' ? 'aguardando você' : status === 'executed' ? 'executada' : status === 'processing' ? 'executando...' : status === 'cancelled' ? 'cancelada' : 'falhou') + '</span>' +
             '</div>' +
             (m.content ? '<div class="tool-body">' + esc(m.content) + '</div>' : '') +
             (argsText ? '<div class="tool-body" style="font-family:monospace;font-size:.75rem;">' + esc(argsText) + '</div>' : '');
 
         if (status === 'pending_confirmation') {
-            html += '<div class="tool-actions">' +
+            html += '<div class="tool-actions" data-tool-actions="' + m.id + '">' +
                 '<button class="btn btn-primary btn-sm" onclick="confirmTool(' + m.id + ')"><i class="fas fa-check"></i> Confirmar</button>' +
                 '<button class="btn btn-outline btn-sm" onclick="cancelTool(' + m.id + ')"><i class="fas fa-xmark"></i> Cancelar</button>' +
             '</div>';
+        }
+
+        if (status === 'processing') {
+            html += '<div class="tool-actions"><span style="font-size:.8rem;color:var(--text-secondary);"><i class="fas fa-spinner fa-spin"></i> Executando a ação... você pode navegar, eu aviso quando terminar.</span></div>';
         }
 
         if (m.tool_result && m.tool_result.render) {
@@ -665,12 +689,35 @@ $profileText = AgentProfile::describe($profile);
     }
 
     async function confirmTool(id) {
-        showToast('Executando ação...', 'info');
+        // Feedback imediato no card (botões desabilitados + spinner)
+        const actions = document.querySelector('[data-tool-actions="' + id + '"]');
+        if (actions) {
+            actions.querySelectorAll('button').forEach(b => { b.disabled = true; });
+            const first = actions.querySelector('button');
+            if (first) first.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executando...';
+        }
+
         const resp = await fetch('/admin/api/agent.php', { method: 'POST', body: new URLSearchParams({ action: 'confirm', id }) });
         const data = await resp.json();
-        if (data.error) { showToast(data.error, 'error'); return; }
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            openConversation(conversationId);
+            return;
+        }
+
         if (data.messages) renderMessages(data.messages);
-        if (data.status === 'failed') showToast('A ação falhou — veja o detalhe no cartão', 'warning');
+
+        if (data.queued && data.job_id) {
+            showToast('Ação em execução — você pode navegar, eu aviso quando terminar.', 'info');
+            // Dispara o processamento em background (fire-and-forget)
+            fetch('/admin/api/agent.php', {
+                method: 'POST',
+                body: new URLSearchParams({ action: 'process', job_id: data.job_id })
+            }).catch(function () {});
+            showTyping();
+            startPolling();
+        }
     }
 
     async function cancelTool(id) {

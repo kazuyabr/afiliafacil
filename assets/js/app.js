@@ -96,14 +96,36 @@ document.querySelectorAll('.modal-overlay').forEach(modal => {
             if (!badge || !bell) return;
 
             const count = data.count || 0;
+            const working = data.working || 0;
+            const pending = data.pending_confirmations || 0;
+
+            // Icone: spinner enquanto a IA trabalha
+            const icon = bell.querySelector('i');
+            if (icon) {
+                icon.className = working > 0 ? 'fas fa-spinner fa-spin' : 'fas fa-bell';
+            }
+
+            // Badge: respostas novas (vermelho) > confirmacao pendente (ambar)
             if (count > 0) {
                 badge.textContent = count > 9 ? '9+' : count;
+                badge.style.background = 'var(--danger)';
                 badge.style.display = 'inline-block';
                 bell.dataset.conv = (data.items && data.items[0]) ? data.items[0].conversation_id : '';
+            } else if (pending > 0) {
+                badge.textContent = '!';
+                badge.style.background = 'var(--warning)';
+                badge.style.display = 'inline-block';
+                bell.dataset.conv = data.pending_conversation_id || '';
             } else {
                 badge.style.display = 'none';
                 bell.dataset.conv = '';
             }
+
+            bell.title = working > 0
+                ? 'Socio de IA trabalhando...'
+                : (pending > 0
+                    ? 'O Socio aguarda sua confirmacao'
+                    : (count > 0 ? count + ' resposta(s) nova(s)' : 'Notificacoes do Socio de IA'));
 
             if (initialized && count > lastCount && data.items && data.items.length) {
                 const item = data.items[0];
@@ -118,5 +140,5 @@ document.querySelectorAll('.modal-overlay').forEach(modal => {
     }
 
     setTimeout(pollNotifications, 1500);
-    setInterval(pollNotifications, 25000);
+    setInterval(pollNotifications, 15000);
 })();
