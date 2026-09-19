@@ -534,6 +534,17 @@ $profileText = AgentProfile::describe($profile);
             ).join('') + (data.length > 8 ? '<div style="font-size:.75rem;color:var(--text-secondary);">+' + (data.length - 8) + ' anúncios</div>' : '');
         }
 
+        if (render.type === 'web') {
+            if (!data.length) return '<div style="font-size:.82rem;color:var(--text-secondary);">Nenhum resultado web.</div>';
+            return data.slice(0, 6).map(r =>
+                '<div style="margin-bottom:10px;">' +
+                    '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="font-weight:600;font-size:.85rem;">' + esc(r.title || r.url) + '</a>' +
+                    '<div style="font-size:.72rem;color:var(--text-secondary);">' + esc((r.url || '').replace(/^https?:\/\//, '').split('/')[0]) + '</div>' +
+                    (r.snippet ? '<div style="font-size:.78rem;color:var(--text-secondary);margin-top:2px;line-height:1.5;">' + esc(r.snippet.substring(0, 200)) + '</div>' : '') +
+                '</div>'
+            ).join('') + (data.length > 6 ? '<div style="font-size:.75rem;color:var(--text-secondary);">+' + (data.length - 6) + ' resultados</div>' : '');
+        }
+
         if (render.type === 'oferta') {
             return '<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:.8rem;">' +
                 '<span><strong>' + data.ads_count + '</strong> anúncios</span>' +

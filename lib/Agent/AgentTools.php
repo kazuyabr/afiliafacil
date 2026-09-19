@@ -19,12 +19,13 @@ require_once __DIR__ . '/../Ai/TtsClient.php';
 require_once __DIR__ . '/../Ai/TtsQuota.php';
 require_once __DIR__ . '/../Ai/MediaDetector.php';
 require_once __DIR__ . '/../Moderation/ContentModerator.php';
+require_once __DIR__ . '/../Web/WebSearch.php';
 require_once __DIR__ . '/AgentSubagents.php';
 require_once __DIR__ . '/AgentPrompts.php';
 
 class AgentTools
 {
-    public const LEITURA = ['consultar_quotas', 'listar_ofertas', 'listar_minhas_paginas', 'listar_transcricoes', 'listar_narracoes'];
+    public const LEITURA = ['consultar_quotas', 'listar_ofertas', 'listar_minhas_paginas', 'listar_transcricoes', 'listar_narracoes', 'pesquisar_web'];
 
     public static function definitions(): array
     {
@@ -36,6 +37,7 @@ class AgentTools
             ['name' => 'listar_narracoes', 'params' => [], 'desc' => 'Lista as últimas narrações (TTS) do usuário.'],
             ['name' => 'ver_oferta', 'params' => ['id' => 'ID da oferta'], 'desc' => 'Abre o dossiê completo de uma oferta (criativos, páginas, análise). Consome 1 visualização.'],
             ['name' => 'espionar_anuncios', 'params' => ['query' => 'termo, domínio ou anunciante', 'providers?' => 'meta|google|tiktok'], 'desc' => 'Busca anúncios ativos nas bibliotecas (Meta/Google/TikTok). Consome 1 busca.'],
+            ['name' => 'pesquisar_web', 'params' => ['query' => 'termo de pesquisa', 'limit?' => 'máx 10 (padrão 6)'], 'desc' => 'Pesquisa na web (Google/fallback gratuito) para investigar mercado, tendências, concorrentes, referências e notícias. Use SEMPRE que precisar de informação externa: não diga "não encontrei" sem ter pesquisado aqui. Não consome quota do plano (usa a chave do usuário ou o limite diário da plataforma).'],
             ['name' => 'analisar_oferta', 'params' => ['id' => 'ID da oferta'], 'desc' => 'Analisa uma oferta com IA (nicho, estrutura, score, ângulos). Consome 1 análise IA.'],
             ['name' => 'transcrever_midia', 'params' => ['url' => 'URL da página/VSL/áudio'], 'desc' => 'Transcreve um vídeo/áudio (com timestamps). Consome 1 transcrição.'],
             ['name' => 'gerar_narracao', 'params' => ['text' => 'texto (máx 5000)', 'voice?' => 'voz'], 'desc' => 'Gera narração (TTS) a partir de um texto. Consome 1 narração.'],
@@ -56,6 +58,7 @@ class AgentTools
                 'listar_narracoes' => self::listarNarracoes($userId),
                 'ver_oferta' => self::verOferta($args, $user, $userId),
                 'espionar_anuncios' => self::espionar($args, $user, $userId),
+                'pesquisar_web' => self::pesquisarWeb($args, $userId),
                 'analisar_oferta' => self::analisarOferta($args, $user, $userId),
                 'transcrever_midia' => self::transcrever($args, $user, $userId),
                 'gerar_narracao' => self::gerarNarracao($args, $user, $userId),
@@ -276,6 +279,33 @@ class AgentTools
                 'creatives_count' => count($offer['creatives'] ?? []),
                 'pages_count' => count($offer['pages'] ?? []),
             ]],
+        ];
+    }
+
+    private static function pesquisarWeb(array $args, int $userId): array
+    {
+        $query = trim((string)($args['query'] ?? ''));
+        if ($query === '') {
+            return ['success' => false, 'summary' => 'Informe o termo de pesquisa.', 'render' => null];
+        }
+
+        $limit = (int)($args['limit'] ?? 6);
+        $search = WebSearch::search($userId, $query, $limit);
+
+        if (empty($search['success'])) {
+            return ['success' => false, 'summary' => $search['error'] ?? 'Falha na pesquisa web.', 'render' => null];
+        }
+
+        $results = $search['results'];
+        $summary = count($results) . ' resultados na web para "' . $query . '" (fonte: ' . $search['provider'] . ').';
+        if (($search['source'] ?? '') === 'platform' && ($search['remaining'] ?? -1) >= 0) {
+            $summary .= ' Restam ' . $search['remaining'] . ' pesquisas web hoje com a chave da plataforma.';
+        }
+
+        return [
+            'success' => true,
+            'summary' => $summary,
+            'render' => ['type' => 'web', 'data' => $results],
         ];
     }
 
