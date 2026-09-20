@@ -115,7 +115,7 @@ class Agent
                 return ['success' => true];
             }
 
-            $response = AiClient::chat($this->buildMessages($userId, $plan, $conversationId, $message), $config);
+            $response = $this->chatWithRetry($this->buildMessages($userId, $plan, $conversationId, $message), $config);
             if ($response === null) {
                 $this->saveMessage($conversationId, 'agent', 'Tive um problema para responder agora (falha na chamada da IA). Tente novamente em instantes.');
                 AgentJobs::complete($jobId);
@@ -474,6 +474,21 @@ class Agent
         return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
     }
 
+    /**
+     * Chamada de IA com retry imediato (instabilidade transitoria do provider
+     * nao deve virar mensagem de erro definitiva para o usuario).
+     */
+    private function chatWithRetry(array $messages, array $config, int $attempts = 3): ?string
+    {
+        for ($i = 1; $i <= $attempts; $i++) {
+            $response = AiClient::chat($messages, $config);
+            if ($response !== null) return $response;
+            if ($i < $attempts) usleep(2000000);
+        }
+
+        return null;
+    }
+
     private function commentOnResult(int $userId, int $conversationId, string $toolName, array $result): ?string
     {
         $config = AiConfig::forUser($userId);
@@ -487,7 +502,7 @@ class Agent
             ['role' => 'user', 'content' => $context . "\n\nComente o resultado em 1-3 frases como o Sócio: o que isso significa, próximo passo prático e, se falhou, o que fazer. NÃO repita dados já visíveis. Responda em texto simples (sem JSON)."],
         ];
 
-        $commentary = AiClient::chat($messages, $config);
+        $commentary = $this->chatWithRetry($messages, $config, 2);
         if ($commentary === null) return null;
 
         $filtered = AgentGuard::filterResponse(trim($commentary));

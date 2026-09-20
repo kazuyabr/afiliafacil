@@ -95,6 +95,7 @@ class AgentGuard
             case 'listar_minhas_paginas':
             case 'listar_transcricoes':
             case 'listar_narracoes':
+            case 'pesquisar_web':
                 return ['allowed' => true, 'cost' => 'consulta gratuita'];
 
             default:
