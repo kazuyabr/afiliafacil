@@ -24,26 +24,22 @@ class GoogleTransparencyProvider extends AdSpyProvider
             return $this->emptyResult('Google: configure sua chave SerpApi em IA (BYOK) > Busca de Anuncios (gratis: 250 buscas/mes em serpapi.com).');
         }
 
-        $params = [
-            'engine' => 'google_ads_transparency_center',
-            'api_key' => $apiKey,
-            'num' => 40,
-        ];
+        $json = $this->request($apiKey, $query, $options);
 
-        if (!empty($options['advertiser_id'])) {
-            $params['advertiser_id'] = $options['advertiser_id'];
-        } else {
-            $params['text'] = $query;
+        // A engine do Google Ads Transparency busca por DOMINIO (ex: "hotmart.com").
+        // Se o termo nao parece dominio e nao retornou nada, tenta "<termo>.com" uma vez.
+        if ($json === null || (empty($json['ad_creatives']) && $this->looksLikeWord($query))) {
+            $candidate = $this->domainCandidate($query);
+            if ($candidate !== null) {
+                $retry = $this->request($apiKey, $candidate, $options);
+                if (!empty($retry['ad_creatives'])) {
+                    $json = $retry;
+                }
+            }
         }
-        if (!empty($options['region'])) $params['region'] = $options['region'];
 
-        $body = $this->httpGet('https://serpapi.com/search.json?' . http_build_query($params));
-        if ($body === null) return $this->emptyResult('Google: falha na requisição ao SerpApi');
-
-        $json = json_decode($body, true);
-        if (!is_array($json) || isset($json['error'])) {
-            return $this->emptyResult('Google: ' . ($json['error'] ?? 'resposta inválida'));
-        }
+        if ($json === null) return $this->emptyResult('Google: falha na requisição ao SerpApi');
+        if (isset($json['error'])) return $this->emptyResult('Google: ' . $json['error']);
 
         $ads = [];
         foreach ($json['ad_creatives'] ?? [] as $item) {
@@ -53,8 +49,8 @@ class GoogleTransparencyProvider extends AdSpyProvider
                 'title' => '',
                 'text' => '',
                 'media_type' => $item['format'] ?? 'text',
-                'media_url' => $item['image'] ?? '',
-                'thumbnail' => $item['image'] ?? '',
+                'media_url' => '',
+                'thumbnail' => '',
                 'landing_page' => '',
                 'platforms' => [$item['format'] ?? 'display'],
                 'started_at' => isset($item['first_shown']) ? date('Y-m-d', (int)$item['first_shown']) : null,
@@ -65,5 +61,45 @@ class GoogleTransparencyProvider extends AdSpyProvider
         }
 
         return ['ads' => $ads, 'total' => count($ads), 'error' => null];
+    }
+
+    /**
+     * @return array|null Resposta decodificada do SerpApi (null em falha de rede).
+     */
+    private function request(string $apiKey, string $text, array $options): ?array
+    {
+        $params = [
+            'engine' => 'google_ads_transparency_center',
+            'api_key' => $apiKey,
+            'num' => 40,
+        ];
+
+        if (!empty($options['advertiser_id'])) {
+            $params['advertiser_id'] = $options['advertiser_id'];
+        } else {
+            $params['text'] = $text;
+        }
+        if (!empty($options['platform'])) {
+            $params['platform'] = $options['platform'];
+        }
+
+        $body = $this->httpGet('https://serpapi.com/search.json?' . http_build_query($params));
+        if ($body === null) return null;
+
+        $json = json_decode($body, true);
+        return is_array($json) ? $json : null;
+    }
+
+    private function looksLikeWord(string $query): bool
+    {
+        $query = trim($query);
+        return $query !== '' && !str_contains($query, '.') && !str_contains($query, ' ') && !str_starts_with($query, 'AR');
+    }
+
+    private function domainCandidate(string $query): ?string
+    {
+        $slug = preg_replace('/[^a-z0-9-]/', '', strtolower(trim($query))) ?? '';
+        if ($slug === '') return null;
+        return $slug . '.com';
     }
 }
