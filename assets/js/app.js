@@ -81,6 +81,10 @@ document.querySelectorAll('.modal-overlay').forEach(modal => {
         btn.innerHTML = '<i class="fas fa-bell"></i>' +
             '<span id="agentBellBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;font-size:.6rem;font-weight:700;border-radius:10px;padding:1px 5px;"></span>';
         btn.addEventListener('click', function () {
+            // Primeiro clique: aproveita o gesto do usuario para pedir permissao de notificacao desktop
+            if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                try { Notification.requestPermission(); } catch (e) {}
+            }
             location.href = btn.dataset.conv ? '/admin/agent.php?conv=' + btn.dataset.conv : '/admin/agent.php';
         });
         actions.insertBefore(btn, actions.firstChild);
@@ -127,15 +131,46 @@ document.querySelectorAll('.modal-overlay').forEach(modal => {
                     ? 'O Socio aguarda sua confirmacao'
                     : (count > 0 ? count + ' resposta(s) nova(s)' : 'Notificacoes do Socio de IA'));
 
+            // Sinal fora da tela: titulo da aba mostra atividade/nao vistas
+            updateTitleBadge(count, working, pending);
+
             if (initialized && count > lastCount && data.items && data.items.length) {
                 const item = data.items[0];
                 const who = item.subagent_name ? item.subagent_name : 'Socio de IA';
                 if (typeof showToast === 'function') {
                     showToast(who + ' respondeu: ' + item.preview, 'info');
                 }
+                notifyDesktop(who, item);
             }
             lastCount = count;
             initialized = true;
+        } catch (e) {}
+    }
+
+    const BASE_TITLE = document.title;
+
+    function updateTitleBadge(count, working, pending) {
+        let prefix = '';
+        if (count > 0) prefix = '(' + count + ') ';
+        else if (working > 0) prefix = '... ';
+        else if (pending > 0) prefix = '(!) ';
+
+        document.title = prefix ? prefix + BASE_TITLE : BASE_TITLE;
+    }
+
+    function notifyDesktop(who, item) {
+        if (!document.hidden) return;
+        if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+
+        try {
+            const n = new Notification(who, {
+                body: item.preview || 'Nova resposta do Socio de IA',
+                tag: 'af-agent',
+            });
+            n.onclick = function () {
+                window.focus();
+                location.href = '/admin/agent.php?conv=' + item.conversation_id;
+            };
         } catch (e) {}
     }
 

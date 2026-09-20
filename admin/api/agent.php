@@ -7,6 +7,7 @@ require_once Config::getLibDir() . '/Agent/Agent.php';
 require_once Config::getLibDir() . '/Agent/AgentQuota.php';
 require_once Config::getLibDir() . '/Agent/AgentProfile.php';
 require_once Config::getLibDir() . '/Agent/AgentSubagents.php';
+require_once Config::getLibDir() . '/Agent/AgentPermissions.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -54,6 +55,24 @@ switch ($action) {
             break;
         }
         echo json_encode(['success' => true, 'profile' => AgentProfile::forUser($userId)]);
+        break;
+
+    case 'permissions':
+        echo json_encode([
+            'success' => true,
+            'allowed_tools' => AgentPermissions::allowedTools($userId),
+            'all_tools' => AgentPermissions::all(),
+            'reading_tools' => AgentTools::LEITURA,
+            'sensitive_tools' => AgentPermissions::sensitive(),
+            'descriptions' => array_column(AgentTools::definitions(), 'desc', 'name'),
+        ], JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'save-permissions':
+        $tools = $_POST['tools'] ?? [];
+        if (is_string($tools)) $tools = json_decode($tools, true) ?: [];
+        $result = AgentPermissions::save($userId, is_array($tools) ? $tools : []);
+        echo json_encode(array_merge(['success' => empty($result['error'])], $result), JSON_UNESCAPED_UNICODE);
         break;
 
     case 'conversations':

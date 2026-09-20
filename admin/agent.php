@@ -110,7 +110,8 @@ $profileText = AgentProfile::describe($profile);
                             </div>
                             <div style="display:flex;gap:8px;align-items:center;">
                                 <button class="btn btn-outline btn-sm" id="backToMainBtn" style="display:none;" onclick="backToMain()"><i class="fas fa-arrow-left"></i> Voltar ao Sócio de IA</button>
-                                <span class="quota-pill" id="quotaPill"><i class="fas fa-comments"></i> <strong><?= $quota['source'] === 'byok' ? 'BYOK — sem limite' : ($quota['limit'] === -1 ? 'ilimitado' : $quota['used'] . '/' . $quota['limit']) ?></strong></span>
+                                <span class="quota-pill" id="quotaPill"><i class="fas fa-comments"></i> <strong><?= $quota['source'] === 'byok' ? 'BYOK - sem limite' : ($quota['limit'] === -1 ? 'ilimitado' : $quota['used'] . '/' . $quota['limit']) ?></strong></span>
+                                <button class="btn btn-outline btn-sm" onclick="editPermissions()" title="Permissões do Sócio"><i class="fas fa-shield-halved"></i></button>
                                 <button class="btn btn-outline btn-sm" onclick="editProfile()" title="Editar perfil"><i class="fas fa-user-pen"></i></button>
                             </div>
                         </div>
@@ -171,6 +172,28 @@ $profileText = AgentProfile::describe($profile);
                     <button class="btn btn-outline" onclick="closeSubagentModal()">Cancelar</button>
                     <button class="btn btn-primary" onclick="saveSubagent()"><i class="fas fa-save"></i> Salvar</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="permissionsModal">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-shield-halved" style="color:var(--accent);"></i> Permissões do Sócio de IA</h3>
+                <button class="modal-close" onclick="closePermissionsModal()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 12px;">
+                    <strong>Leitura e pesquisa</strong> (verde) executam automaticamente, sem interação.
+                    <strong>Ações</strong> (cota/escrita) sempre pedem sua confirmação.
+                    Desmarque o que você <em>não</em> quer que o Sócio use — vale para as próximas conversas.
+                </p>
+                <div class="subagent-tools" id="permissionsList"></div>
+                <div id="permissionsError" style="margin-top:8px;"></div>
+            </div>
+            <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;padding:0 20px 20px;">
+                <button class="btn btn-outline" onclick="closePermissionsModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="savePermissions()"><i class="fas fa-save"></i> Salvar permissões</button>
             </div>
         </div>
     </div>
@@ -754,6 +777,57 @@ $profileText = AgentProfile::describe($profile);
         if (saved.success) {
             document.getElementById('profileLine').textContent = 'Perfil: ' + [niche, budget, experience].filter(Boolean).join(' | ');
             showToast('Perfil atualizado', 'success');
+        }
+    }
+
+    let permissionsCache = { all_tools: [], reading_tools: [], allowed_tools: [], descriptions: {} };
+
+    async function editPermissions() {
+        try {
+            const resp = await fetch('/admin/api/agent.php?action=permissions');
+            const data = await resp.json();
+            if (!data.success) { showToast(data.error || 'Falha ao carregar permissões', 'danger'); return; }
+            permissionsCache = data;
+            renderPermissions();
+            document.getElementById('permissionsModal').classList.add('active');
+        } catch (e) {
+            showToast('Falha ao carregar permissões', 'danger');
+        }
+    }
+
+    function renderPermissions() {
+        const box = document.getElementById('permissionsList');
+        const reading = permissionsCache.reading_tools || [];
+        box.innerHTML = (permissionsCache.all_tools || []).map(t => {
+            const isReading = reading.includes(t);
+            const checked = (permissionsCache.allowed_tools || []).includes(t);
+            const badge = isReading
+                ? '<span style="background:#16a34a;color:#fff;font-size:.62rem;padding:1px 6px;border-radius:8px;">leitura</span>'
+                : '<span style="background:var(--warning);color:#1a1a2e;font-size:.62rem;padding:1px 6px;border-radius:8px;">ação</span>';
+            const desc = (permissionsCache.descriptions || {})[t] || '';
+            return '<label class="subagent-tool-label" title="' + esc(desc) + '">' +
+                '<input type="checkbox" class="permission-tool" value="' + esc(t) + '"' + (checked ? ' checked' : '') + '> ' +
+                esc(t) + ' ' + badge + '</label>';
+        }).join('');
+    }
+
+    function closePermissionsModal() {
+        document.getElementById('permissionsModal').classList.remove('active');
+    }
+
+    async function savePermissions() {
+        const tools = [];
+        document.querySelectorAll('.permission-tool:checked').forEach(c => tools.push(c.value));
+        const body = new URLSearchParams();
+        tools.forEach(t => body.append('tools[]', t));
+
+        const resp = await fetch('/admin/api/agent.php?action=save-permissions', { method: 'POST', body });
+        const data = await resp.json();
+        if (data.success) {
+            closePermissionsModal();
+            showToast('Permissões atualizadas.', 'success');
+        } else {
+            document.getElementById('permissionsError').innerHTML = '<div class="alert alert-danger">' + esc(data.error || 'Falha ao salvar.') + '</div>';
         }
     }
 

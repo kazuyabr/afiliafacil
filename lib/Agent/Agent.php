@@ -12,6 +12,7 @@ require_once __DIR__ . '/AgentTools.php';
 require_once __DIR__ . '/AgentQuota.php';
 require_once __DIR__ . '/AgentProfile.php';
 require_once __DIR__ . '/AgentSubagents.php';
+require_once __DIR__ . '/AgentPermissions.php';
 require_once __DIR__ . '/AgentPrompts.php';
 require_once __DIR__ . '/AgentJobs.php';
 
@@ -461,6 +462,41 @@ class Agent
                 return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
             }
 
+            $conversation = \AfiliaFacil\Models\AgentConversation::find($conversationId);
+            $isSubagent = !empty($conversation->subagent_id);
+            $subagentTools = null;
+            if ($isSubagent) {
+                $subagent = AgentSubagents::get($userId, (int)$conversation->subagent_id);
+                $subagentTools = $subagent['tools'] ?? null;
+            }
+
+            // Permissoes do cliente: subagente usa a allowlist do subagente; o Socio usa a do usuario.
+            if ($isSubagent) {
+                if (is_array($subagentTools) && !empty($subagentTools) && !in_array($tool, $subagentTools, true) && $tool !== 'consultar_quotas') {
+                    $this->saveMessage($conversationId, 'agent', 'Não tenho permissão para usar essa ferramenta neste subagente. O cliente pode liberar em Subagentes > Editar.');
+                    return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
+                }
+            } elseif (!AgentPermissions::allows($userId, $tool)) {
+                $this->saveMessage($conversationId, 'agent', 'Não tenho permissão para usar essa ferramenta — o cliente pode liberar em Permissões do Sócio.');
+                return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
+            }
+
+            // LEITURA e PESQUISA executam automaticamente (sem confirmacao do usuario).
+            if (AgentPermissions::isReading($tool)) {
+                $messageId = $this->saveMessage($conversationId, 'tool', $reason, $tool, $args, null, 'processing');
+                $user = \AfiliaFacil\Models\User::find($userId);
+                $userArray = ['id' => $userId, 'name' => $user->name ?? '', 'plan' => $plan, 'email' => $user->email ?? ''];
+
+                $result = AgentTools::execute($tool, $args, $userArray, $userId, ['is_subagent' => $isSubagent]);
+                $status = !empty($result['success']) ? 'executed' : 'failed';
+                $this->updateToolMessage($messageId, $status, $result);
+
+                Audit::log('agent_tool_' . $status, 'agent', (string)$messageId, ['tool' => $tool, 'auto' => true]);
+                $this->commentOnResult($userId, $conversationId, $tool, $result);
+
+                return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
+            }
+
             $this->saveMessage($conversationId, 'tool', $reason, $tool, $args, null, 'pending_confirmation');
             return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
         }
@@ -532,11 +568,15 @@ class Agent
         }
 
         $toolsText = '';
+        $allowedTools = $isSubagent ? null : AgentPermissions::allowedTools($userId);
         foreach (AgentTools::definitions() as $tool) {
             if ($isSubagent && in_array($tool['name'], ['criar_subagente', 'delegar_subagente'], true)) {
                 continue;
             }
             if ($isSubagent && !empty($subagent['tools']) && !in_array($tool['name'], $subagent['tools'], true) && !in_array($tool['name'], ['consultar_quotas'], true)) {
+                continue;
+            }
+            if ($allowedTools !== null && !in_array($tool['name'], $allowedTools, true)) {
                 continue;
             }
             $access = AgentGuard::checkToolAccess($tool['name'], $plan, $userId);
