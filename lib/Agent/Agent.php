@@ -144,6 +144,7 @@ class Agent
                 return ['success' => true];
             }
 
+            AiClient::setUsageUser($userId);
             $response = $this->chatWithRetry($this->buildMessages($userId, $plan, $conversationId, $message), $candidates);
             if ($response === null) {
                 $this->saveMessage($conversationId, 'agent', $this->aiFailureMessage($plan));
@@ -632,6 +633,7 @@ class Agent
             ['role' => 'user', 'content' => $context . "\n\nComente o resultado em 1-3 frases como o Sócio: o que isso significa, próximo passo prático e, se falhou, o que fazer. NÃO repita dados já visíveis. Responda em texto simples (sem JSON)."],
         ];
 
+        AiClient::setUsageUser($userId);
         $commentary = $this->chatWithRetry($messages, $candidates, 2);
         if ($commentary === null) return null;
 

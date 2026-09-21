@@ -1,7 +1,31 @@
 <?php
 
+require_once __DIR__ . '/../Database.php';
+
 class AiClient
 {
+    /** Usuario para contabilizar o uso diario de IA (opcional). */
+    private static ?int $usageUserId = null;
+
+    public static function setUsageUser(?int $userId): void
+    {
+        self::$usageUserId = $userId;
+    }
+
+    /** Requisicoes de IA do usuario hoje (transparencia de consumo). */
+    public static function usageToday(int $userId): int
+    {
+        if (!Database::available()) return 0;
+
+        try {
+            return (int)\AfiliaFacil\Models\AiUsageDaily::where('user_id', $userId)
+                ->where('usage_date', date('Y-m-d'))
+                ->value('requests');
+        } catch (Throwable $e) {
+            return 0;
+        }
+    }
+
     public static function chat(array $messages, array $config): ?string
     {
         return match (self::resolveApiType($config)) {
@@ -91,15 +115,60 @@ class AiClient
         foreach ($candidates as $config) {
             for ($i = 1; $i <= $attemptsPerConfig; $i++) {
                 $response = self::chat($messages, $config);
-                if ($response !== null) return $response;
+                if ($response !== null) {
+                    self::trackUsage((string)($config['source'] ?? 'platform'));
+                    return $response;
+                }
 
                 // Cota/limite estourou: nao adianta insistir nesta chave, tenta a proxima
-                if (self::isQuotaError()) break;
+                if (self::isQuotaError()) {
+                    self::markQuotaError();
+                    break;
+                }
                 if ($i < $attemptsPerConfig) usleep(1500000);
             }
         }
 
         return null;
+    }
+
+    /** Contabiliza uma requisicao de IA bem-sucedida (uso diario por usuario). */
+    private static function trackUsage(string $source): void
+    {
+        if (self::$usageUserId === null || self::$usageUserId <= 0) return;
+        if (!Database::available()) return;
+
+        try {
+            $today = date('Y-m-d');
+            $row = \AfiliaFacil\Models\AiUsageDaily::where('user_id', self::$usageUserId)
+                ->where('usage_date', $today)
+                ->first();
+
+            if ($row) {
+                $row->requests = (int)$row->requests + 1;
+                $row->updated_at = date('Y-m-d H:i:s');
+                $row->save();
+            } else {
+                \AfiliaFacil\Models\AiUsageDaily::create([
+                    'user_id' => self::$usageUserId,
+                    'usage_date' => $today,
+                    'requests' => 1,
+                    'source' => $source,
+                    'created_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        } catch (Throwable $e) {
+        }
+    }
+
+    /** Registra a ultima falha de cota da plataforma (exibida no painel de IA). */
+    private static function markQuotaError(): void
+    {
+        try {
+            require_once __DIR__ . '/../Settings.php';
+            \Settings::set('ai_quota_error_at', date('Y-m-d H:i:s'));
+        } catch (Throwable $e) {
+        }
     }
 
     private static function openaiCompatible(array $messages, array $config): ?string

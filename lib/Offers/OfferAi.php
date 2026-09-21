@@ -40,7 +40,9 @@ class OfferAi
                 ['role' => 'user', 'content' => "Analise a oferta abaixo e responda SOMENTE com JSON no formato:\n{\"nicho\":\"financas|saude|emagrecimento|relacionamento|espiritualidade|educacao|negocios|tecnologia|outros\",\"estrutura\":\"vsl|quiz|low_ticket|infoproduto|carta\",\"idioma\":\"pt|es|en\",\"score\":0-100,\"resumo\":\"...\",\"publico\":\"...\",\"angulos\":[\"...\"],\"sugestoes\":[\"...\"]}\n\nO score mede o potencial de escala da oferta (quantidade de anúncios ativos + variação + qualidade dos criativos).\n\n{$context}"],
             ];
 
-            $response = AiClient::chatWithFallback($messages, $candidates);
+            \AiClient::setUsageUser($userId);
+        \AiClient::setUsageUser($userId);
+        $response = AiClient::chatWithFallback($messages, $candidates);
             if ($response === null) {
                 return ['error' => 'Falha na chamada da IA (verifique provider/chave).'];
             }

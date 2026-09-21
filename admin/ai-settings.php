@@ -53,6 +53,16 @@ $theme = $_SESSION['theme'] ?? 'light';
                     <i class="fas fa-infinity"></i> <strong>Com BYOK ativo, as ações de IA (chat, análises, transcrições e narrações) não consomem a cota do plano</strong> — o limite passa a ser o da sua própria chave. Quando a cota da plataforma acabar, configure sua chave e continue sem limite.
                 </div>
 
+                <div id="aiUsagePanel" style="display:none;background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;font-size:.82rem;">
+                    <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;">
+                        <strong><i class="fas fa-gauge-high" style="color:var(--accent);"></i> Cota de IA</strong>
+                        <span>Requisições hoje: <strong id="aiUsageToday">-</strong></span>
+                        <span id="aiQuotaStatus"></span>
+                    </div>
+                    <div id="aiQuotaWarning" style="display:none;margin-top:8px;color:var(--warning);font-weight:600;"></div>
+                    <div id="aiKeysLine" style="margin-top:6px;color:var(--text-secondary);font-size:.75rem;"></div>
+                </div>
+
                 <div class="tabs">
                     <button class="tab-btn active" data-tab="chat" onclick="switchTab('chat')"><i class="fas fa-brain"></i> Análise (Chat)</button>
                     <button class="tab-btn" data-tab="stt" onclick="switchTab('stt')"><i class="fas fa-microphone-lines"></i> Transcrição (STT)</button>
@@ -744,12 +754,43 @@ $theme = $_SESSION['theme'] ?? 'light';
             : '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> ' + esc(data.error || 'Falha') + '</div>';
     }
 
+    async function loadUsagePanel() {
+        try {
+            const resp = await fetch('/admin/api/ai-settings.php?action=usage');
+            const data = await resp.json();
+            if (!data.success) return;
+
+            document.getElementById('aiUsagePanel').style.display = 'block';
+            document.getElementById('aiUsageToday').textContent = data.requests_today;
+
+            const status = document.getElementById('aiQuotaStatus');
+            if (data.quota_error_at) {
+                status.innerHTML = '<span style="color:var(--danger);font-weight:600;">⚠ cota da plataforma esgotada em ' + esc(data.quota_error_at) + '</span>';
+                const warn = document.getElementById('aiQuotaWarning');
+                warn.style.display = 'block';
+                warn.textContent = 'Configure CF_AI_TOKEN_2 (segunda conta) ou CF_AI_TOKEN_ADMIN no .env para somar cotas, ou faça upgrade da conta Cloudflare.';
+            } else {
+                status.innerHTML = '<span style="color:var(--success,#16a34a);font-weight:600;">✓ plataforma OK</span>';
+            }
+
+            const k = data.keys || {};
+            const parts = [];
+            parts.push('Plataforma: ' + (k.platform ? '✓' : '—'));
+            parts.push('Alternativa (CF_AI_TOKEN_2): ' + (k.platform_alt ? '✓' : '—'));
+            if (data.user_plan === 'premium') parts.push('Chave admin (CF_AI_TOKEN_ADMIN): ' + (k.admin ? '✓' : '—'));
+            if (data.user_plan === 'trial') parts.push('Chave trial (CF_AI_TOKEN_TRIAL): ' + (k.trial ? '✓' : '—'));
+            parts.push('BYOK: ' + (data.has_byok ? '✓' : '—'));
+            document.getElementById('aiKeysLine').textContent = parts.join('  ·  ');
+        } catch (e) {}
+    }
+
     loadCatalog().then(() => {
         loadConfig('chat');
         loadConfig('stt');
         loadConfig('tts');
         loadAdSpy('adspy_serpapi');
         loadAdSpy('adspy_meta');
+        loadUsagePanel();
     });
     </script>
 </body>

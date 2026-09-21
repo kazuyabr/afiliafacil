@@ -43,21 +43,30 @@ class AiConfig
 
     /**
      * Lista de configs em ordem de prioridade (com fallback automatico de cota):
-     *  - BYOK do usuario (se houver) → plataforma → chave alternativa da plataforma
-     *  - sem BYOK → plataforma → chave alternativa da plataforma
-     * Assim, quando uma cota/limite estoura, o sistema tenta a proxima automaticamente.
+     *  - BYOK do usuario (se houver) → chave DEDICADA do segmento (admin/trial, se configurada)
+     *    → plataforma → chave alternativa da plataforma.
+     * Chaves dedicadas isolam o consumo: o admin (premium) nao depende da cota compartilhada
+     * dos clientes e o trial pode ter cota propria.
      */
     public static function candidates(int $userId): array
     {
         $list = [];
         $primary = self::forUser($userId);
+        $isByok = ($primary['source'] ?? '') === 'byok';
         // BYOK local pode ter chave vazia (LM Studio/Ollama)
-        $primaryIsLocal = ($primary['source'] ?? '') === 'byok' && AiClient::isLocalUrl((string)($primary['base_url'] ?? ''));
-        if (($primary['api_key'] ?? '') !== '' || $primaryIsLocal) $list[] = $primary;
+        $primaryIsLocal = $isByok && AiClient::isLocalUrl((string)($primary['base_url'] ?? ''));
+        $segment = self::segmentKey($userId);
 
-        if (($primary['source'] ?? '') === 'byok') {
+        if ($isByok) {
+            if (($primary['api_key'] ?? '') !== '' || $primaryIsLocal) $list[] = $primary;
+            // Chave dedicada do segmento (admin/trial) — antes da chave compartilhada
+            if ($segment !== null) $list[] = $segment;
             $platform = self::platform();
             if (($platform['api_key'] ?? '') !== '') $list[] = $platform;
+        } else {
+            // Sem BYOK: a chave dedicada do segmento tem prioridade sobre a compartilhada
+            if ($segment !== null) $list[] = $segment;
+            if (($primary['api_key'] ?? '') !== '') $list[] = $primary;
         }
 
         $alt = self::platformAlt();
@@ -74,6 +83,43 @@ class AiConfig
         }
 
         return $unique;
+    }
+
+    /**
+     * Chave dedicada do segmento do usuario (opcional):
+     *  - premium (admin): CF_AI_TOKEN_ADMIN / CF_ACCOUNT_ID_ADMIN
+     *  - trial: CF_AI_TOKEN_TRIAL / CF_ACCOUNT_ID_TRIAL
+     */
+    private static function segmentKey(int $userId): ?array
+    {
+        if ($userId <= 0 || !Database::available()) return null;
+
+        try {
+            $plan = (string)(\AfiliaFacil\Models\User::find($userId)->plan ?? '');
+        } catch (Throwable $e) {
+            return null;
+        }
+
+        $map = [
+            'premium' => ['CF_AI_TOKEN_ADMIN', 'CF_ACCOUNT_ID_ADMIN', 'platform_admin'],
+            'trial' => ['CF_AI_TOKEN_TRIAL', 'CF_ACCOUNT_ID_TRIAL', 'platform_trial'],
+        ];
+        if (!isset($map[$plan])) return null;
+
+        [$tokenEnv, $accountEnv, $source] = $map[$plan];
+        $token = trim((string)(getenv($tokenEnv) ?: ''));
+        if ($token === '') return null;
+
+        return [
+            'provider' => 'cloudflare',
+            'api_type' => 'cloudflare',
+            'model' => getenv('CF_AI_MODEL') ?: '@cf/nvidia/nemotron-3-120b-a12b',
+            'base_url' => '',
+            'local_ttl' => 0,
+            'api_key' => $token,
+            'account_id' => trim((string)(getenv($accountEnv) ?: getenv('CF_ACCOUNT_ID') ?: '')),
+            'source' => $source,
+        ];
     }
 
     /** Chave principal da plataforma (Cloudflare Workers AI). */

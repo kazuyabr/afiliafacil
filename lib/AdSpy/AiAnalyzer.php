@@ -30,6 +30,7 @@ class AiAnalyzer
             ['role' => 'user', 'content' => "Analise a campanha abaixo e responda SOMENTE com um JSON válido no formato:\n{\"resumo\":\"...\",\"angulos\":[\"...\"],\"oferta\":\"...\",\"cta\":\"...\",\"publico\":\"...\",\"funil\":\"...\",\"termos_busca\":[\"...\"],\"sugestoes\":[\"...\"]}\n\nSINAIS DA PÁGINA CLONADA:\n{$signalsText}\n\nANÚNCIOS ENCONTRADOS NAS BIBLIOTECAS (resumo):\n{$summary}"],
         ];
 
+        \AiClient::setUsageUser($userId);
         $response = AiClient::chatWithFallback($messages, $candidates);
         if ($response === null) {
             return ['error' => 'Falha na chamada da IA (verifique a configuração do provider/chave).'];

@@ -187,6 +187,22 @@ switch ($action) {
         }
         break;
 
+    case 'usage':
+        echo json_encode([
+            'success' => true,
+            'requests_today' => \AiClient::usageToday($userId),
+            'quota_error_at' => (string)\Settings::get('ai_quota_error_at', ''),
+            'keys' => [
+                'platform' => (getenv('CF_AI_TOKEN') ?: '') !== '',
+                'platform_alt' => (getenv('CF_AI_TOKEN_2') ?: '') !== '',
+                'admin' => (getenv('CF_AI_TOKEN_ADMIN') ?: '') !== '',
+                'trial' => (getenv('CF_AI_TOKEN_TRIAL') ?: '') !== '',
+            ],
+            'user_plan' => (string)(Auth::user()['plan'] ?? ''),
+            'has_byok' => !empty(UserAiConfig::where('user_id', $userId)->where('capability', 'chat')->where('enabled', true)->first()),
+        ], JSON_UNESCAPED_UNICODE);
+        break;
+
     case 'local-models':
         $baseUrl = trim($_GET['base_url'] ?? $_POST['base_url'] ?? '');
         echo json_encode(localModels($baseUrl), JSON_UNESCAPED_UNICODE);

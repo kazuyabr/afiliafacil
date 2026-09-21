@@ -116,6 +116,7 @@ class AgentTools
             return ['success' => false, 'summary' => 'IA não configurada (CF_AI_TOKEN da plataforma ou BYOK).', 'render' => null];
         }
 
+        \AiClient::setUsageUser($userId);
         $response = AiClient::chatWithFallback([
             ['role' => 'system', 'content' => AgentPrompts::subagent($subagent)],
             ['role' => 'user', 'content' => $question],
