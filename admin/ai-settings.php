@@ -332,7 +332,7 @@ $theme = $_SESSION['theme'] ?? 'light';
         modelSelect.innerHTML = '';
 
         if (providerId === 'cloudflare') {
-            [['@cf/zai-org/glm-4.7-flash', 'GLM 4.7 Flash (grátis)'], ['@cf/google/gemma-4-26b-a4b-it', 'Gemma 4 26B (grátis)'], ['@cf/nvidia/nemotron-3-120b-a12b', 'Nemotron 3 120B (grátis)']]
+                        [['@cf/nvidia/nemotron-3-120b-a12b', 'Nemotron 3 120B (grátis — rápido, recomendado)'], ['@cf/zai-org/glm-4.7-flash', 'GLM 4.7 Flash (grátis — mais lento)'], ['@cf/google/gemma-4-26b-a4b-it', 'Gemma 4 26B (grátis — lento)']]
                 .forEach(([v, l]) => modelSelect.appendChild(new Option(l, v)));
             return;
         }

@@ -32,7 +32,7 @@ class AiConfig
 
         return [
             'provider' => 'cloudflare',
-            'model' => getenv('CF_AI_MODEL') ?: '@cf/zai-org/glm-4.7-flash',
+            'model' => getenv('CF_AI_MODEL') ?: '@cf/nvidia/nemotron-3-120b-a12b',
             'base_url' => '',
             'api_key' => getenv('CF_AI_TOKEN') ?: '',
             'account_id' => getenv('CF_ACCOUNT_ID') ?: '',

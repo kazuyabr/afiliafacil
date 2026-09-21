@@ -16,7 +16,7 @@ class AiClient
     {
         $accountId = trim($config['account_id'] ?? '');
         $token = trim($config['api_key'] ?? '');
-        $model = $config['model'] ?: '@cf/zai-org/glm-4.7-flash';
+        $model = $config['model'] ?: '@cf/nvidia/nemotron-3-120b-a12b';
         if ($accountId === '' || $token === '') return null;
 
         $url = "https://api.cloudflare.com/client/v4/accounts/{$accountId}/ai/run/" . ltrim($model, '/');
@@ -29,10 +29,36 @@ class AiClient
         $json = json_decode($response, true);
         if (!is_array($json)) return null;
 
-        return $json['result']['response']
+        $content = $json['result']['response']
             ?? $json['result']['choices'][0]['message']['content']
             ?? $json['result']['choices'][0]['text']
             ?? null;
+
+        return self::stringifyContent($content);
+    }
+
+    /**
+     * Alguns modelos retornam o conteudo como array de blocos (ex: [{type:text,text:...}]).
+     * Normaliza para string — sem isso o retorno tipado ?string quebra (TypeError).
+     */
+    private static function stringifyContent($content): ?string
+    {
+        if (is_string($content)) return $content;
+        if (!is_array($content)) return null;
+
+        $text = '';
+        foreach ($content as $part) {
+            if (is_string($part)) {
+                $text .= $part;
+                continue;
+            }
+            if (is_array($part)) {
+                $piece = $part['text'] ?? $part['content'] ?? null;
+                if (is_string($piece)) $text .= $piece;
+            }
+        }
+
+        return $text !== '' ? $text : null;
     }
 
     private static function openaiCompatible(array $messages, array $config): ?string

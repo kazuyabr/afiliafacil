@@ -67,7 +67,7 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **Cache 24h** (`ad_spy_cache`) — busca repetida NÃO consome quota; providers que falham NÃO consomem quota.
 - **Quotas por plano** (`plans.max_adspy_searches` / `max_ai_analyses`, editáveis em `/admin/pricing.php`): Trial 3/3 · VSL Start 0/0 · Afiliado Pro 30/10 · Master Elite 300/100 · Admin ilimitado. A quota de **análise IA** também é liberada com BYOK de chat.
 - **Planos**: Teste Grátis (trial) · VSL Start · Afiliado Pro · Master Elite.
-- **IA**: padrão **Cloudflare Workers AI** (`CF_ACCOUNT_ID`/`CF_AI_TOKEN`/`CF_AI_MODEL` — 10k neurons/dia grátis) + **BYOK** em `/admin/ai-settings.php` (catálogo **models.dev** via JS; suporta cloudflare/openai-compatible/anthropic/google; chave criptografada AES).
+- **IA**: padrão **Cloudflare Workers AI** (`CF_ACCOUNT_ID`/`CF_AI_TOKEN`/`CF_AI_MODEL`) — modelo padrão **`@cf/nvidia/nemotron-3-120b-a12b`** (3-5s/resposta, tool_calls corretos nos testes); alternativas grátis na UI: GLM 4.7 Flash (47s+) e Gemma 4 26B (89s+). + **BYOK** em `/admin/ai-settings.php` (catálogo **models.dev** via JS; suporta cloudflare/openai-compatible/anthropic/google; chave criptografada AES).
 - **Páginas**: `/admin/adspy.php` (busca + grid + filtros por plataforma), `/admin/ai-settings.php` (BYOK); APIs `api/adspy.php` (quota/search/dossier/analyze) e `api/ai-settings.php` (get/save/test por capability, incluindo as chaves de busca).
 
 ## Ofertas Escalando (swipe file)
