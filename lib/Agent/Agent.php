@@ -61,18 +61,24 @@ class Agent
 
         $this->saveMessage((int)$conversation->id, 'user', $message, '', null, null, '', [], AgentQuota::source($userId));
 
-        // Onboarding: se o agente acabou de perguntar o NICHO (question com opcoes) e o usuario
-        // respondeu, salvamos no perfil de forma DETERMINISTICA (nao dependemos da IA lembrar).
+        // Onboarding: se o agente acabou de perguntar o NICHO e o usuario respondeu, salvamos no
+        // perfil de forma DETERMINISTICA (nao dependemos da IA lembrar). Aceita nicho do swipe,
+        // nicho conhecido ou nicho livre (ex: "moda feminina").
         try {
             $lastAgentMessage = \AfiliaFacil\Models\AgentMessage::where('conversation_id', (int)$conversation->id)
                 ->where('role', 'agent')
                 ->orderByDesc('id')
                 ->first();
             $options = $lastAgentMessage->tool_args['options'] ?? [];
-            if (($lastAgentMessage->status ?? '') === 'question' && is_array($options) && !empty($options)) {
+            $profile = AgentProfile::forUser($userId);
+            $current = trim((string)($profile['niche'] ?? ''));
+
+            if ($this->shouldAcceptNiche($lastAgentMessage, $message, $current, is_array($options) ? $options : [])) {
                 $niche = OfferManager::matchNiche($message);
-                $profile = AgentProfile::forUser($userId);
-                if ($niche !== null && trim((string)($profile['niche'] ?? '')) === '') {
+                if ($niche === null && !$this->isControlOption($message)) {
+                    $niche = OfferManager::sanitizeFreeNiche($message);
+                }
+                if ($niche !== null && $niche !== $current) {
                     AgentProfile::update($userId, ['niche' => $niche]);
                 }
             }
@@ -366,27 +372,26 @@ class Agent
                 $profile = AgentProfile::forUser($userId);
                 $niche = trim((string)($profile['niche'] ?? ''));
 
+                // SEMPRE oferece escolha de nicho (nunca assume): o nicho atual (se houver) vem
+                // como primeira opcao, seguido dos nichos com ofertas no swipe + Outro.
+                $options = [];
                 if ($niche !== '') {
-                    // Ja conhece o nicho: nao repete a pergunta, oferece acao
+                    $options[] = OfferManager::nicheLabel($niche);
+                }
+                foreach (OfferManager::topNiches(5) as $n) {
+                    if (!in_array($n['label'], $options, true)) $options[] = $n['label'];
+                }
+                if (empty($options)) {
+                    $options = ['Emagrecimento', 'Finanças', 'Relacionamento', 'Espiritualidade'];
+                }
+                $options[] = 'Quero sugestões';
+                $options[] = 'Outro';
+
+                if ($niche !== '') {
                     $label = OfferManager::nicheLabel($niche);
-                    $greeting = "Oi de novo! Sou seu Sócio de IA — foco total em te fazer ganhar dinheiro com afiliação.\n\nVi que você atua com {$label}. Quer que eu busque ofertas validadas desse nicho agora?";
-                    $options = [
-                        'Buscar ofertas de ' . $label,
-                        'Ver anúncios ativos',
-                        'Trocar de nicho',
-                    ];
+                    $greeting = "Oi! Sou seu Sócio de IA — foco total em te fazer ganhar dinheiro com afiliação.\n\nDa última vez trabalhamos com {$label}. Continuamos nesse nicho ou você quer atuar em outro?";
                 } else {
-                    // Primeira conversa: descobre o NICHO logo de cara (chips dinamicos do swipe file)
                     $greeting = "Oi! Sou seu Sócio de IA — foco total em te fazer ganhar dinheiro com afiliação.\n\nPara eu trabalhar direito desde o começo: qual nicho você quer atuar?";
-                    $options = [];
-                    foreach (OfferManager::topNiches(5) as $n) {
-                        $options[] = $n['label'];
-                    }
-                    if (empty($options)) {
-                        $options = ['Emagrecimento', 'Finanças', 'Relacionamento', 'Espiritualidade'];
-                    }
-                    $options[] = 'Quero sugestões';
-                    $options[] = 'Outro';
                 }
             }
 
@@ -685,6 +690,41 @@ class Agent
             ['role' => 'system', 'content' => $system],
             ['role' => 'user', 'content' => $context],
         ];
+    }
+
+    /**
+     * A mensagem deve ser interpretada como escolha de nicho?
+     * - Sempre aceita quando o usuario clicou numa opcao da pergunta de onboarding.
+     * - Aceita texto livre apenas quando o perfil ainda NAO tem nicho (evita trocar por engano).
+     */
+    private function shouldAcceptNiche($lastAgentMessage, string $message, string $current, array $options): bool
+    {
+        if (($lastAgentMessage->status ?? '') !== 'question') return false;
+
+        $needle = mb_strtolower(trim($message));
+
+        foreach ($options as $opt) {
+            if (mb_strtolower(trim((string)$opt)) === $needle) return true;
+        }
+
+        if ($current !== '') return false;
+        if (str_contains($needle, '?')) return false;
+        if (mb_strlen($needle) > 40) return false;
+
+        return true;
+    }
+
+    /**
+     * Opcoes de controle do onboarding (nao sao nicho).
+     */
+    private function isControlOption(string $message): bool
+    {
+        $needle = mb_strtolower(trim($message));
+        $control = ['quero sugestões', 'outro', 'trocar de nicho', 'ver anúncios ativos'];
+
+        if (in_array($needle, $control, true)) return true;
+
+        return str_starts_with($needle, 'buscar ofertas');
     }
 
     /**

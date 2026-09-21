@@ -425,6 +425,35 @@ class OfferManager
     }
 
     /**
+     * Aceita um nicho em texto livre (ex: "moda feminina") quando o usuario escolhe "Outro".
+     * Rejeita respostas genericas ("Quero sugestoes", "Outro", "nao sei"...).
+     */
+    public static function sanitizeFreeNiche(string $text): ?string
+    {
+        $clean = preg_replace('/\s+/', ' ', trim($text)) ?? '';
+        $clean = preg_replace('/[^\p{L}\p{N}\s\-]/u', '', $clean) ?? '';
+        $clean = trim($clean);
+
+        if ($clean === '' || mb_strlen($clean) > 40) return null;
+
+        $normalized = self::stripAccents(mb_strtolower($clean));
+        $blocked = [
+            'sugest', 'outro', 'nao sei', 'qualquer', 'me ajuda', 'ajuda', 'oi', 'ola',
+            'quero ganhar', 'dinheiro', 'nada', 'nenhum', 'trocar', 'mudar', 'nicho',
+            'anuncio', 'buscar oferta', 'ver oferta', 'ativa',
+        ];
+
+        foreach ($blocked as $word) {
+            if (str_contains($normalized, $word)) return null;
+        }
+
+        // Precisa ter ao menos 3 letras (evita "abc", "12", etc.)
+        if (preg_match_all('/[a-z]/', $normalized) < 3) return null;
+
+        return mb_strtolower($clean);
+    }
+
+    /**
      * Identifica o nicho a partir de um texto livre (ex: "Finanças", "quero atuar com emagrecimento").
      * Retorna o slug do nicho ou null. Usado no onboarding do Socio.
      */
