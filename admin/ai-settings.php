@@ -746,7 +746,12 @@ $theme = $_SESSION['theme'] ?? 'light';
         const prefix = cap === 'adspy_serpapi' ? 'serpapi' : 'meta';
         const el = document.getElementById(prefix + 'Result');
         el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testando...';
+
         const body = new URLSearchParams({ action: 'test', capability: cap });
+        // Testa a chave digitada no campo (nao exige salvar antes)
+        const typedKey = (document.getElementById(prefix + 'Key').value || '').trim();
+        if (typedKey) body.append('api_key', typedKey);
+
         const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body });
         const data = await resp.json();
         el.innerHTML = data.ok

@@ -92,6 +92,17 @@ switch ($action) {
         $key = trim($_POST['api_key'] ?? '');
         if ($key !== '') {
             $data['api_key_encrypted'] = Crypto::encrypt($key);
+            // Chave nova = intencao de usar: ativa o provedor automaticamente
+            if (in_array($capability, ['adspy_serpapi', 'adspy_meta'], true)) {
+                $data['enabled'] = true;
+            }
+        } elseif (in_array($capability, ['adspy_serpapi', 'adspy_meta'], true)) {
+            // Sem chave nova: exige que ja exista uma salva
+            $hasStored = !empty($config->api_key_encrypted ?? null);
+            if (!$hasStored) {
+                echo json_encode(['success' => false, 'error' => 'Digite a chave antes de salvar.']);
+                break;
+            }
         }
 
         if ($config) {
@@ -110,9 +121,17 @@ switch ($action) {
 
     case 'test':
         if ($capability === 'adspy_serpapi' || $capability === 'adspy_meta') {
-            $key = $capability === 'adspy_serpapi' ? AdSpyKeys::serpapi($userId) : AdSpyKeys::meta($userId);
+            // Aceita a chave DIGITADA no campo (testa sem precisar salvar antes)
+            $typedKey = trim((string)($_POST['api_key'] ?? ''));
+            $savedKey = $capability === 'adspy_serpapi' ? AdSpyKeys::serpapi($userId) : AdSpyKeys::meta($userId);
+            $key = $typedKey !== '' ? $typedKey : $savedKey;
+
             if ($key === '') {
-                echo json_encode(['ok' => false, 'error' => 'Nenhuma chave configurada para este provedor']);
+                $hasStored = !empty(UserAiConfig::where('user_id', $userId)->where('capability', $capability)->first()?->api_key_encrypted);
+                $msg = $hasStored
+                    ? 'A chave está salva, mas o provedor está DESATIVADO — marque "Ativo" e salve.'
+                    : 'Digite a chave no campo acima e clique em Testar (ou salve primeiro).';
+                echo json_encode(['ok' => false, 'error' => $msg]);
                 break;
             }
 

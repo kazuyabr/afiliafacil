@@ -8,6 +8,7 @@ require_once __DIR__ . '/../AdSpy/AiConfig.php';
 require_once __DIR__ . '/../Moderation/ContentModerator.php';
 require_once __DIR__ . '/../Training/TrainingCollector.php';
 require_once __DIR__ . '/../Offers/OfferManager.php';
+require_once __DIR__ . '/../Json.php';
 require_once __DIR__ . '/AgentGuard.php';
 require_once __DIR__ . '/AgentTools.php';
 require_once __DIR__ . '/AgentQuota.php';
@@ -874,11 +875,18 @@ class Agent
         $text = preg_replace('/\s*```$/', '', $text);
         $text = trim($text);
 
-        if (!preg_match('/\{[\s\S]*\}/', $text, $m)) {
+        // Do primeiro { ate o ultimo } — ou ate o fim quando a resposta veio TRUNCADA
+        // (o reparo de estruturas abertas cuida do fechamento depois).
+        $start = strpos($text, '{');
+        if ($start === false) {
             return null;
         }
 
-        $jsonText = $m[0];
+        $jsonText = substr($text, $start);
+        $lastClose = strrpos($jsonText, '}');
+        if ($lastClose !== false) {
+            $jsonText = substr($jsonText, 0, $lastClose + 1);
+        }
 
         // 1) Tentativa direta
         $decoded = json_decode($jsonText, true);
@@ -898,7 +906,15 @@ class Agent
             }
         }
 
-        // 3) Último recurso: extrai campos manualmente de um JSON malformado
+        // 3) Reparo de JSON TRUNCADO (resposta cortada no meio): fecha strings/arrays/objetos
+        // abertos — sem isto o modelo as vezes vaza o JSON cru no chat.
+        $closed = Json::closeOpenStructures($jsonText);
+        $decoded = json_decode($closed, true);
+        if (is_array($decoded) && isset($decoded['type'])) {
+            return $decoded;
+        }
+
+        // 4) Último recurso: extrai campos manualmente de um JSON malformado
         $type = null;
         if (preg_match('/"type"\s*:\s*"([a-z_]+)"/i', $jsonText, $tm)) {
             $type = $tm[1];

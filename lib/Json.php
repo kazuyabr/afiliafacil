@@ -3,8 +3,9 @@
 /**
  * Parser de JSON tolerante para respostas de IA.
  *
- * Modelos costumam devolver JSON com cercas de codigo, texto em volta ou
- * quebras de linha literais dentro das strings — json_decode direto falha.
+ * Modelos costumam devolver JSON com cercas de codigo, texto em volta, quebras de
+ * linha literais dentro das strings ou ate TRUNCADO (resposta cortada no meio) —
+ * json_decode direto falha em todos esses casos.
  */
 class Json
 {
@@ -21,8 +22,15 @@ class Json
         $text = str_replace('```', '', $text);
         $text = trim($text);
 
-        if (!preg_match('/\{[\s\S]*\}/', $text, $m)) return null;
-        $json = $m[0];
+        // Do primeiro { ate o ultimo } (ou ate o fim, quando truncado)
+        $start = strpos($text, '{');
+        if ($start === false) return null;
+
+        $json = substr($text, $start);
+        $lastClose = strrpos($json, '}');
+        if ($lastClose !== false) {
+            $json = substr($json, 0, $lastClose + 1);
+        }
 
         // 1) Tentativa direta
         $decoded = json_decode($json, true);
@@ -38,13 +46,52 @@ class Json
             if (is_array($decoded)) return $decoded;
         }
 
-        // 3) Reparo extra: remove virgulas sobrando antes de } ou ]
-        $cleaned = preg_replace('/,\s*([}\]])/', '$1', $repaired ?? $json);
+        $base = is_string($repaired) ? $repaired : $json;
+
+        // 3) Reparo: JSON TRUNCADO (fecha strings/arrays/objetos abertos)
+        $closed = self::closeOpenStructures($base);
+        $decoded = json_decode($closed, true);
+        if (is_array($decoded)) return $decoded;
+
+        // 4) Reparo extra: remove virgulas sobrando antes de } ou ]
+        $cleaned = preg_replace('/,\s*([}\]])/', '$1', $closed);
         if (is_string($cleaned)) {
             $decoded = json_decode($cleaned, true);
             if (is_array($decoded)) return $decoded;
         }
 
         return null;
+    }
+
+    /**
+     * Fecha estruturas abertas de um JSON truncado (respeitando strings/escapes).
+     */
+    public static function closeOpenStructures(string $json): string
+    {
+        $curly = 0;
+        $square = 0;
+        $inString = false;
+        $escaped = false;
+
+        for ($i = 0, $len = strlen($json); $i < $len; $i++) {
+            $ch = $json[$i];
+
+            if ($escaped) { $escaped = false; continue; }
+            if ($ch === '\\') { $escaped = true; continue; }
+            if ($ch === '"') { $inString = !$inString; continue; }
+            if ($inString) continue;
+
+            if ($ch === '{') $curly++;
+            elseif ($ch === '}') $curly = max(0, $curly - 1);
+            elseif ($ch === '[') $square++;
+            elseif ($ch === ']') $square = max(0, $square - 1);
+        }
+
+        $out = $json;
+        if ($inString) $out .= '"';
+        $out .= str_repeat(']', $square);
+        $out .= str_repeat('}', $curly);
+
+        return $out;
     }
 }

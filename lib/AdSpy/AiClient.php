@@ -68,7 +68,7 @@ class AiClient
         $response = self::request('POST', $url, [
             'Authorization: Bearer ' . $token,
             'Content-Type: application/json',
-        ], json_encode(['messages' => $messages], JSON_UNESCAPED_UNICODE));
+        ], json_encode(['messages' => $messages, 'max_tokens' => (int)($config['max_tokens'] ?? 0) ?: 2048], JSON_UNESCAPED_UNICODE));
 
         if ($response === null) return null;
         $json = json_decode($response, true);
@@ -192,6 +192,8 @@ class AiClient
             'model' => $model,
             'messages' => $messages,
             'temperature' => 0.4,
+            // Garante respostas completas (modelos locais/servidores podem truncar o JSON sem isto)
+            'max_tokens' => (int)($config['max_tokens'] ?? 0) ?: 2048,
         ];
 
         // Modelo local: TTL de inatividade para liberar a VRAM (LM Studio descarrega sozinho)
@@ -230,6 +232,7 @@ class AiClient
         ], json_encode([
             'messages' => $messages,
             'temperature' => 0.4,
+            'max_tokens' => (int)($config['max_tokens'] ?? 0) ?: 2048,
         ], JSON_UNESCAPED_UNICODE));
 
         if ($response === null) return null;
@@ -350,6 +353,7 @@ class AiClient
 
         $payload = ['contents' => $contents];
         if ($system !== '') $payload['systemInstruction'] = ['parts' => [['text' => trim($system)]]];
+        $payload['generationConfig'] = ['maxOutputTokens' => (int)($config['max_tokens'] ?? 0) ?: 2048];
 
         $url = $baseUrl . '/models/' . $model . ':generateContent?key=' . urlencode($key);
         $response = self::requestWithUrlFallback('POST', $url, ['Content-Type: application/json'], json_encode($payload, JSON_UNESCAPED_UNICODE));
