@@ -94,10 +94,28 @@ class ContentModerator
         return ['allowed' => true, 'action' => 'allow', 'clean' => $text, 'category' => '', 'reason' => '', 'matches' => []];
     }
 
+    /**
+     * Redacao para SAIDA da IA: aplica apenas profanidade + PII (nunca bloqueia o texto inteiro).
+     * O bloqueio por crime e para a ENTRADA do usuario (screen) — aplicar aqui gerava falso
+     * positivo e apagava a resposta inteira (ex.: falar de jogos com termos de guerra).
+     */
     public static function redact(string $text): string
     {
-        $result = self::screen($text, 'output', 0);
-        return $result['allowed'] ? $result['clean'] : '[conteúdo removido pela moderação]';
+        $text = trim($text);
+        if ($text === '') return $text;
+
+        $clean = $text;
+
+        foreach (self::PROFANITY_WORDS as $word) {
+            $pattern = '/\b' . preg_quote($word, '/') . '\b/iu';
+            $clean = preg_replace($pattern, '[redigido]', $clean);
+        }
+
+        foreach (self::PII_PATTERNS as $pii) {
+            $clean = preg_replace($pii['pattern'], '[' . $pii['label'] . ' removido]', $clean);
+        }
+
+        return (string)$clean;
     }
 
     public static function sanitizeForTraining(string $text): array

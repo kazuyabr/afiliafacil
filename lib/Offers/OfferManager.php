@@ -534,7 +534,7 @@ class OfferManager
         return mb_convert_case(str_replace('_', ' ', trim($niche)), MB_CASE_TITLE, 'UTF-8');
     }
 
-    private static function stripAccents(string $value): string
+    public static function stripAccents(string $value): string
     {
         return strtr(mb_strtolower($value), [
             'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a',

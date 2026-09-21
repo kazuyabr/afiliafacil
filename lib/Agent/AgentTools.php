@@ -159,14 +159,68 @@ class AgentTools
     private static function listarOfertas(array $args): array
     {
         $manager = new OfferManager();
-        $result = $manager->list([
-            'q' => trim((string)($args['q'] ?? '')),
-            'niche' => (string)($args['niche'] ?? ''),
-            'structure' => (string)($args['structure'] ?? ''),
-            'order' => (string)($args['order'] ?? 'score'),
-        ], min(20, max(1, (int)($args['limit'] ?? 10))));
+        $query = trim((string)($args['q'] ?? ''));
+        $niche = trim((string)($args['niche'] ?? ''));
+        $structure = trim((string)($args['structure'] ?? ''));
+        $order = (string)($args['order'] ?? 'score');
+        $limit = min(20, max(1, (int)($args['limit'] ?? 10)));
 
-        $items = array_map(fn($o) => [
+        $filters = ['q' => $query, 'niche' => $niche, 'structure' => $structure, 'order' => $order];
+        $result = $manager->list($filters, $limit);
+        $items = self::mapOffers($result['items']);
+        $usedTerm = $query;
+        $tried = [];
+
+        // Variacoes automaticas quando o termo exato nao retorna nada
+        // (ex: "jogos digitais" -> "jogos"/"jogo"; "games" -> "game").
+        if (empty($items) && $query !== '') {
+            foreach (self::queryVariations($query) as $variant) {
+                $tried[] = $variant;
+                $alt = $manager->list(['q' => $variant, 'niche' => $niche, 'structure' => $structure, 'order' => $order], $limit);
+                if (!empty($alt['items'])) {
+                    $items = self::mapOffers($alt['items']);
+                    $usedTerm = $variant;
+                    break;
+                }
+            }
+        }
+
+        if (!empty($items)) {
+            $summary = count($items) . ' ofertas aprovadas encontradas';
+            if ($query !== '' && $usedTerm !== $query) {
+                $summary .= ' (busca ajustada de "' . $query . '" para "' . $usedTerm . '")';
+            } elseif ($query !== '') {
+                $summary .= ' para "' . $query . '"';
+            }
+            if ($niche !== '') $summary .= ' no nicho "' . $niche . '"';
+            $summary .= ': ' . json_encode($items, JSON_UNESCAPED_UNICODE);
+        } else {
+            $term = $query !== '' ? $query : $niche;
+            $summary = 'NENHUMA oferta para "' . $term . '"';
+            if (!empty($tried)) {
+                $summary .= ' (variações testadas: ' . implode(', ', array_slice($tried, 0, 6)) . ')';
+            }
+            $summary .= '.';
+
+            $niches = OfferManager::topNiches(6);
+            if (!empty($niches)) {
+                $list = implode(', ', array_map(fn($n) => $n['label'] . ' (' . $n['total'] . ')', $niches));
+                $summary .= ' Nichos COM ofertas no swipe: ' . $list . '.';
+            }
+
+            $summary .= ' PRÓXIMO PASSO OBRIGATÓRIO: NÃO peça ao usuário para "tentar outro termo". Investigue você mesmo: use espionar_anuncios (bibliotecas Meta/Google/TikTok) e pesquisar_web no termo pedido, e apresente o cenário com 2-3 caminhos concretos (os nichos disponíveis acima, os anunciantes ativos que encontrar, validar a oferta do próprio usuário).';
+        }
+
+        return [
+            'success' => true,
+            'summary' => $summary,
+            'render' => ['type' => 'ofertas', 'data' => $items],
+        ];
+    }
+
+    private static function mapOffers(array $offers): array
+    {
+        return array_map(fn($o) => [
             'id' => $o['id'],
             'name' => $o['name'],
             'niche' => $o['niche'],
@@ -175,24 +229,58 @@ class AgentTools
             'scale_pct' => $o['scale_pct'],
             'score' => $o['score'],
             'domain' => $o['domain'],
-        ], $result['items']);
+        ], $offers);
+    }
 
-        $query = trim((string)($args['q'] ?? ''));
-        $niche = trim((string)($args['niche'] ?? ''));
-        $summary = count($items) . ' ofertas aprovadas encontradas';
-        if ($query !== '') $summary .= ' para "' . $query . '"';
-        if ($niche !== '') $summary .= ' no nicho "' . $niche . '"';
-        if (empty($items)) {
-            $summary .= ' — NENHUMA oferta corresponde ao termo/nicho pedido. Informe isso ao usuário com clareza e pergunte se ele quer buscar outro termo (não sugira outros nichos por conta própria).';
-        } else {
-            $summary .= ': ' . json_encode($items, JSON_UNESCAPED_UNICODE);
+    /**
+     * Variacoes morfologicas do termo (palavras individuais + singular/plural).
+     * Ex: "jogos digitais" -> ["jogos","jogo","digitais","digital"].
+     */
+    private static function queryVariations(string $query): array
+    {
+        $base = mb_strtolower(trim($query));
+        if ($base === '') return [];
+
+        $variations = [];
+        foreach (preg_split('/\s+/', $base) ?: [] as $word) {
+            $word = trim($word, "-_.,;:!?()[]{}\"'");
+            if (mb_strlen($word) < 3) continue;
+
+            $variations[] = $word;
+            if (str_ends_with($word, 's')) {
+                $variations[] = self::singularize($word);
+            } else {
+                $variations[] = $word . 's';
+            }
         }
 
-        return [
-            'success' => true,
-            'summary' => $summary,
-            'render' => ['type' => 'ofertas', 'data' => $items],
-        ];
+        if (str_ends_with($base, 's')) {
+            $variations[] = self::singularize($base);
+        }
+
+        $variations = array_values(array_unique(array_filter(
+            $variations,
+            fn($v) => $v !== '' && mb_strlen($v) >= 3 && $v !== $base
+        )));
+
+        return array_slice($variations, 0, 6);
+    }
+
+    /**
+     * Singular simples pt-BR: digitais->digital, papeis->papel, homens->homem, games->game.
+     */
+    private static function singularize(string $word): string
+    {
+        if (!str_ends_with($word, 's') || mb_strlen($word) < 4) return $word;
+
+        $suffixes = ['ais' => 'al', 'eis' => 'el', 'ois' => 'ol', 'uis' => 'ul', 'ns' => 'm'];
+        foreach ($suffixes as $plural => $singular) {
+            if (str_ends_with($word, $plural)) {
+                return mb_substr($word, 0, -mb_strlen($plural)) . $singular;
+            }
+        }
+
+        return mb_substr($word, 0, -1);
     }
 
     private static function listarPaginas(int $userId): array

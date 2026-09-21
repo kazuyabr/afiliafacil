@@ -123,7 +123,7 @@ class AiClient
             CURLOPT_URL => $url,
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 90,
+            CURLOPT_TIMEOUT => 180,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_HTTPHEADER => $headers,
             CURLOPT_POSTFIELDS => $body,

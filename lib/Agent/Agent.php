@@ -21,6 +21,9 @@ class Agent
 {
     private const HISTORY_LIMIT = 12;
 
+    /** Profundidade de tool_calls encadeados (evita loop de ferramentas). */
+    private int $toolCallDepth = 0;
+
     public function send(int $userId, string $plan, int $conversationId, string $message): array
     {
         if (!Database::available()) {
@@ -324,7 +327,7 @@ class Agent
 
         Audit::log('agent_tool_' . $status, 'agent', (string)$messageId, ['tool' => $toolMessage->tool_name]);
 
-        $this->commentOnResult($userId, (int)$toolMessage->conversation_id, $toolMessage->tool_name, $result);
+        $this->commentOnResult($userId, (string)($user->plan ?? 'trial'), (int)$toolMessage->conversation_id, $toolMessage->tool_name, $result);
 
         AgentJobs::complete($jobId);
         return ['success' => true, 'status' => $status, 'result' => $result];
@@ -500,59 +503,7 @@ class Agent
         }
 
         if ($type === 'tool_call') {
-            $tool = (string)($parsed['tool'] ?? '');
-            $args = is_array($parsed['args'] ?? null) ? $parsed['args'] : [];
-            $reason = trim((string)($parsed['reason'] ?? ''));
-
-            $known = array_column(AgentTools::definitions(), 'name');
-            if (!in_array($tool, $known, true)) {
-                $this->saveMessage($conversationId, 'agent', 'Pensei em usar uma ferramenta que não existe. Pode reformular seu pedido?');
-                return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
-            }
-
-            $access = AgentGuard::checkToolAccess($tool, $plan, $userId);
-            if (!$access['allowed']) {
-                $this->saveMessage($conversationId, 'agent', 'Não posso fazer isso agora: ' . $access['reason'] . ' Quer que eu sugira alternativas dentro do seu plano?');
-                return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
-            }
-
-            $conversation = \AfiliaFacil\Models\AgentConversation::find($conversationId);
-            $isSubagent = !empty($conversation->subagent_id);
-            $subagentTools = null;
-            if ($isSubagent) {
-                $subagent = AgentSubagents::get($userId, (int)$conversation->subagent_id);
-                $subagentTools = $subagent['tools'] ?? null;
-            }
-
-            // Permissoes do cliente: subagente usa a allowlist do subagente; o Socio usa a do usuario.
-            if ($isSubagent) {
-                if (is_array($subagentTools) && !empty($subagentTools) && !in_array($tool, $subagentTools, true) && $tool !== 'consultar_quotas') {
-                    $this->saveMessage($conversationId, 'agent', 'Não tenho permissão para usar essa ferramenta neste subagente. O cliente pode liberar em Subagentes > Editar.');
-                    return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
-                }
-            } elseif (!AgentPermissions::allows($userId, $tool)) {
-                $this->saveMessage($conversationId, 'agent', 'Não tenho permissão para usar essa ferramenta — o cliente pode liberar em Permissões do Sócio.');
-                return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
-            }
-
-            // LEITURA e PESQUISA executam automaticamente (sem confirmacao do usuario).
-            if (AgentPermissions::isReading($tool)) {
-                $messageId = $this->saveMessage($conversationId, 'tool', $reason, $tool, $args, null, 'processing');
-                $user = \AfiliaFacil\Models\User::find($userId);
-                $userArray = ['id' => $userId, 'name' => $user->name ?? '', 'plan' => $plan, 'email' => $user->email ?? ''];
-
-                $result = AgentTools::execute($tool, $args, $userArray, $userId, ['is_subagent' => $isSubagent]);
-                $status = !empty($result['success']) ? 'executed' : 'failed';
-                $this->updateToolMessage($messageId, $status, $result);
-
-                Audit::log('agent_tool_' . $status, 'agent', (string)$messageId, ['tool' => $tool, 'auto' => true]);
-                $this->commentOnResult($userId, $conversationId, $tool, $result);
-
-                return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
-            }
-
-            $this->saveMessage($conversationId, 'tool', $reason, $tool, $args, null, 'pending_confirmation');
-            return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
+            return $this->handleToolCall($userId, $plan, $conversationId, $parsed);
         }
 
         $filtered = AgentGuard::filterResponse(trim((string)($parsed['content'] ?? '')));
@@ -561,6 +512,76 @@ class Agent
             'user' => $userMessage,
             'assistant' => $filtered['text'],
         ]);
+        return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
+    }
+
+    /**
+     * Processa um tool_call da IA (usado pelo handleResponse e pelo commentOnResult —
+     * a IA as vezes responde um tool_call quando deveria apenas comentar).
+     * Profundidade maxima de 3 para evitar loop de ferramentas.
+     */
+    private function handleToolCall(int $userId, string $plan, int $conversationId, array $parsed): array
+    {
+        $tool = (string)($parsed['tool'] ?? '');
+        $args = is_array($parsed['args'] ?? null) ? $parsed['args'] : [];
+        $reason = trim((string)($parsed['reason'] ?? ''));
+
+        if ($this->toolCallDepth >= 3) {
+            $this->saveMessage($conversationId, 'agent', 'Preciso da sua orientação para continuar — como você quer prosseguir?');
+            return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
+        }
+
+        $known = array_column(AgentTools::definitions(), 'name');
+        if (!in_array($tool, $known, true)) {
+            $this->saveMessage($conversationId, 'agent', 'Pensei em usar uma ferramenta que não existe. Pode reformular seu pedido?');
+            return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
+        }
+
+        $access = AgentGuard::checkToolAccess($tool, $plan, $userId);
+        if (!$access['allowed']) {
+            $this->saveMessage($conversationId, 'agent', 'Não posso fazer isso agora: ' . $access['reason'] . ' Quer que eu sugira alternativas dentro do seu plano?');
+            return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
+        }
+
+        $conversation = \AfiliaFacil\Models\AgentConversation::find($conversationId);
+        $isSubagent = !empty($conversation->subagent_id);
+        $subagentTools = null;
+        if ($isSubagent) {
+            $subagent = AgentSubagents::get($userId, (int)$conversation->subagent_id);
+            $subagentTools = $subagent['tools'] ?? null;
+        }
+
+        // Permissoes do cliente: subagente usa a allowlist do subagente; o Socio usa a do usuario.
+        if ($isSubagent) {
+            if (is_array($subagentTools) && !empty($subagentTools) && !in_array($tool, $subagentTools, true) && $tool !== 'consultar_quotas') {
+                $this->saveMessage($conversationId, 'agent', 'Não tenho permissão para usar essa ferramenta neste subagente. O cliente pode liberar em Subagentes > Editar.');
+                return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
+            }
+        } elseif (!AgentPermissions::allows($userId, $tool)) {
+            $this->saveMessage($conversationId, 'agent', 'Não tenho permissão para usar essa ferramenta — o cliente pode liberar em Permissões do Sócio.');
+            return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
+        }
+
+        // LEITURA e PESQUISA executam automaticamente (sem confirmacao do usuario).
+        if (AgentPermissions::isReading($tool)) {
+            $messageId = $this->saveMessage($conversationId, 'tool', $reason, $tool, $args, null, 'processing');
+            $user = \AfiliaFacil\Models\User::find($userId);
+            $userArray = ['id' => $userId, 'name' => $user->name ?? '', 'plan' => $plan, 'email' => $user->email ?? ''];
+
+            $result = AgentTools::execute($tool, $args, $userArray, $userId, ['is_subagent' => $isSubagent]);
+            $status = !empty($result['success']) ? 'executed' : 'failed';
+            $this->updateToolMessage($messageId, $status, $result);
+
+            Audit::log('agent_tool_' . $status, 'agent', (string)$messageId, ['tool' => $tool, 'auto' => true]);
+
+            $this->toolCallDepth++;
+            $this->commentOnResult($userId, $plan, $conversationId, $tool, $result);
+            $this->toolCallDepth--;
+
+            return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
+        }
+
+        $this->saveMessage($conversationId, 'tool', $reason, $tool, $args, null, 'pending_confirmation');
         return ['success' => true, 'quota' => AgentQuota::check($userId, $plan)];
     }
 
@@ -579,7 +600,7 @@ class Agent
         return null;
     }
 
-    private function commentOnResult(int $userId, int $conversationId, string $toolName, array $result): ?string
+    private function commentOnResult(int $userId, string $plan, int $conversationId, string $toolName, array $result): ?string
     {
         $config = AiConfig::forUser($userId);
         if (($config['api_key'] ?? '') === '') return null;
@@ -587,19 +608,33 @@ class Agent
         $status = !empty($result['success']) ? 'SUCESSO' : 'FALHOU';
         $context = "FERRAMENTA EXECUTADA: {$toolName}\nRESULTADO ({$status}): " . ($result['summary'] ?? 'sem detalhes');
 
+        // Swipe vazio: no ponto exato da decisao, direciona a proxima acao para a investigacao externa.
+        $swipeEmpty = $toolName === 'listar_ofertas' && empty($result['render']['data'] ?? null);
+        if ($swipeEmpty) {
+            $context .= "\n\nATENÇÃO: esta busca no swipe voltou VAZIA. NÃO peça ao usuário para tentar outro termo e NÃO afirme que investigou algo que não investigou. Sua resposta DEVE ser APENAS o JSON de tool_call de `espionar_anuncios` (args: query com o termo/nicho do usuário, providers meta e tiktok) — sem texto em volta.";
+        }
+
         $messages = [
-            ['role' => 'system', 'content' => AgentPrompts::base()],
+            ['role' => 'system', 'content' => AgentPrompts::comment()],
             ['role' => 'user', 'content' => $context . "\n\nComente o resultado em 1-3 frases como o Sócio: o que isso significa, próximo passo prático e, se falhou, o que fazer. NÃO repita dados já visíveis. Responda em texto simples (sem JSON)."],
         ];
 
         $commentary = $this->chatWithRetry($messages, $config, 2);
         if ($commentary === null) return null;
 
-        // O modelo as vezes responde em JSON ({"type":"message","content":"..."}) mesmo pedindo texto:
-        // extrai apenas o conteudo para nao vazar JSON cru no chat.
+        // O modelo as vezes responde em JSON mesmo pedindo texto: extrai o conteudo.
         $parsedComment = $this->parseResponse($commentary);
-        if (is_array($parsedComment) && !empty($parsedComment['content'])) {
-            $commentary = (string)$parsedComment['content'];
+        if (is_array($parsedComment)) {
+            // A IA preferiu AGIR em vez de comentar: processa o tool_call (evita salvar JSON cru no chat).
+            if (($parsedComment['type'] ?? '') === 'tool_call') {
+                $this->handleToolCall($userId, $plan, $conversationId, $parsedComment);
+                return null;
+            }
+            if (!empty($parsedComment['content'])) {
+                $commentary = (string)$parsedComment['content'];
+            } elseif (!empty($parsedComment['reason'])) {
+                $commentary = (string)$parsedComment['reason'];
+            }
         }
 
         $filtered = AgentGuard::filterResponse(trim($commentary));
@@ -676,12 +711,18 @@ class Agent
             . "CONVERSA ATÉ AGORA:\n{$historyText}\n"
             . "NOVA MENSAGEM DO USUÁRIO:\n{$message}";
 
-        // Onboarding: usuario acabou de responder a pergunta de NICHO (clicou numa opcao) -> forca a
-        // acao imediata (a IA tende a apenas prometer a busca). NUNCA se aplica a pedidos livres.
+        // Onboarding: a MENSAGEM ATUAL e o proprio nicho (curta, ex: "Games"/"Finanças") -> forca a
+        // busca imediata (a IA tende a apenas prometer). Nunca se aplica a pedidos livres.
         $profileData = AgentProfile::forUser($userId);
         $nicheNow = trim((string)($profileData['niche'] ?? ''));
-        if (!$isSubagent && $nicheNow !== '' && $this->isOnboardingReply($conversationId, $message)) {
+        if (!$isSubagent && $nicheNow !== '' && $this->isNicheMessage($message, $nicheNow)) {
             $context .= "\n\nATENÇÃO (ONBOARDING): o usuário acabou de informar o nicho \"{$nicheNow}\". Sua PRÓXIMA resposta DEVE ser IMEDIATAMENTE um tool_call de listar_ofertas com q=\"{$nicheNow}\" (é leitura e executa sozinha, sem confirmação). NÃO escreva texto prometendo busca — EXECUTE AGORA.";
+        }
+
+        // Swipe vazio: a ultima busca no swipe voltou VAZIA -> forca a investigacao externa agora
+        // (o modelo pequeno tende a so informar "nao encontrei" e devolver a pergunta ao usuario).
+        if (!$isSubagent && $this->lastSwipeSearchWasEmpty($conversationId)) {
+            $context .= "\n\nATENÇÃO: a última busca no swipe voltou VAZIA. NÃO responda apenas informando isso e NUNCA peça ao usuário para tentar outro termo. Sua PRÓXIMA resposta DEVE ser um tool_call de `espionar_anuncios` com o termo/nicho do usuário (providers meta e tiktok — ele ficará aguardando a confirmação do usuário, isso é normal e esperado) ou de `pesquisar_web`. NÃO escreva texto prometendo investigar — EMITA o tool_call AGORA.";
         }
 
         $system = $isSubagent ? AgentPrompts::subagent($subagent) : AgentPrompts::base();
@@ -725,6 +766,62 @@ class Agent
         if (in_array($needle, $control, true)) return true;
 
         return str_starts_with($needle, 'buscar ofertas');
+    }
+
+    /**
+     * A mensagem do usuario E o proprio nicho? (curta: "Games", "Finanças", "moda feminina").
+     * Usado para forcar a busca do nicho sem interferir em pedidos livres.
+     */
+    private function isNicheMessage(string $message, string $niche): bool
+    {
+        $msgNorm = OfferManager::stripAccents(mb_strtolower(trim($message)));
+        $nicheNorm = OfferManager::stripAccents(mb_strtolower(trim($niche)));
+        if ($msgNorm === '' || $nicheNorm === '') return false;
+
+        if ($msgNorm === $nicheNorm) return true;
+
+        $labelNorm = OfferManager::stripAccents(mb_strtolower(OfferManager::nicheLabel($niche)));
+        if ($msgNorm === $labelNorm) return true;
+
+        // Resposta curta que contem o nicho (ex: "quero finanças") — nunca um pedido longo.
+        return mb_strlen($msgNorm) <= 20 && str_contains($msgNorm, $nicheNorm);
+    }
+
+    /**
+     * A conversa ainda nao tem nenhuma acao (tool) executada/proposta?
+     */
+    private function conversationHasTools(int $conversationId): bool
+    {
+        try {
+            return \AfiliaFacil\Models\AgentMessage::where('conversation_id', $conversationId)
+                ->where('role', 'tool')
+                ->exists();
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * A ultima acao da conversa foi uma busca no swipe que nao retornou ofertas?
+     */
+    private function lastSwipeSearchWasEmpty(int $conversationId): bool
+    {
+        try {
+            $lastTool = \AfiliaFacil\Models\AgentMessage::where('conversation_id', $conversationId)
+                ->where('role', 'tool')
+                ->orderByDesc('id')
+                ->first();
+
+            if (!$lastTool || $lastTool->tool_name !== 'listar_ofertas') return false;
+            if (($lastTool->status ?? '') !== 'executed') return false;
+
+            $result = $lastTool->tool_result ?? [];
+            $data = $result['render']['data'] ?? null;
+
+            return is_array($data) && empty($data);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     /**
