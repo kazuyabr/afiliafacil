@@ -4,11 +4,32 @@ class AiClient
 {
     public static function chat(array $messages, array $config): ?string
     {
-        return match ($config['provider'] ?? 'openai') {
+        return match (self::resolveApiType($config)) {
             'cloudflare' => self::cloudflare($messages, $config),
             'anthropic' => self::anthropic($messages, $config),
             'google' => self::google($messages, $config),
+            'azure' => self::azure($messages, $config),
             default => self::openaiCompatible($messages, $config),
+        };
+    }
+
+    /**
+     * Tipo de API efetivo: `api_type` explicito (derivado do SDK na UI) ou
+     * derivado do provider (retrocompatibilidade com configs antigas).
+     */
+    public static function resolveApiType(array $config): string
+    {
+        $type = strtolower(trim((string)($config['api_type'] ?? '')));
+        if (in_array($type, ['openai', 'anthropic', 'google', 'azure', 'cloudflare'], true)) {
+            return $type;
+        }
+
+        return match (strtolower(trim((string)($config['provider'] ?? '')))) {
+            'cloudflare' => 'cloudflare',
+            'anthropic' => 'anthropic',
+            'google', 'google-vertex' => 'google',
+            'azure', 'azure-cognitive-services' => 'azure',
+            default => 'openai',
         };
     }
 
@@ -98,8 +119,46 @@ class AiClient
             $headers[] = 'Authorization: Bearer ' . $key;
         }
 
-        $response = self::request('POST', $baseUrl . '/chat/completions', $headers, json_encode([
+        $payload = [
             'model' => $model,
+            'messages' => $messages,
+            'temperature' => 0.4,
+        ];
+
+        // Modelo local: TTL de inatividade para liberar a VRAM (LM Studio descarrega sozinho)
+        if (self::isLocalUrl($baseUrl)) {
+            $ttl = (int)($config['local_ttl'] ?? 0);
+            if ($ttl > 0) $payload['ttl'] = $ttl;
+        }
+
+        $response = self::requestWithUrlFallback('POST', $baseUrl . '/chat/completions', $headers, json_encode($payload, JSON_UNESCAPED_UNICODE));
+
+        if ($response === null) return null;
+        $json = json_decode($response, true);
+        return $json['choices'][0]['message']['content'] ?? null;
+    }
+
+    /**
+     * Azure OpenAI: formato classico de deployments (header api-key + api-version).
+     */
+    private static function azure(array $messages, array $config): ?string
+    {
+        $baseUrl = rtrim(trim((string)($config['base_url'] ?? '')), '/');
+        $key = trim((string)($config['api_key'] ?? ''));
+        $model = trim((string)($config['model'] ?? ''));
+        $apiVersion = trim((string)($config['azure_api_version'] ?? '')) ?: '2024-10-21';
+
+        if ($baseUrl === '' || $key === '' || $model === '') {
+            self::$lastError = 'Azure: informe a Base URL (ex.: https://SEU-RECURSO.openai.azure.com), o deployment (modelo) e a API key.';
+            return null;
+        }
+
+        $url = $baseUrl . '/openai/deployments/' . rawurlencode($model) . '/chat/completions?api-version=' . urlencode($apiVersion);
+
+        $response = self::requestWithUrlFallback('POST', $url, [
+            'api-key: ' . $key,
+            'Content-Type: application/json',
+        ], json_encode([
             'messages' => $messages,
             'temperature' => 0.4,
         ], JSON_UNESCAPED_UNICODE));
@@ -122,11 +181,57 @@ class AiClient
             || preg_match('/^172\.(1[6-9]|2[0-9]|3[01])\./', $host) === 1;
     }
 
+    /**
+     * Variantes de uma URL local: 127.0.0.1 <-> localhost <-> host.docker.internal.
+     * Permite a mesma configuracao funcionar no host e dentro do Docker.
+     */
+    public static function localUrlVariants(string $url): array
+    {
+        $variants = [$url];
+
+        $host = parse_url($url, PHP_URL_HOST) ?: '';
+        $locals = ['127.0.0.1', 'localhost', 'host.docker.internal'];
+        if (!in_array($host, $locals, true)) return $variants;
+
+        foreach ($locals as $alt) {
+            if ($alt === $host) continue;
+            $variants[] = preg_replace('#//' . preg_quote($host, '#') . '(:|/|$)#', '//' . $alt . '$1', $url);
+        }
+
+        return array_values(array_unique(array_filter($variants)));
+    }
+
+    /**
+     * Request com fallback automatico de URL local (host <-> Docker).
+     * So troca a URL em falha de CONEXAO — respostas HTTP (4xx/5xx) mantem a URL.
+     */
+    private static function requestWithUrlFallback(string $method, string $url, array $headers, string $body): ?string
+    {
+        $response = self::request($method, $url, $headers, $body);
+        if ($response !== null) return $response;
+
+        // Teve resposta HTTP? Entao a URL esta certa (o erro e de auth/modelo/etc.)
+        if (self::$lastStatus > 0) return null;
+
+        foreach (self::localUrlVariants($url) as $variant) {
+            if ($variant === $url) continue;
+
+            $response = self::request($method, $variant, $headers, $body);
+            if ($response !== null) return $response;
+            if (self::$lastStatus > 0) break;
+        }
+
+        return null;
+    }
+
     private static function anthropic(array $messages, array $config): ?string
     {
         $key = trim($config['api_key'] ?? '');
         $model = $config['model'] ?: 'claude-3-5-haiku-latest';
         if ($key === '') return null;
+
+        // Base URL configuravel (gateways/proxies); default = endpoint oficial
+        $baseUrl = rtrim(trim((string)($config['base_url'] ?? '')) ?: 'https://api.anthropic.com/v1', '/');
 
         $system = '';
         $chat = [];
@@ -141,7 +246,7 @@ class AiClient
         $payload = ['model' => $model, 'max_tokens' => 2000, 'messages' => $chat];
         if ($system !== '') $payload['system'] = trim($system);
 
-        $response = self::request('POST', 'https://api.anthropic.com/v1/messages', [
+        $response = self::requestWithUrlFallback('POST', $baseUrl . '/messages', [
             'x-api-key: ' . $key,
             'anthropic-version: 2023-06-01',
             'Content-Type: application/json',
@@ -157,6 +262,9 @@ class AiClient
         $key = trim($config['api_key'] ?? '');
         $model = $config['model'] ?: 'gemini-2.0-flash';
         if ($key === '') return null;
+
+        // Base URL configuravel; default = endpoint oficial
+        $baseUrl = rtrim(trim((string)($config['base_url'] ?? '')) ?: 'https://generativelanguage.googleapis.com/v1beta', '/');
 
         $contents = [];
         $system = '';
@@ -174,8 +282,8 @@ class AiClient
         $payload = ['contents' => $contents];
         if ($system !== '') $payload['systemInstruction'] = ['parts' => [['text' => trim($system)]]];
 
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $model . ':generateContent?key=' . urlencode($key);
-        $response = self::request('POST', $url, ['Content-Type: application/json'], json_encode($payload, JSON_UNESCAPED_UNICODE));
+        $url = $baseUrl . '/models/' . $model . ':generateContent?key=' . urlencode($key);
+        $response = self::requestWithUrlFallback('POST', $url, ['Content-Type: application/json'], json_encode($payload, JSON_UNESCAPED_UNICODE));
 
         if ($response === null) return null;
         $json = json_decode($response, true);
@@ -185,9 +293,17 @@ class AiClient
     /** Ultimo erro retornado pela API (para mensagens especificas ao usuario). */
     private static string $lastError = '';
 
+    /** Status HTTP da ultima request (0 = falha de conexao). */
+    private static int $lastStatus = 0;
+
     public static function lastError(): string
     {
         return self::$lastError;
+    }
+
+    public static function lastStatus(): int
+    {
+        return self::$lastStatus;
     }
 
     /** Erro de cota/limite do provider? (ex.: Cloudflare neurons/dia) */
@@ -201,6 +317,7 @@ class AiClient
     private static function request(string $method, string $url, array $headers, string $body): ?string
     {
         self::$lastError = '';
+        self::$lastStatus = 0;
 
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -216,6 +333,8 @@ class AiClient
         $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
         curl_close($ch);
+
+        self::$lastStatus = $status;
 
         if ($response === false) {
             self::$lastError = 'falha de conexao: ' . $curlError;

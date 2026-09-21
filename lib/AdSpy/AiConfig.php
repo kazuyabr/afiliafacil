@@ -24,8 +24,10 @@ class AiConfig
                     if ($key !== '' || $isLocal) {
                         return [
                             'provider' => $config->provider,
+                            'api_type' => (string)($config->api_type ?? ''),
                             'model' => $config->model,
                             'base_url' => $config->base_url,
+                            'local_ttl' => (int)($config->local_ttl ?? 0),
                             'api_key' => $key,
                             'account_id' => '',
                             'source' => 'byok',
@@ -79,8 +81,10 @@ class AiConfig
     {
         return [
             'provider' => 'cloudflare',
+            'api_type' => 'cloudflare',
             'model' => getenv('CF_AI_MODEL') ?: '@cf/nvidia/nemotron-3-120b-a12b',
             'base_url' => '',
+            'local_ttl' => 0,
             'api_key' => getenv('CF_AI_TOKEN') ?: '',
             'account_id' => getenv('CF_ACCOUNT_ID') ?: '',
             'source' => 'platform',
@@ -95,8 +99,10 @@ class AiConfig
     {
         return [
             'provider' => 'cloudflare',
+            'api_type' => 'cloudflare',
             'model' => getenv('CF_AI_MODEL') ?: '@cf/nvidia/nemotron-3-120b-a12b',
             'base_url' => '',
+            'local_ttl' => 0,
             'api_key' => getenv('CF_AI_TOKEN_2') ?: '',
             'account_id' => getenv('CF_ACCOUNT_ID_2') ?: '',
             'source' => 'platform_alt',

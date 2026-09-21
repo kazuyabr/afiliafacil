@@ -23,6 +23,8 @@ node confirmacao.js     # ação sensível: card pendente -> confirmar -> execut
 node permissoes.js      # modal de permissões do Sócio (liga/desliga tools)
 node pesquisa-web.js    # pesquisar_web executa sozinha (leitura) e renderiza os links
 node baseurl.js         # sugestão de Base URL por provider na tela de IA (BYOK)
+node ai-providers.js    # tipo de API por SDK (models.dev) + aviso de SDK não suportado
+node local-models.js    # modelos locais (VRAM): listar, carregar sem duplicar, descarregar (requer LM Studio)
 ```
 
 Ou via npm scripts: `npm run test:onboarding`, `npm run test:swipe-vazio`, etc.

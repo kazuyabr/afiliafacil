@@ -82,9 +82,17 @@ $theme = $_SESSION['theme'] ?? 'light';
                                 </div>
                                 <div class="form-group">
                                     <label>Modelo</label>
-                                    <select id="aiModel" class="form-control">
-                                        <option value="">Carregando catálogo...</option>
-                                    </select>
+                                    <div style="display:flex;gap:6px;">
+                                        <select id="aiModel" class="form-control">
+                                            <option value="">Carregando catálogo...</option>
+                                        </select>
+                                        <button class="btn btn-outline" onclick="refreshLocalModels()" title="Buscar modelos do servidor local"><i class="fas fa-rotate"></i></button>
+                                    </div>
+                                    <small id="localModelHint" style="color:var(--text-secondary);display:none;font-size:.72rem;margin-top:4px;"></small>
+                                    <div id="localModelActions" style="display:none;gap:6px;margin-top:6px;">
+                                        <button class="btn btn-outline btn-sm" onclick="loadLocalModel()" title="Carregar o modelo na VRAM"><i class="fas fa-arrow-up"></i> Carregar na VRAM</button>
+                                        <button class="btn btn-outline btn-sm" onclick="unloadLocalModel()" title="Descarregar o modelo da VRAM"><i class="fas fa-arrow-down"></i> Descarregar</button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -98,6 +106,25 @@ $theme = $_SESSION['theme'] ?? 'light';
                                     <label>API Key <small id="keyHint" style="color:var(--text-secondary);"></small></label>
                                     <input type="password" id="aiApiKey" class="form-control" placeholder="deixe vazio para manter">
                                     <small style="color:var(--text-secondary);font-size:.72rem;">Opcional para modelos locais (LM Studio, Ollama)</small>
+                                </div>
+                            </div>
+
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Tipo de API <small id="apiTypeSdk" style="color:var(--text-secondary);"></small></label>
+                                    <select id="aiApiType" class="form-control" onchange="updateBaseUrlHint('aiBaseUrl')">
+                                        <option value="openai">OpenAI-compatible (chat/completions)</option>
+                                        <option value="anthropic">Anthropic (messages)</option>
+                                        <option value="google">Google (generateContent)</option>
+                                        <option value="azure">Azure OpenAI (deployments)</option>
+                                        <option value="cloudflare">Cloudflare Workers AI</option>
+                                    </select>
+                                    <small id="apiTypeHint" style="color:var(--text-secondary);font-size:.72rem;"></small>
+                                </div>
+                                <div class="form-group">
+                                    <label>TTL ocioso (segundos) <small style="color:var(--text-secondary);">(modelos locais)</small></label>
+                                    <input type="number" id="aiLocalTtl" class="form-control" min="0" max="86400" placeholder="60">
+                                    <small style="color:var(--text-secondary);font-size:.72rem;">Descarrega o modelo da VRAM após este tempo sem uso (0 = padrão do servidor)</small>
                                 </div>
                             </div>
 
@@ -357,13 +384,7 @@ $theme = $_SESSION['theme'] ?? 'light';
         if (!input) return;
 
         const fromCatalog = (catalog && catalog[providerId] && catalog[providerId].api) ? catalog[providerId].api : '';
-        let suggested = fromCatalog || FALLBACK_URLS[providerId] || '';
-
-        // Dentro do Docker, 127.0.0.1/localhost aponta para o proprio container —
-        // modelos locais no host ficam acessiveis via host.docker.internal.
-        if (IN_DOCKER) {
-            suggested = suggested.replace(/\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0)([:/]|$)/, '//host.docker.internal$2');
-        }
+        const suggested = fromCatalog || FALLBACK_URLS[providerId] || '';
 
         const prev = input.dataset.suggested || '';
         input.placeholder = suggested || 'https://api.openai.com/v1';
@@ -378,7 +399,43 @@ $theme = $_SESSION['theme'] ?? 'light';
     }
 
     /**
-     * Mostra dica quando a URL aponta para um servidor local (chave opcional / host.docker.internal).
+     * Deriva o tipo de API do SDK do provider (models.dev "npm") — o campo continua editavel.
+     */
+    function updateApiType(providerId) {
+        const select = document.getElementById('aiApiType');
+        const sdkLabel = document.getElementById('apiTypeSdk');
+        const hint = document.getElementById('apiTypeHint');
+        if (!select) return;
+
+        if (providerId === 'cloudflare') {
+            select.value = 'cloudflare';
+            sdkLabel.textContent = '(plataforma)';
+            hint.textContent = '';
+            return;
+        }
+
+        const npm = (catalog && catalog[providerId] && catalog[providerId].npm) ? catalog[providerId].npm : '';
+
+        let type = 'openai';
+        if (npm.includes('anthropic')) type = 'anthropic';
+        else if (npm.includes('google')) type = 'google';
+        else if (npm.includes('azure')) type = 'azure';
+
+        const unsupported = npm && (npm.includes('bedrock') || npm.includes('vertex'));
+        if (unsupported) {
+            hint.textContent = '⚠ SDK ' + npm + ' não suportado — use um gateway OpenAI-compatible ou ajuste o tipo manualmente.';
+        } else if (npm) {
+            hint.textContent = 'Detectado do SDK ' + npm + ' — ajuste se necessário.';
+        } else {
+            hint.textContent = '';
+        }
+
+        select.value = type;
+        sdkLabel.textContent = npm ? '(' + npm + ')' : '';
+    }
+
+    /**
+     * Mostra dica quando a URL aponta para um servidor local (chave opcional / fallback automatico).
      */
     function updateBaseUrlHint(inputId) {
         const input = document.getElementById(inputId);
@@ -394,18 +451,124 @@ $theme = $_SESSION['theme'] ?? 'light';
         }
 
         hint.style.display = 'block';
-        if (IN_DOCKER && /\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0)/.test(url)) {
-            hint.textContent = '⚠ App em Docker: use host.docker.internal no lugar de 127.0.0.1 (ex.: http://host.docker.internal:1234/v1).';
-        } else {
-            hint.textContent = 'Servidor local detectado — a API Key é opcional (ex.: LM Studio/Ollama sem autenticação).';
+        hint.textContent = 'Servidor local — a API Key é opcional. A conexão testa automaticamente 127.0.0.1/localhost/host.docker.internal (funciona no host e no Docker).';
+    }
+
+    // ------------------------------------------------------------------
+    // Modelos locais (VRAM): listar com estado, carregar/descarregar
+    // ------------------------------------------------------------------
+
+    let localModelsCache = [];
+
+    function isLocalProvider(providerId) {
+        if (providerId === 'lmstudio' || providerId === 'ollama') return true;
+        const api = (catalog && catalog[providerId] && catalog[providerId].api) ? catalog[providerId].api : (FALLBACK_URLS[providerId] || '');
+        return /\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0)/.test(api);
+    }
+
+    function hideLocalModelControls() {
+        const hint = document.getElementById('localModelHint');
+        const actions = document.getElementById('localModelActions');
+        if (hint) hint.style.display = 'none';
+        if (actions) actions.style.display = 'none';
+        localModelsCache = [];
+    }
+
+    function updateLocalModelState() {
+        const hint = document.getElementById('localModelHint');
+        const actions = document.getElementById('localModelActions');
+        if (!hint || !actions) return;
+
+        const loaded = localModelsCache.filter(m => m.state === 'loaded');
+        hint.style.display = 'block';
+        hint.textContent = localModelsCache.length + ' modelos no servidor local' +
+            (loaded.length ? ' — na VRAM: ' + loaded.map(m => m.id).join(', ') : ' — nenhum carregado na VRAM');
+        actions.style.display = 'flex';
+    }
+
+    async function refreshLocalModels() {
+        const baseUrl = document.getElementById('aiBaseUrl').value.trim();
+        const hint = document.getElementById('localModelHint');
+        if (!hint) return;
+
+        if (!baseUrl) {
+            hint.style.display = 'block';
+            hint.textContent = 'Informe a Base URL do servidor local para listar os modelos.';
+            return;
         }
+
+        hint.style.display = 'block';
+        hint.textContent = 'Buscando modelos do servidor local...';
+
+        try {
+            const resp = await fetch('/admin/api/ai-settings.php?action=local-models&base_url=' + encodeURIComponent(baseUrl));
+            const data = await resp.json();
+
+            if (!data.ok) {
+                hint.textContent = '⚠ ' + (data.error || 'Falha ao listar os modelos do servidor local');
+                document.getElementById('localModelActions').style.display = 'none';
+                return;
+            }
+
+            localModelsCache = data.models || [];
+            const select = document.getElementById('aiModel');
+            const current = select.value;
+            select.innerHTML = '';
+            localModelsCache.forEach(m => {
+                const label = m.id + (m.state === 'loaded' ? '  ✓ carregado' : '') + (m.quantization ? '  [' + m.quantization + ']' : '');
+                select.appendChild(new Option(label, m.id));
+            });
+            if (current && localModelsCache.some(m => m.id === current)) select.value = current;
+
+            updateLocalModelState();
+        } catch (e) {
+            hint.textContent = '⚠ Falha ao conectar no servidor local';
+        }
+    }
+
+    async function loadLocalModel() {
+        const baseUrl = document.getElementById('aiBaseUrl').value.trim();
+        const model = document.getElementById('aiModel').value;
+        if (!model) { showToast('Selecione um modelo', 'error'); return; }
+
+        const hint = document.getElementById('localModelHint');
+        hint.textContent = 'Carregando ' + model + ' na VRAM (pode demorar)...';
+
+        const body = new URLSearchParams({ action: 'local-load', base_url: baseUrl, model });
+        const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body });
+        const data = await resp.json();
+
+        showToast(data.message || data.error || 'Falha', data.ok ? 'success' : 'error');
+        await refreshLocalModels();
+    }
+
+    async function unloadLocalModel() {
+        const baseUrl = document.getElementById('aiBaseUrl').value.trim();
+        const model = document.getElementById('aiModel').value;
+        if (!model) { showToast('Selecione um modelo', 'error'); return; }
+
+        const body = new URLSearchParams({ action: 'local-unload', base_url: baseUrl, model });
+        const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body });
+        const data = await resp.json();
+
+        showToast(data.message || data.error || 'Falha', data.ok ? 'success' : 'error');
+        await refreshLocalModels();
     }
 
     function updateModels() {
         const providerId = document.getElementById('aiProvider').value;
         suggestBaseUrl('aiBaseUrl', providerId);
+        updateApiType(providerId);
         const modelSelect = document.getElementById('aiModel');
         modelSelect.innerHTML = '';
+
+        // Provider local: lista os modelos DO SERVIDOR (com estado na VRAM)
+        if (isLocalProvider(providerId)) {
+            refreshLocalModels();
+            return;
+        }
+
+        hideLocalModelControls();
 
         if (providerId === 'cloudflare') {
                         [['@cf/nvidia/nemotron-3-120b-a12b', 'Nemotron 3 120B (grátis — rápido, recomendado)'], ['@cf/zai-org/glm-4.7-flash', 'GLM 4.7 Flash (grátis — mais lento)'], ['@cf/google/gemma-4-26b-a4b-it', 'Gemma 4 26B (grátis — lento)']]
@@ -446,10 +609,13 @@ $theme = $_SESSION['theme'] ?? 'light';
             const c = data.config;
             document.getElementById('aiEnabled').checked = c.enabled;
             document.getElementById('aiBaseUrl').value = c.base_url;
-            document.getElementById('keyHint').textContent = c.has_key ? '(configurada — vazio mantém)' : '';
+            document.getElementById('aiLocalTtl').value = c.local_ttl || '';
+            document.getElementById('keyHint').textContent = c.has_key ? '(configurada - vazio mantém)' : '';
             if (c.provider && c.provider !== 'cloudflare') {
                 document.getElementById('aiProvider').value = c.provider;
                 updateModels();
+                // Respeita o tipo de API salvo (nao sobrescreve com o detectado)
+                if (c.api_type) document.getElementById('aiApiType').value = c.api_type;
                 if (c.model) {
                     const opt = new Option(c.model, c.model);
                     document.getElementById('aiModel').appendChild(opt);
@@ -496,8 +662,10 @@ $theme = $_SESSION['theme'] ?? 'light';
 
         if (capability === 'chat') {
             body.append('provider', document.getElementById('aiProvider').value);
+            body.append('api_type', document.getElementById('aiApiType').value);
             body.append('model', document.getElementById('aiModel').value);
             body.append('base_url', document.getElementById('aiBaseUrl').value);
+            body.append('local_ttl', document.getElementById('aiLocalTtl').value || '0');
             body.append('api_key', document.getElementById('aiApiKey').value);
             body.append('enabled', document.getElementById('aiEnabled').checked ? '1' : '0');
         } else if (capability === 'stt') {

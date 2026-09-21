@@ -45,8 +45,10 @@ switch ($action) {
             'capability' => $capability,
             'config' => [
                 'provider' => $config->provider ?? $defaultProvider,
+                'api_type' => $config->api_type ?? '',
                 'model' => $config->model ?? '',
                 'base_url' => $config->base_url ?? '',
+                'local_ttl' => (int)($config->local_ttl ?? 0),
                 'has_key' => !empty($config->api_key_encrypted),
                 'enabled' => (bool)($config->enabled ?? false),
             ],
@@ -67,6 +69,12 @@ switch ($action) {
             'enabled' => !empty($_POST['enabled']),
             'updated_at' => date('Y-m-d H:i:s'),
         ];
+
+        if ($capability === 'chat') {
+            $apiType = strtolower(trim((string)($_POST['api_type'] ?? '')));
+            $data['api_type'] = in_array($apiType, ['openai', 'anthropic', 'google', 'azure', 'cloudflare'], true) ? $apiType : null;
+            $data['local_ttl'] = max(0, min(86400, (int)($_POST['local_ttl'] ?? 0))) ?: null;
+        }
 
         if ($capability === 'stt' && !in_array($data['provider'], SttConfig::PROVIDERS, true)) {
             $data['provider'] = 'cloudflare';
@@ -179,6 +187,24 @@ switch ($action) {
         }
         break;
 
+    case 'local-models':
+        $baseUrl = trim($_GET['base_url'] ?? $_POST['base_url'] ?? '');
+        echo json_encode(localModels($baseUrl), JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'local-load':
+        $baseUrl = trim($_POST['base_url'] ?? '');
+        $model = trim($_POST['model'] ?? '');
+        $ttl = max(0, min(86400, (int)($_POST['local_ttl'] ?? 0)));
+        echo json_encode(localLoad($baseUrl, $model, $ttl), JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'local-unload':
+        $baseUrl = trim($_POST['base_url'] ?? '');
+        $model = trim($_POST['model'] ?? '');
+        echo json_encode(localUnload($baseUrl, $model), JSON_UNESCAPED_UNICODE);
+        break;
+
     default:
         echo json_encode(['error' => 'Ação inválida']);
 }
@@ -215,7 +241,149 @@ function testStt(array $config): array
         return ['ok' => true, 'message' => 'Credenciais OK com ' . $provider . ' (' . ($config['model'] ?? '') . ')'];
     }
 
-    $json = is_string($response) ? json_decode($response, true) : null;
+        $json = is_string($response) ? json_decode($response, true) : null;
     $error = $json['error']['message'] ?? $json['err_msg'] ?? $json['errors'][0]['message'] ?? ('HTTP ' . $status);
     return ['ok' => false, 'error' => ucfirst($provider) . ': ' . $error];
+}
+
+// ------------------------------------------------------------------
+// Modelos locais (LM Studio / Ollama / openai-compatible)
+// ------------------------------------------------------------------
+
+/**
+ * Request a um servidor local com fallback de URL (127.0.0.1 <-> host.docker.internal).
+ */
+function localRequest(string $baseUrl, string $path, string $method = 'GET', ?array $payload = null): array
+{
+    $lastError = '';
+
+    foreach (\AiClient::localUrlVariants($baseUrl) as $url) {
+        $ch = curl_init($url . $path);
+        $opts = [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        ];
+        if ($method === 'POST') {
+            $opts[CURLOPT_POST] = true;
+            $opts[CURLOPT_POSTFIELDS] = json_encode($payload ?? [], JSON_UNESCAPED_UNICODE);
+        }
+        curl_setopt_array($ch, $opts);
+        $body = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+
+        if ($body !== false && $status > 0) {
+            $json = json_decode((string)$body, true);
+            if ($status >= 400) {
+                $message = $json['error']['message'] ?? $json['error'] ?? $json['message'] ?? ('HTTP ' . $status);
+                return ['ok' => false, 'error' => is_string($message) ? $message : ('HTTP ' . $status)];
+            }
+            return ['ok' => true, 'json' => is_array($json) ? $json : []];
+        }
+
+        $lastError = $err;
+    }
+
+    return ['ok' => false, 'error' => 'Nao foi possivel conectar ao servidor local (' . $lastError . ')'];
+}
+
+/**
+ * Raiz do servidor local (sem o sufixo /v1) — as APIs do LM Studio ficam em /api/v0 e /api/v1.
+ */
+function localRoot(string $baseUrl): string
+{
+    $baseUrl = rtrim(trim($baseUrl), '/');
+    return (string)preg_replace('#/v1/?$#', '', $baseUrl);
+}
+
+/**
+ * Lista os modelos do servidor local com estado (LM Studio expõe /api/v0/models com `state`).
+ */
+function localModels(string $baseUrl): array
+{
+    $root = localRoot($baseUrl);
+    if ($root === '') return ['ok' => false, 'error' => 'Informe a Base URL do servidor local'];
+
+    $result = localRequest($root, '/api/v0/models');
+    if ($result['ok'] && isset($result['json']['data']) && is_array($result['json']['data']) && !empty($result['json']['data'])) {
+        $models = [];
+        foreach ($result['json']['data'] as $m) {
+            $models[] = [
+                'id' => (string)($m['id'] ?? ''),
+                'state' => (string)($m['state'] ?? 'unknown'),
+                'quantization' => (string)($m['quantization'] ?? ''),
+                'max_context_length' => (int)($m['max_context_length'] ?? 0),
+                'type' => (string)($m['type'] ?? 'llm'),
+            ];
+        }
+        return ['ok' => true, 'server' => 'lmstudio', 'models' => $models];
+    }
+
+    // Generico (Ollama/openai-compatible): /v1/models (sem estado)
+    $result = localRequest($root, '/v1/models');
+    if ($result['ok'] && isset($result['json']['data']) && is_array($result['json']['data'])) {
+        $models = [];
+        foreach ($result['json']['data'] as $m) {
+            $models[] = [
+                'id' => (string)($m['id'] ?? ''),
+                'state' => 'unknown',
+                'quantization' => '',
+                'max_context_length' => 0,
+                'type' => 'llm',
+            ];
+        }
+        return ['ok' => true, 'server' => 'openai-compatible', 'models' => $models];
+    }
+
+    return ['ok' => false, 'error' => $result['error'] ?? 'Falha ao listar modelos do servidor local'];
+}
+
+/**
+ * Carrega um modelo na VRAM — nao carrega de novo se ja estiver carregado (evita duplicar).
+ */
+function localLoad(string $baseUrl, string $model, int $ttl = 0): array
+{
+    $root = localRoot($baseUrl);
+    $model = trim($model);
+    if ($root === '' || $model === '') return ['ok' => false, 'error' => 'Informe a Base URL e o modelo'];
+
+    // Ja esta carregado? (nao sobe duas vezes para a VRAM)
+    $list = localModels($baseUrl);
+    if ($list['ok'] && ($list['server'] ?? '') === 'lmstudio') {
+        foreach ($list['models'] as $m) {
+            if ($m['id'] === $model && $m['state'] === 'loaded') {
+                return ['ok' => true, 'already' => true, 'message' => 'Modelo ja estava carregado na VRAM'];
+            }
+        }
+    }
+
+    // O LM Studio nao aceita `ttl` no load (so em requests de chat) — o TTL e aplicado
+    // automaticamente quando o modelo e usado pelo Socio.
+    $r = localRequest($root, '/api/v1/models/load', 'POST', ['model' => $model]);
+    if (!$r['ok']) {
+        return ['ok' => false, 'error' => $r['error'] ?? 'Falha ao carregar o modelo'];
+    }
+
+    $seconds = $r['json']['load_time_seconds'] ?? null;
+    return ['ok' => true, 'message' => 'Modelo carregado' . ($seconds ? ' em ' . round((float)$seconds, 1) . 's' : '')];
+}
+
+/**
+ * Descarrega um modelo da VRAM (libera recursos).
+ */
+function localUnload(string $baseUrl, string $model): array
+{
+    $root = localRoot($baseUrl);
+    $model = trim($model);
+    if ($root === '' || $model === '') return ['ok' => false, 'error' => 'Informe a Base URL e o modelo'];
+
+    $r = localRequest($root, '/api/v1/models/unload', 'POST', ['instance_id' => $model]);
+    if (!$r['ok']) {
+        return ['ok' => false, 'error' => $r['error'] ?? 'Falha ao descarregar o modelo'];
+    }
+
+    return ['ok' => true, 'message' => 'Modelo descarregado da VRAM'];
 }
