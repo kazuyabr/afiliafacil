@@ -162,7 +162,8 @@ switch ($action) {
         }
 
         $config = AiConfig::forUser($userId);
-        if (($config['api_key'] ?? '') === '') {
+        $isLocal = AiClient::isLocalUrl((string)($config['base_url'] ?? ''));
+        if (($config['api_key'] ?? '') === '' && !$isLocal) {
             echo json_encode(['ok' => false, 'error' => 'Nenhuma chave configurada (nem BYOK, nem plataforma)']);
             break;
         }

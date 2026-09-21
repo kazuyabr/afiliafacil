@@ -86,12 +86,19 @@ class AiClient
         $baseUrl = rtrim($config['base_url'] ?: 'https://api.openai.com/v1', '/');
         $key = trim($config['api_key'] ?? '');
         $model = $config['model'] ?: 'gpt-4o-mini';
-        if ($key === '') return null;
 
-        $response = self::request('POST', $baseUrl . '/chat/completions', [
-            'Authorization: Bearer ' . $key,
-            'Content-Type: application/json',
-        ], json_encode([
+        // Modelos locais (LM Studio/Ollama) podem nao exigir chave — so remotos exigem
+        if ($key === '' && !self::isLocalUrl($baseUrl)) {
+            self::$lastError = 'Chave obrigatoria para provider remoto (' . $baseUrl . ')';
+            return null;
+        }
+
+        $headers = ['Content-Type: application/json'];
+        if ($key !== '') {
+            $headers[] = 'Authorization: Bearer ' . $key;
+        }
+
+        $response = self::request('POST', $baseUrl . '/chat/completions', $headers, json_encode([
             'model' => $model,
             'messages' => $messages,
             'temperature' => 0.4,
@@ -100,6 +107,19 @@ class AiClient
         if ($response === null) return null;
         $json = json_decode($response, true);
         return $json['choices'][0]['message']['content'] ?? null;
+    }
+
+    /** A URL aponta para um servidor local (host ou rede privada)? */
+    public static function isLocalUrl(string $url): bool
+    {
+        $host = parse_url($url, PHP_URL_HOST) ?: '';
+        if ($host === '') return false;
+
+        if (in_array($host, ['localhost', '127.0.0.1', '0.0.0.0', 'host.docker.internal', '::1'], true)) return true;
+
+        return str_starts_with($host, '192.168.')
+            || str_starts_with($host, '10.')
+            || preg_match('/^172\.(1[6-9]|2[0-9]|3[01])\./', $host) === 1;
     }
 
     private static function anthropic(array $messages, array $config): ?string

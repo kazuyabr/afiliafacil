@@ -91,11 +91,13 @@ $theme = $_SESSION['theme'] ?? 'light';
                             <div class="grid-2">
                                 <div class="form-group">
                                     <label>Base URL <small style="color:var(--text-secondary);">(apenas OpenAI-compatible)</small></label>
-                                    <input type="text" id="aiBaseUrl" class="form-control" placeholder="https://api.openai.com/v1">
+                                    <input type="text" id="aiBaseUrl" class="form-control" placeholder="https://api.openai.com/v1" oninput="updateBaseUrlHint('aiBaseUrl')">
+                                    <small id="aiBaseUrlHint" style="color:var(--text-secondary);display:none;font-size:.72rem;"></small>
                                 </div>
                                 <div class="form-group">
                                     <label>API Key <small id="keyHint" style="color:var(--text-secondary);"></small></label>
                                     <input type="password" id="aiApiKey" class="form-control" placeholder="deixe vazio para manter">
+                                    <small style="color:var(--text-secondary);font-size:.72rem;">Opcional para modelos locais (LM Studio, Ollama)</small>
                                 </div>
                             </div>
 
@@ -343,6 +345,9 @@ $theme = $_SESSION['theme'] ?? 'light';
         ollama: 'http://127.0.0.1:11434/v1',
     };
 
+    // App rodando em Docker? (o localhost do host nao e alcancavel de dentro do container)
+    const IN_DOCKER = <?= getenv('DOCKER') ? 'true' : 'false' ?>;
+
     /**
      * Sugere a Base URL conforme o provider (campo models.dev "api", com fallback local).
      * O campo continua editavel: nunca sobrescreve um valor digitado pelo usuario.
@@ -352,9 +357,15 @@ $theme = $_SESSION['theme'] ?? 'light';
         if (!input) return;
 
         const fromCatalog = (catalog && catalog[providerId] && catalog[providerId].api) ? catalog[providerId].api : '';
-        const suggested = fromCatalog || FALLBACK_URLS[providerId] || '';
-        const prev = input.dataset.suggested || '';
+        let suggested = fromCatalog || FALLBACK_URLS[providerId] || '';
 
+        // Dentro do Docker, 127.0.0.1/localhost aponta para o proprio container —
+        // modelos locais no host ficam acessiveis via host.docker.internal.
+        if (IN_DOCKER) {
+            suggested = suggested.replace(/\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0)([:/]|$)/, '//host.docker.internal$2');
+        }
+
+        const prev = input.dataset.suggested || '';
         input.placeholder = suggested || 'https://api.openai.com/v1';
 
         // Preenche se vazio ou se ainda contem a sugestao anterior (nao sobrescreve valor manual)
@@ -363,6 +374,31 @@ $theme = $_SESSION['theme'] ?? 'light';
         }
 
         input.dataset.suggested = suggested;
+        updateBaseUrlHint(inputId);
+    }
+
+    /**
+     * Mostra dica quando a URL aponta para um servidor local (chave opcional / host.docker.internal).
+     */
+    function updateBaseUrlHint(inputId) {
+        const input = document.getElementById(inputId);
+        const hint = document.getElementById(inputId + 'Hint');
+        if (!input || !hint) return;
+
+        const url = (input.value || '').trim();
+        const isLocal = /\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0|host\.docker\.internal)/.test(url);
+
+        if (!isLocal) {
+            hint.style.display = 'none';
+            return;
+        }
+
+        hint.style.display = 'block';
+        if (IN_DOCKER && /\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0)/.test(url)) {
+            hint.textContent = '⚠ App em Docker: use host.docker.internal no lugar de 127.0.0.1 (ex.: http://host.docker.internal:1234/v1).';
+        } else {
+            hint.textContent = 'Servidor local detectado — a API Key é opcional (ex.: LM Studio/Ollama sem autenticação).';
+        }
     }
 
     function updateModels() {

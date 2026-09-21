@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Crypto.php';
+require_once __DIR__ . '/AiClient.php';
 
 class AiConfig
 {
@@ -18,7 +19,9 @@ class AiConfig
                     ->first();
                 if ($config) {
                     $key = Crypto::decrypt($config->api_key_encrypted ?? '') ?? '';
-                    if ($key !== '') {
+                    // Modelos locais (LM Studio/Ollama) podem funcionar sem chave
+                    $isLocal = AiClient::isLocalUrl((string)($config->base_url ?? ''));
+                    if ($key !== '' || $isLocal) {
                         return [
                             'provider' => $config->provider,
                             'model' => $config->model,
@@ -46,7 +49,9 @@ class AiConfig
     {
         $list = [];
         $primary = self::forUser($userId);
-        if (($primary['api_key'] ?? '') !== '') $list[] = $primary;
+        // BYOK local pode ter chave vazia (LM Studio/Ollama)
+        $primaryIsLocal = ($primary['source'] ?? '') === 'byok' && AiClient::isLocalUrl((string)($primary['base_url'] ?? ''));
+        if (($primary['api_key'] ?? '') !== '' || $primaryIsLocal) $list[] = $primary;
 
         if (($primary['source'] ?? '') === 'byok') {
             $platform = self::platform();

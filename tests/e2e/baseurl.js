@@ -51,6 +51,13 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(600);
   console.log('6. cloudflare -> value="' + await page.inputValue('#aiBaseUrl') + '" (deve limpar a sugestao)');
 
+  // 6b. hint de URL local (Docker) ao digitar 127.0.0.1
+  await page.fill('#aiBaseUrl', 'http://127.0.0.1:1234/v1');
+  await page.waitForTimeout(500);
+  const hintVisible = await page.locator('#aiBaseUrlHint').isVisible();
+  const hintText = await page.locator('#aiBaseUrlHint').textContent().catch(() => '');
+  console.log('6b. hint local visivel=' + hintVisible + ' texto="' + (hintText || '').substring(0, 70) + '"');
+
   // 7. STT: deepgram (fallback local)
   await page.click('.tab-btn[data-tab="stt"]');
   await page.waitForTimeout(500);
