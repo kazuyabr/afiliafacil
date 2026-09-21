@@ -424,6 +424,87 @@ class OfferManager
         return $data;
     }
 
+    /**
+     * Identifica o nicho a partir de um texto livre (ex: "Finanças", "quero atuar com emagrecimento").
+     * Retorna o slug do nicho ou null. Usado no onboarding do Socio.
+     */
+    public static function matchNiche(string $text): ?string
+    {
+        $normalized = self::stripAccents(mb_strtolower(trim($text)));
+        if ($normalized === '' || mb_strlen($normalized) > 60) return null;
+
+        $candidates = self::NICHES;
+        foreach (self::topNiches(20) as $n) {
+            $candidates[] = $n['niche'];
+        }
+
+        foreach (array_unique($candidates) as $slug) {
+            if ($normalized === self::stripAccents(mb_strtolower($slug))) return $slug;
+            if ($normalized === self::stripAccents(mb_strtolower(self::nicheLabel($slug)))) return $slug;
+        }
+
+        foreach (array_unique($candidates) as $slug) {
+            $needle = self::stripAccents(mb_strtolower($slug));
+            if (mb_strlen($needle) >= 4 && str_contains($normalized, $needle)) return $slug;
+        }
+
+        return null;
+    }
+
+    /**
+     * Top nichos com ofertas aprovadas (alimenta os chips de onboarding do Socio).
+     * Retorna [['niche' => 'financas', 'label' => 'Financas', 'total' => 2], ...]
+     */
+    public static function topNiches(int $limit = 5): array
+    {
+        if (!Database::available()) return [];
+
+        try {
+            $rows = \AfiliaFacil\Models\Offer::selectRaw('niche, count(*) as total')
+                ->where('status', 'approved')
+                ->whereNotNull('niche')
+                ->where('niche', '<>', '')
+                ->groupBy('niche')
+                ->orderByDesc('total')
+                ->orderBy('niche')
+                ->limit($limit)
+                ->get();
+
+            $out = [];
+            foreach ($rows as $row) {
+                $niche = trim((string)$row->niche);
+                if ($niche === '') continue;
+                $out[] = [
+                    'niche' => $niche,
+                    'label' => self::nicheLabel($niche),
+                    'total' => (int)$row->total,
+                ];
+            }
+
+            return $out;
+        } catch (Throwable $e) {
+            return [];
+        }
+    }
+
+    public static function nicheLabel(string $niche): string
+    {
+        $key = str_replace(' ', '_', mb_strtolower(trim($niche)));
+
+        $labels = [
+            'financas' => 'Finanças',
+            'saude' => 'Saúde',
+            'educacao' => 'Educação',
+            'negocios' => 'Negócios',
+            'tecnologia' => 'Tecnologia',
+            'outros' => 'Outros',
+        ];
+
+        if (isset($labels[$key])) return $labels[$key];
+
+        return mb_convert_case(str_replace('_', ' ', trim($niche)), MB_CASE_TITLE, 'UTF-8');
+    }
+
     private static function stripAccents(string $value): string
     {
         return strtr(mb_strtolower($value), [

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../AdSpy/AiClient.php';
 require_once __DIR__ . '/../AdSpy/AiConfig.php';
 require_once __DIR__ . '/../Moderation/ContentModerator.php';
 require_once __DIR__ . '/../Training/TrainingCollector.php';
+require_once __DIR__ . '/../Offers/OfferManager.php';
 require_once __DIR__ . '/AgentGuard.php';
 require_once __DIR__ . '/AgentTools.php';
 require_once __DIR__ . '/AgentQuota.php';
@@ -59,6 +60,24 @@ class Agent
         }
 
         $this->saveMessage((int)$conversation->id, 'user', $message, '', null, null, '', [], AgentQuota::source($userId));
+
+        // Onboarding: se o agente acabou de perguntar o NICHO (question com opcoes) e o usuario
+        // respondeu, salvamos no perfil de forma DETERMINISTICA (nao dependemos da IA lembrar).
+        try {
+            $lastAgentMessage = \AfiliaFacil\Models\AgentMessage::where('conversation_id', (int)$conversation->id)
+                ->where('role', 'agent')
+                ->orderByDesc('id')
+                ->first();
+            $options = $lastAgentMessage->tool_args['options'] ?? [];
+            if (($lastAgentMessage->status ?? '') === 'question' && is_array($options) && !empty($options)) {
+                $niche = OfferManager::matchNiche($message);
+                $profile = AgentProfile::forUser($userId);
+                if ($niche !== null && trim((string)($profile['niche'] ?? '')) === '') {
+                    AgentProfile::update($userId, ['niche' => $niche]);
+                }
+            }
+        } catch (Throwable $e) {
+        }
 
         $kind = !empty($conversation->subagent_id) ? 'subagent' : 'agent';
         $jobId = AgentJobs::enqueue((int)$conversation->id, $userId, $kind);
@@ -341,11 +360,41 @@ class Agent
             ]);
 
             if ($subagent) {
-                $greeting = 'Oi! Sou o ' . $subagent['name'] . ($subagent['specialty'] !== '' ? ' — especialista em ' . $subagent['specialty'] : '') . '. Mantenho os princípios do Sócio de IA (sem promessas de ganho, sempre te protegendo). Como posso ajudar?';
+                $greeting = 'Oi! Sou o ' . $subagent['name'] . ($subagent['specialty'] !== '' ? ' - especialista em ' . $subagent['specialty'] : '') . '. Mantenho os princípios do Sócio de IA (sem promessas de ganho, sempre te protegendo). Como posso ajudar?';
+                $options = [];
             } else {
-                $greeting = 'Oi! Sou seu Sócio de IA aqui na AfiliaFacil. Meu papel é te ajudar a ganhar dinheiro com tráfego (pago ou orgânico) gastando pouco — e te proteger de furada. Antes de qualquer coisa: o que você busca agora?';
+                $profile = AgentProfile::forUser($userId);
+                $niche = trim((string)($profile['niche'] ?? ''));
+
+                if ($niche !== '') {
+                    // Ja conhece o nicho: nao repete a pergunta, oferece acao
+                    $label = OfferManager::nicheLabel($niche);
+                    $greeting = "Oi de novo! Sou seu Sócio de IA — foco total em te fazer ganhar dinheiro com afiliação.\n\nVi que você atua com {$label}. Quer que eu busque ofertas validadas desse nicho agora?";
+                    $options = [
+                        'Buscar ofertas de ' . $label,
+                        'Ver anúncios ativos',
+                        'Trocar de nicho',
+                    ];
+                } else {
+                    // Primeira conversa: descobre o NICHO logo de cara (chips dinamicos do swipe file)
+                    $greeting = "Oi! Sou seu Sócio de IA — foco total em te fazer ganhar dinheiro com afiliação.\n\nPara eu trabalhar direito desde o começo: qual nicho você quer atuar?";
+                    $options = [];
+                    foreach (OfferManager::topNiches(5) as $n) {
+                        $options[] = $n['label'];
+                    }
+                    if (empty($options)) {
+                        $options = ['Emagrecimento', 'Finanças', 'Relacionamento', 'Espiritualidade'];
+                    }
+                    $options[] = 'Quero sugestões';
+                    $options[] = 'Outro';
+                }
             }
-            $this->saveMessage((int)$conversation->id, 'agent', $greeting);
+
+            if (!empty($options)) {
+                $this->saveMessage((int)$conversation->id, 'agent', $greeting, '', null, null, 'question', ['options' => $options]);
+            } else {
+                $this->saveMessage((int)$conversation->id, 'agent', $greeting);
+            }
 
             return ['success' => true, 'conversation_id' => (int)$conversation->id];
         } catch (Throwable $e) {
@@ -541,6 +590,13 @@ class Agent
         $commentary = $this->chatWithRetry($messages, $config, 2);
         if ($commentary === null) return null;
 
+        // O modelo as vezes responde em JSON ({"type":"message","content":"..."}) mesmo pedindo texto:
+        // extrai apenas o conteudo para nao vazar JSON cru no chat.
+        $parsedComment = $this->parseResponse($commentary);
+        if (is_array($parsedComment) && !empty($parsedComment['content'])) {
+            $commentary = (string)$parsedComment['content'];
+        }
+
         $filtered = AgentGuard::filterResponse(trim($commentary));
         $this->saveMessage($conversationId, 'agent', ContentModerator::redact($filtered['text']));
         return $filtered['text'];
@@ -615,12 +671,46 @@ class Agent
             . "CONVERSA ATÉ AGORA:\n{$historyText}\n"
             . "NOVA MENSAGEM DO USUÁRIO:\n{$message}";
 
+        // Onboarding: usuario acabou de responder a pergunta de NICHO (clicou numa opcao) -> forca a
+        // acao imediata (a IA tende a apenas prometer a busca). NUNCA se aplica a pedidos livres.
+        $profileData = AgentProfile::forUser($userId);
+        $nicheNow = trim((string)($profileData['niche'] ?? ''));
+        if (!$isSubagent && $nicheNow !== '' && $this->isOnboardingReply($conversationId, $message)) {
+            $context .= "\n\nATENÇÃO (ONBOARDING): o usuário acabou de informar o nicho \"{$nicheNow}\". Sua PRÓXIMA resposta DEVE ser IMEDIATAMENTE um tool_call de listar_ofertas com q=\"{$nicheNow}\" (é leitura e executa sozinha, sem confirmação). NÃO escreva texto prometendo busca — EXECUTE AGORA.";
+        }
+
         $system = $isSubagent ? AgentPrompts::subagent($subagent) : AgentPrompts::base();
 
         return [
             ['role' => 'system', 'content' => $system],
             ['role' => 'user', 'content' => $context],
         ];
+    }
+
+    /**
+     * A mensagem do usuario e exatamente uma das opcoes do ultimo greeting de onboarding?
+     * (usado para forcar a busca do nicho sem interferir em pedidos livres).
+     */
+    private function isOnboardingReply(int $conversationId, string $message): bool
+    {
+        try {
+            $lastAgent = \AfiliaFacil\Models\AgentMessage::where('conversation_id', $conversationId)
+                ->where('role', 'agent')
+                ->orderByDesc('id')
+                ->first();
+            if (!$lastAgent || ($lastAgent->status ?? '') !== 'question') return false;
+
+            $options = $lastAgent->tool_args['options'] ?? [];
+            if (!is_array($options) || empty($options)) return false;
+
+            $needle = mb_strtolower(trim($message));
+            foreach ($options as $option) {
+                if (mb_strtolower(trim((string)$option)) === $needle) return true;
+            }
+        } catch (Throwable $e) {
+        }
+
+        return false;
     }
 
     private function parseResponse(string $raw): ?array
