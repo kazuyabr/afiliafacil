@@ -1,0 +1,15 @@
+{
+  "name": "afiliafacil-e2e",
+  "private": true,
+  "description": "Testes E2E (Playwright) dos fluxos do Sócio de IA",
+  "scripts": {
+    "test:onboarding": "node onboarding.js",
+    "test:swipe-vazio": "node swipe-vazio.js",
+    "test:confirmacao": "node confirmacao.js",
+    "test:permissoes": "node permissoes.js",
+    "test:pesquisa-web": "node pesquisa-web.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
