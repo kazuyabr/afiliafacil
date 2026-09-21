@@ -32,6 +32,20 @@ const { chromium } = require('playwright');
   }
   console.log('1. tool pendente apareceu: ' + pending);
 
+  // Regressao de layout: o card nao pode ser encolhido pelo flex (texto cortado)
+  const cardLayout = await page.evaluate(() => {
+    const card = document.querySelector('.msg.tool-card');
+    if (!card) return null;
+    const body = card.querySelector('.tool-body');
+    return {
+      cardH: card.offsetHeight,
+      cardScrollH: card.scrollHeight,
+      bodyVisible: body ? body.offsetHeight > 0 : false,
+    };
+  });
+  console.log('1b. layout do card: ' + JSON.stringify(cardLayout) +
+    ' (ok=' + (cardLayout && cardLayout.cardH > 50 && cardLayout.cardH >= cardLayout.cardScrollH - 2) + ')');
+
   const bannerVisible = await page.locator('#pendingBanner').isVisible().catch(() => false);
   console.log('2. banner "aguarda confirmacao" visivel: ' + bannerVisible);
   await page.screenshot({ path: 'confirm-antes.png' });

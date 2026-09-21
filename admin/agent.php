@@ -45,15 +45,18 @@ $profileText = AgentProfile::describe($profile);
         .agent-chat { flex:1; background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-lg); display:flex; flex-direction:column; overflow:hidden; min-width:0; }
         .agent-chat-header { padding:12px 16px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
         .agent-messages { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:14px; }
+        /* Impede o flex de ENCOLHER as mensagens/cards (com overflow:hidden o texto era cortado) */
+        .agent-messages > * { flex-shrink: 0; }
         .msg { max-width:78%; padding:12px 15px; border-radius:14px; font-size:.88rem; line-height:1.6; white-space:pre-wrap; word-break:break-word; }
         .msg.user { align-self:flex-end; background:var(--accent); color:#fff; border-bottom-right-radius:4px; }
         .msg.agent { align-self:flex-start; background:var(--bg-secondary); border-bottom-left-radius:4px; }
         .msg.tool-card { align-self:flex-start; background:var(--bg-card); border:1px solid var(--border-color); max-width:88%; width:100%; padding:0; overflow:hidden; }
         .tool-head { padding:12px 15px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
         .tool-head .name { font-weight:600; font-size:.85rem; display:flex; align-items:center; gap:8px; }
-        .tool-body { padding:0 15px 12px; font-size:.82rem; color:var(--text-secondary); }
+        /* Textos longos rolam dentro do card (scrollbar segue o tema via app.css) */
+        .tool-body { padding:2px 15px 12px; font-size:.82rem; color:var(--text-secondary); line-height:1.55; max-height:220px; overflow-y:auto; }
         .tool-actions { padding:12px 15px; border-top:1px solid var(--border-color); display:flex; gap:8px; }
-        .tool-result { padding:14px 15px; border-top:1px solid var(--border-color); }
+        .tool-result { padding:14px 15px; border-top:1px solid var(--border-color); max-height:360px; overflow-y:auto; }
         .status-badge { font-size:.68rem; padding:2px 8px; border-radius:10px; text-transform:uppercase; font-weight:700; letter-spacing:.03em; }
         .status-pending_confirmation { background:#fef3c7; color:#92400e; }
         .status-processing { background:#dbeafe; color:#1e40af; }

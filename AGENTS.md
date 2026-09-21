@@ -133,6 +133,7 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **Memória** (`AgentProfile`): nicho, orçamento, experiência e objetivos entre conversas.
 - **Quotas** (`plans.max_agent_messages`): Trial 10 · VSL 0 · Pro 100 · Master 500 · Admin ∞ (BYOK remove o limite).
 - **UI**: `/admin/agent.php` — chat assíncrono com histórico, **seção Subagentes**, cards de ação, chips, resultados ricos, **rating 👍/👎**, banner de princípios, perfil, prefill `?ask=`, abertura por `?conv=`.
+  - **Layout dos cards (lição)**: a lista de mensagens é `flex-direction: column` com `overflow-y: auto` — sem `flex-shrink: 0` nos filhos, o flex **encolhia os cards até ~2px** e o `overflow: hidden` cortava o texto. Textos longos rolam **dentro do card** (`.tool-body` max-height 220px / `.tool-result` 360px, `overflow-y: auto`) com scrollbar nas cores do tema (variáveis `--scrollbar-*` do app.css). Regressão coberta em `tests/e2e/confirmacao.js` (check 1b: altura do card vs scrollHeight).
 - **API**: `admin/api/agent.php` (quota/profile/conversations/conversation/new/send/process/job-status/notifications/mark-seen/rate/confirm/cancel/delete + subagents…).
 - **Tabelas**: `agent_conversations` (+`subagent_id`), `agent_messages` (+`seen_at`, `rating`, `rating_note`), `agent_profiles`, `agent_subagents`, `agent_jobs` (migrations 20, 25, 27).
 
