@@ -13,8 +13,8 @@ class OfferAi
     {
         if (!Database::available()) return ['error' => 'Banco indisponível'];
 
-        $config = AiConfig::forUser($userId);
-        if (($config['api_key'] ?? '') === '') {
+        $candidates = AiConfig::candidates($userId);
+        if (empty($candidates)) {
             return ['error' => 'IA não configurada (CF_AI_TOKEN da plataforma ou BYOK do usuário).'];
         }
 
@@ -40,7 +40,7 @@ class OfferAi
                 ['role' => 'user', 'content' => "Analise a oferta abaixo e responda SOMENTE com JSON no formato:\n{\"nicho\":\"financas|saude|emagrecimento|relacionamento|espiritualidade|educacao|negocios|tecnologia|outros\",\"estrutura\":\"vsl|quiz|low_ticket|infoproduto|carta\",\"idioma\":\"pt|es|en\",\"score\":0-100,\"resumo\":\"...\",\"publico\":\"...\",\"angulos\":[\"...\"],\"sugestoes\":[\"...\"]}\n\nO score mede o potencial de escala da oferta (quantidade de anúncios ativos + variação + qualidade dos criativos).\n\n{$context}"],
             ];
 
-            $response = AiClient::chat($messages, $config);
+            $response = AiClient::chatWithFallback($messages, $candidates);
             if ($response === null) {
                 return ['error' => 'Falha na chamada da IA (verifique provider/chave).'];
             }
@@ -99,8 +99,8 @@ class OfferAi
 
     public function suggestTerms(int $userId = 0): ?array
     {
-        $config = AiConfig::forUser($userId);
-        if (($config['api_key'] ?? '') === '') return null;
+        $candidates = AiConfig::candidates($userId);
+        if (empty($candidates)) return null;
 
         $existing = \AfiliaFacil\Models\Offer::where('status', 'approved')
             ->orderByDesc('score')
@@ -113,7 +113,7 @@ class OfferAi
             ['role' => 'user', 'content' => "Sugira 10 termos de busca em português para encontrar novas ofertas escalando nas bibliotecas de anúncios (Meta/Google/TikTok). Evite repetir ofertas conhecidas. Responda com JSON: {\"termos\":[\"...\"],\"nichos\":[\"...\"]}\n\nOfertas conhecidas: " . implode(', ', $existing)],
         ];
 
-        $response = AiClient::chat($messages, $config);
+        $response = AiClient::chatWithFallback($messages, $candidates);
         if ($response === null) return null;
 
         return $this->parseJson($response);

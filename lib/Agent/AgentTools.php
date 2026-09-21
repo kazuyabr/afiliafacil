@@ -111,15 +111,15 @@ class AgentTools
             return ['success' => false, 'summary' => 'Subagente não encontrado ou inativo. Verifique os subagentes disponíveis.', 'render' => null];
         }
 
-        $config = AiConfig::forUser($userId);
-        if (($config['api_key'] ?? '') === '') {
+        $candidates = AiConfig::candidates($userId);
+        if (empty($candidates)) {
             return ['success' => false, 'summary' => 'IA não configurada (CF_AI_TOKEN da plataforma ou BYOK).', 'render' => null];
         }
 
-        $response = AiClient::chat([
+        $response = AiClient::chatWithFallback([
             ['role' => 'system', 'content' => AgentPrompts::subagent($subagent)],
             ['role' => 'user', 'content' => $question],
-        ], $config);
+        ], $candidates);
 
         if ($response === null) {
             return ['success' => false, 'summary' => 'O subagente não conseguiu responder agora (falha na IA).', 'render' => null];

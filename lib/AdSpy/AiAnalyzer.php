@@ -14,8 +14,8 @@ class AiAnalyzer
             return ['error' => sprintf(AdSpyQuota::BYOK_MESSAGE, $quota['used'], $quota['limit'])];
         }
 
-        $config = AiConfig::forUser($userId);
-        if (($config['api_key'] ?? '') === '') {
+        $candidates = AiConfig::candidates($userId);
+        if (empty($candidates)) {
             return ['error' => 'IA não configurada. Configure o Cloudflare Workers AI da plataforma (CF_AI_TOKEN) ou sua própria chave (BYOK).'];
         }
 
@@ -30,12 +30,12 @@ class AiAnalyzer
             ['role' => 'user', 'content' => "Analise a campanha abaixo e responda SOMENTE com um JSON válido no formato:\n{\"resumo\":\"...\",\"angulos\":[\"...\"],\"oferta\":\"...\",\"cta\":\"...\",\"publico\":\"...\",\"funil\":\"...\",\"termos_busca\":[\"...\"],\"sugestoes\":[\"...\"]}\n\nSINAIS DA PÁGINA CLONADA:\n{$signalsText}\n\nANÚNCIOS ENCONTRADOS NAS BIBLIOTECAS (resumo):\n{$summary}"],
         ];
 
-        $response = AiClient::chat($messages, $config);
+        $response = AiClient::chatWithFallback($messages, $candidates);
         if ($response === null) {
             return ['error' => 'Falha na chamada da IA (verifique a configuração do provider/chave).'];
         }
 
-        AdSpyQuota::consume($userId, AdSpyQuota::KIND_ANALYSIS, 'analise-campanha', $config['provider'], 1, false);
+        AdSpyQuota::consume($userId, AdSpyQuota::KIND_ANALYSIS, 'analise-campanha', $candidates[0]['provider'], 1, false);
 
         $parsed = $this->parseJson($response);
         return [

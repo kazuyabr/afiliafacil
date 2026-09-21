@@ -137,16 +137,16 @@ class Agent
                 ->first();
             $message = (string)($lastUserMessage->content ?? '');
 
-            $config = AiConfig::forUser($userId);
-            if (($config['api_key'] ?? '') === '') {
+            $candidates = AiConfig::candidates($userId);
+            if (empty($candidates)) {
                 $this->saveMessage($conversationId, 'agent', 'Não consigo pensar agora: a IA não está configurada. Peça ao administrador para configurar o Cloudflare Workers AI da plataforma (CF_AI_TOKEN) ou configure sua própria chave em IA (BYOK).');
                 AgentJobs::complete($jobId);
                 return ['success' => true];
             }
 
-            $response = $this->chatWithRetry($this->buildMessages($userId, $plan, $conversationId, $message), $config);
+            $response = $this->chatWithRetry($this->buildMessages($userId, $plan, $conversationId, $message), $candidates);
             if ($response === null) {
-                $this->saveMessage($conversationId, 'agent', $this->aiFailureMessage());
+                $this->saveMessage($conversationId, 'agent', $this->aiFailureMessage($plan));
                 AgentJobs::complete($jobId);
                 return ['success' => true];
             }
@@ -591,9 +591,13 @@ class Agent
     /**
      * Mensagem de falha da IA — diferencia limite de cota (orienta o BYOK) de erro transitorio.
      */
-    private function aiFailureMessage(): string
+    private function aiFailureMessage(string $plan = ''): string
     {
         if (AiClient::isQuotaError()) {
+            if ($plan === 'premium') {
+                return 'A IA da plataforma atingiu o limite diário de uso (cota gratuita da conta Cloudflare). Como administrador, você pode somar cotas configurando uma chave alternativa (CF_AI_TOKEN_2/CF_ACCOUNT_ID_2 no .env) ou usar sua própria chave (BYOK) em IA → Configurações → aba Análise.';
+            }
+
             return 'A IA da plataforma atingiu o limite diário de uso. Você pode continuar agora configurando sua própria chave (BYOK) em IA → Configurações → aba Análise, ou tentar novamente mais tarde.';
         }
 
@@ -601,25 +605,18 @@ class Agent
     }
 
     /**
-     * Chamada de IA com retry imediato (instabilidade transitoria do provider
-     * nao deve virar mensagem de erro definitiva para o usuario).
+     * Chamada de IA com retry imediato e fallback de cotas
+     * (instabilidade transitoria nao deve virar mensagem de erro definitiva).
      */
-    private function chatWithRetry(array $messages, array $config, int $attempts = 3): ?string
+    private function chatWithRetry(array $messages, array $candidates, int $attempts = 2): ?string
     {
-        for ($i = 1; $i <= $attempts; $i++) {
-            $response = AiClient::chat($messages, $config);
-            if ($response !== null) return $response;
-            if (AiClient::isQuotaError()) break; // cota/limite: nao adianta insistir
-            if ($i < $attempts) usleep(2000000);
-        }
-
-        return null;
+        return AiClient::chatWithFallback($messages, $candidates, $attempts);
     }
 
     private function commentOnResult(int $userId, string $plan, int $conversationId, string $toolName, array $result): ?string
     {
-        $config = AiConfig::forUser($userId);
-        if (($config['api_key'] ?? '') === '') return null;
+        $candidates = AiConfig::candidates($userId);
+        if (empty($candidates)) return null;
 
         $status = !empty($result['success']) ? 'SUCESSO' : 'FALHOU';
         $context = "FERRAMENTA EXECUTADA: {$toolName}\nRESULTADO ({$status}): " . ($result['summary'] ?? 'sem detalhes');
@@ -635,7 +632,7 @@ class Agent
             ['role' => 'user', 'content' => $context . "\n\nComente o resultado em 1-3 frases como o Sócio: o que isso significa, próximo passo prático e, se falhou, o que fazer. NÃO repita dados já visíveis. Responda em texto simples (sem JSON)."],
         ];
 
-        $commentary = $this->chatWithRetry($messages, $config, 2);
+        $commentary = $this->chatWithRetry($messages, $candidates, 2);
         if ($commentary === null) return null;
 
         // O modelo as vezes responde em JSON mesmo pedindo texto: extrai o conteudo.

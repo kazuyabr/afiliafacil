@@ -61,6 +61,26 @@ class AiClient
         return $text !== '' ? $text : null;
     }
 
+    /**
+     * Tenta cada config em ordem (fallback automatico quando uma cota/limite estoura).
+     * Ex.: BYOK do usuario -> plataforma -> chave alternativa da plataforma.
+     */
+    public static function chatWithFallback(array $messages, array $candidates, int $attemptsPerConfig = 2): ?string
+    {
+        foreach ($candidates as $config) {
+            for ($i = 1; $i <= $attemptsPerConfig; $i++) {
+                $response = self::chat($messages, $config);
+                if ($response !== null) return $response;
+
+                // Cota/limite estourou: nao adianta insistir nesta chave, tenta a proxima
+                if (self::isQuotaError()) break;
+                if ($i < $attemptsPerConfig) usleep(1500000);
+            }
+        }
+
+        return null;
+    }
+
     private static function openaiCompatible(array $messages, array $config): ?string
     {
         $baseUrl = rtrim($config['base_url'] ?: 'https://api.openai.com/v1', '/');
