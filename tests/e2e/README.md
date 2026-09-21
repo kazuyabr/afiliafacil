@@ -29,9 +29,19 @@ Ou via npm scripts: `npm run test:onboarding`, `npm run test:swipe-vazio`, etc.
 > Se o Playwright estiver instalado globalmente (`C:\Users\<user>\node_modules`), rode com
 > `NODE_PATH=C:\Users\<user>\node_modules` para reaproveitar sem instalar de novo.
 
-## Limpeza entre execuções
+## Limpeza (obrigatória após os testes)
 
-Os testes criam conversas/jobs. Para limpar (e zerar o perfil do admin):
+Os testes criam conversas e gravam o nicho no perfil — **rode o cleanup ao terminar** para não
+deixar dados de teste na sua experiência:
+
+```bash
+node cleanup.js    # remove todas as conversas do Sócio + jobs + limpa o perfil
+```
+
+O cleanup usa o endpoint `POST /admin/api/agent.php` com `action=profile&clear=1` (também
+disponível no produto: botão de limpar perfil nas permissões).
+
+## Limpeza manual (alternativa via CLI)
 
 ```bash
 docker exec afiliafacil php -r "require_once '/app/lib/Config.php'; require_once '/app/lib/Database.php'; Database::init(); \$p = AfiliaFacil\Models\AgentProfile::where('user_id', 1)->first(); if (\$p) { \$p->niche = ''; \$p->save(); } AfiliaFacil\Models\AgentJob::query()->delete(); AfiliaFacil\Models\AgentMessage::query()->delete(); AfiliaFacil\Models\AgentConversation::query()->delete(); echo 'limpo';"

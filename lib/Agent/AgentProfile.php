@@ -66,6 +66,27 @@ class AgentProfile
         }
     }
 
+    /**
+     * Limpa o perfil (o usuario quer comecar do zero / limpeza de testes).
+     */
+    public static function clear(int $userId): void
+    {
+        if (!Database::available()) return;
+
+        try {
+            $profile = \AfiliaFacil\Models\AgentProfile::where('user_id', $userId)->first();
+            if (!$profile) return;
+
+            $profile->niche = '';
+            $profile->budget = '';
+            $profile->experience = '';
+            $profile->goals = [];
+            $profile->updated_at = date('Y-m-d H:i:s');
+            $profile->save();
+        } catch (Throwable $e) {
+        }
+    }
+
     public static function describe(array $profile): string
     {
         $parts = [];

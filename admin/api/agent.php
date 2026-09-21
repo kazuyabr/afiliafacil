@@ -45,6 +45,11 @@ switch ($action) {
 
     case 'profile':
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+            if (!empty($_POST['clear'])) {
+                AgentProfile::clear($userId);
+                echo json_encode(['success' => true, 'profile' => AgentProfile::forUser($userId)]);
+                break;
+            }
             $data = [];
             foreach (['niche', 'budget', 'experience'] as $field) {
                 if (isset($_POST[$field])) $data[$field] = (string)$_POST[$field];
