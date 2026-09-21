@@ -9,9 +9,16 @@ EC2/Docker (escala).
 | Necessidade | Solução atual | Limitação |
 |---|---|---|
 | Meta Ad Library | Scraping dos endpoints internos (funciona sem browser) | Frágil a mudanças do Meta; sem JS rendering |
-| Google Ads Transparency | SerpApi (chave do usuário ou plataforma) | Pago; chave inválida = sem resultados |
+| Google Ads Transparency | SerpApi (chave do usuário ou plataforma) | Pago; busca por domínio |
 | TikTok Creative Center | Scraping direto | Frágil |
-| Pesquisa web (Sócio) | SerpApi → **DDG Lite (POST)** → Bing HTML | DDG/Bing podem bloquear em volume |
+| Pesquisa web (Sócio) | **SearXNG self-hosted (implementado)** → SerpApi → **DDG Lite (POST)** → Bing HTML | DDG/Bing podem bloquear em volume |
+
+### SearXNG implementado (2026-09)
+
+- **Provider no `WebSearch`**: prioridade `BYOK SerpApi → SearXNG (SEARXNG_URL) → plataforma (20/dia) → DDG → Bing`, com cache de 24h.
+- **Dev (Pinokio)**: app `searxng.pinokio.git` com porta aleatória (log em `C:\pinokio\api\searxng.pinokio.git\logs\api\start.js\latest`), `start.js` ajustado para bind `0.0.0.0` (backup `start.js.bak`); `SEARXNG_URL=http://host.docker.internal:52301` no `.env`; `extra_hosts: host-gateway` no `docker-compose.yml`.
+- **Produção (EC2/Docker)**: subir o container oficial no compose (`searxng/searxng`, porta fixa 8080, `formats: [html, json]`) e apontar `SEARXNG_URL=http://searxng:8080` — sem depender do Pinokio.
+- Testado: 20 resultados em ~1,4s; JSON habilitado no `settings.yml` do Pinokio (`formats: html, json, csv, rss`).
 
 ## Opções avaliadas (todas self-hosted, $0 de licença)
 

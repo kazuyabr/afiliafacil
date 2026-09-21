@@ -142,8 +142,26 @@ class AiClient
         return $json['candidates'][0]['content']['parts'][0]['text'] ?? null;
     }
 
+    /** Ultimo erro retornado pela API (para mensagens especificas ao usuario). */
+    private static string $lastError = '';
+
+    public static function lastError(): string
+    {
+        return self::$lastError;
+    }
+
+    /** Erro de cota/limite do provider? (ex.: Cloudflare neurons/dia) */
+    public static function isQuotaError(): bool
+    {
+        $e = mb_strtolower(self::$lastError);
+        return str_contains($e, 'neurons') || str_contains($e, 'daily free') || str_contains($e, 'quota')
+            || str_contains($e, 'rate limit') || str_contains($e, 'too many requests');
+    }
+
     private static function request(string $method, string $url, array $headers, string $body): ?string
     {
+        self::$lastError = '';
+
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
@@ -156,9 +174,25 @@ class AiClient
         ]);
         $response = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
 
-        if ($response === false || $status >= 400) return null;
+        if ($response === false) {
+            self::$lastError = 'falha de conexao: ' . $curlError;
+            return null;
+        }
+
+        if ($status >= 400) {
+            $json = json_decode((string)$response, true);
+            $message = $json['errors'][0]['message']
+                ?? $json['error']['message']
+                ?? $json['error']
+                ?? $json['message']
+                ?? ('HTTP ' . $status);
+            self::$lastError = is_string($message) ? mb_substr($message, 0, 400) : ('HTTP ' . $status);
+            return null;
+        }
+
         return $response;
     }
 }

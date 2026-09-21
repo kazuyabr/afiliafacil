@@ -41,6 +41,16 @@ class WebSearch
             }
         }
 
+        // 1.5) SearXNG self-hosted (se configurado) — sem limite de chave
+        $searxUrl = trim((string)(getenv('SEARXNG_URL') ?: ''));
+        if ($searxUrl !== '') {
+            $results = self::searxng($searxUrl, $query, $limit);
+            if ($results !== null) {
+                self::log($userId, $query, 'searxng', 'selfhosted', count($results));
+                return self::respond($query, $limit, $results, 'searxng', 'selfhosted', -1);
+            }
+        }
+
         // 2) Chave da plataforma com limite diario (sistema/admin nao consome o limite)
         $platformKey = trim((string)(getenv('SERPAPI_KEY') ?: ''));
         if ($platformKey !== '') {
@@ -147,6 +157,41 @@ class WebSearch
     public static function platformRemainingToday(int $userId): int
     {
         return max(0, self::PLATFORM_DAILY_LIMIT - self::platformUsedToday($userId));
+    }
+
+    /**
+     * SearXNG self-hosted (API JSON). Ex.: http://host.docker.internal:52301 (Pinokio)
+     * ou http://searxng:8080 (container do compose).
+     */
+    private static function searxng(string $baseUrl, string $query, int $limit): ?array
+    {
+        $url = rtrim($baseUrl, '/') . '/search?' . http_build_query([
+            'q' => $query,
+            'format' => 'json',
+            'language' => 'pt-BR',
+            'safesearch' => 0,
+        ]);
+
+        $body = self::httpGet($url, ['Accept: application/json']);
+        if ($body === null) return null;
+
+        $json = json_decode($body, true);
+        if (!is_array($json) || empty($json['results'])) return null;
+
+        $results = [];
+        foreach (array_slice($json['results'], 0, $limit) as $item) {
+            $title = trim((string)($item['title'] ?? ''));
+            $link = (string)($item['url'] ?? '');
+            if ($title === '' || $link === '') continue;
+
+            $results[] = [
+                'title' => $title,
+                'url' => $link,
+                'snippet' => trim((string)($item['content'] ?? '')),
+            ];
+        }
+
+        return empty($results) ? null : $results;
     }
 
     private static function serpApi(string $apiKey, string $query, int $limit): ?array

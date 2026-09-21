@@ -41,6 +41,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Permite o container alcancar servicos rodando no host (ex.: SearXNG do Pinokio)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     container_name: afiliafacil
 
 volumes:

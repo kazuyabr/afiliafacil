@@ -146,7 +146,7 @@ class Agent
 
             $response = $this->chatWithRetry($this->buildMessages($userId, $plan, $conversationId, $message), $config);
             if ($response === null) {
-                $this->saveMessage($conversationId, 'agent', 'Tive um problema para responder agora (falha na chamada da IA). Tente novamente em instantes.');
+                $this->saveMessage($conversationId, 'agent', $this->aiFailureMessage());
                 AgentJobs::complete($jobId);
                 return ['success' => true];
             }
@@ -586,6 +586,18 @@ class Agent
     }
 
     /**
+     * Mensagem de falha da IA — diferencia limite de cota (orienta o BYOK) de erro transitorio.
+     */
+    private function aiFailureMessage(): string
+    {
+        if (AiClient::isQuotaError()) {
+            return 'A IA da plataforma atingiu o limite diário de uso. Você pode continuar agora configurando sua própria chave (BYOK) em IA → Configurações → aba Análise, ou tentar novamente mais tarde.';
+        }
+
+        return 'Tive um problema para responder agora (falha na chamada da IA). Tente novamente em instantes.';
+    }
+
+    /**
      * Chamada de IA com retry imediato (instabilidade transitoria do provider
      * nao deve virar mensagem de erro definitiva para o usuario).
      */
@@ -594,6 +606,7 @@ class Agent
         for ($i = 1; $i <= $attempts; $i++) {
             $response = AiClient::chat($messages, $config);
             if ($response !== null) return $response;
+            if (AiClient::isQuotaError()) break; // cota/limite: nao adianta insistir
             if ($i < $attempts) usleep(2000000);
         }
 
