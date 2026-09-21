@@ -22,6 +22,7 @@ node swipe-vazio.js     # nicho sem ofertas (Games): não deixa o cliente perdid
 node confirmacao.js     # ação sensível: card pendente -> confirmar -> executar -> sino/notificação
 node permissoes.js      # modal de permissões do Sócio (liga/desliga tools)
 node pesquisa-web.js    # pesquisar_web executa sozinha (leitura) e renderiza os links
+node baseurl.js         # sugestão de Base URL por provider na tela de IA (BYOK)
 ```
 
 Ou via npm scripts: `npm run test:onboarding`, `npm run test:swipe-vazio`, etc.

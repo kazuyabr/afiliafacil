@@ -326,8 +326,48 @@ $theme = $_SESSION['theme'] ?? 'light';
         updateModels();
     }
 
+    // Base URLs conhecidas como fallback (quando o provider nao esta no catalogo models.dev)
+    const FALLBACK_URLS = {
+        openai: 'https://api.openai.com/v1',
+        anthropic: 'https://api.anthropic.com/v1',
+        google: 'https://generativelanguage.googleapis.com/v1beta',
+        openrouter: 'https://openrouter.ai/api/v1',
+        groq: 'https://api.groq.com/openai/v1',
+        deepseek: 'https://api.deepseek.com/v1',
+        mistral: 'https://api.mistral.ai/v1',
+        xai: 'https://api.x.ai/v1',
+        deepgram: 'https://api.deepgram.com/v1',
+        assemblyai: 'https://api.assemblyai.com/v2',
+        elevenlabs: 'https://api.elevenlabs.io/v1',
+        lmstudio: 'http://127.0.0.1:1234/v1',
+        ollama: 'http://127.0.0.1:11434/v1',
+    };
+
+    /**
+     * Sugere a Base URL conforme o provider (campo models.dev "api", com fallback local).
+     * O campo continua editavel: nunca sobrescreve um valor digitado pelo usuario.
+     */
+    function suggestBaseUrl(inputId, providerId) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+
+        const fromCatalog = (catalog && catalog[providerId] && catalog[providerId].api) ? catalog[providerId].api : '';
+        const suggested = fromCatalog || FALLBACK_URLS[providerId] || '';
+        const prev = input.dataset.suggested || '';
+
+        input.placeholder = suggested || 'https://api.openai.com/v1';
+
+        // Preenche se vazio ou se ainda contem a sugestao anterior (nao sobrescreve valor manual)
+        if (input.value === '' || input.value === prev) {
+            input.value = suggested;
+        }
+
+        input.dataset.suggested = suggested;
+    }
+
     function updateModels() {
         const providerId = document.getElementById('aiProvider').value;
+        suggestBaseUrl('aiBaseUrl', providerId);
         const modelSelect = document.getElementById('aiModel');
         modelSelect.innerHTML = '';
 
@@ -347,6 +387,7 @@ $theme = $_SESSION['theme'] ?? 'light';
 
     function updateSttModels() {
         const providerId = document.getElementById('sttProvider').value;
+        suggestBaseUrl('sttBaseUrl', providerId);
         const modelSelect = document.getElementById('sttModel');
         modelSelect.innerHTML = '';
         (STT_MODELS[providerId] || []).forEach(([v, l]) => modelSelect.appendChild(new Option(l, v)));
@@ -354,6 +395,7 @@ $theme = $_SESSION['theme'] ?? 'light';
 
     function updateTtsModels() {
         const providerId = document.getElementById('ttsProvider').value;
+        suggestBaseUrl('ttsBaseUrl', providerId);
         const modelSelect = document.getElementById('ttsModel');
         modelSelect.innerHTML = '';
         (TTS_MODELS[providerId] || []).forEach(([v, l]) => modelSelect.appendChild(new Option(l, v)));
