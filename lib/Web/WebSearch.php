@@ -25,13 +25,19 @@ class WebSearch
 
         $limit = max(1, min(10, $limit));
 
+        // 0) Cache de 24h: a mesma pesquisa nao consome o limite nem a chave de novo
+        $cached = self::getCache($query, $limit);
+        if ($cached !== null) {
+            return ['success' => true, 'error' => null, 'results' => $cached['results'], 'provider' => $cached['provider'], 'source' => 'cache', 'remaining' => -1, 'from_cache' => true];
+        }
+
         // 1) BYOK do usuario
         $userKey = AdSpyKeys::serpapi($userId);
         if ($userKey !== '') {
             $results = self::serpApi($userKey, $query, $limit);
             if ($results !== null) {
                 self::log($userId, $query, 'serpapi', 'byok', count($results));
-                return ['success' => true, 'error' => null, 'results' => $results, 'provider' => 'serpapi', 'source' => 'byok', 'remaining' => -1];
+                return self::respond($query, $limit, $results, 'serpapi', 'byok', -1);
             }
         }
 
@@ -41,7 +47,7 @@ class WebSearch
             if ($userId <= 0) {
                 $results = self::serpApi($platformKey, $query, $limit);
                 if ($results !== null) {
-                    return ['success' => true, 'error' => null, 'results' => $results, 'provider' => 'serpapi', 'source' => 'platform', 'remaining' => -1];
+                    return self::respond($query, $limit, $results, 'serpapi', 'platform', -1);
                 }
             } else {
                 $used = self::platformUsedToday($userId);
@@ -49,14 +55,7 @@ class WebSearch
                     $results = self::serpApi($platformKey, $query, $limit);
                     if ($results !== null) {
                         self::log($userId, $query, 'serpapi', 'platform', count($results));
-                        return [
-                            'success' => true,
-                            'error' => null,
-                            'results' => $results,
-                            'provider' => 'serpapi',
-                            'source' => 'platform',
-                            'remaining' => max(0, self::PLATFORM_DAILY_LIMIT - $used - 1),
-                        ];
+                        return self::respond($query, $limit, $results, 'serpapi', 'platform', max(0, self::PLATFORM_DAILY_LIMIT - $used - 1));
                     }
                 }
             }
@@ -66,16 +65,68 @@ class WebSearch
         $results = self::duckDuckGo($query, $limit);
         if ($results !== null) {
             self::log($userId, $query, 'duckduckgo', 'fallback', count($results));
-            return ['success' => true, 'error' => null, 'results' => $results, 'provider' => 'duckduckgo', 'source' => 'fallback', 'remaining' => -1];
+            return self::respond($query, $limit, $results, 'duckduckgo', 'fallback', -1);
         }
 
         $results = self::bing($query, $limit);
         if ($results !== null) {
             self::log($userId, $query, 'bing', 'fallback', count($results));
-            return ['success' => true, 'error' => null, 'results' => $results, 'provider' => 'bing', 'source' => 'fallback', 'remaining' => -1];
+            return self::respond($query, $limit, $results, 'bing', 'fallback', -1);
         }
 
         return ['success' => false, 'error' => 'Nao foi possivel pesquisar agora (todas as fontes falharam).', 'results' => [], 'provider' => null, 'source' => null];
+    }
+
+    /**
+     * Monta a resposta e grava no cache (24h).
+     */
+    private static function respond(string $query, int $limit, array $results, string $provider, string $source, int $remaining): array
+    {
+        self::setCache($query, $limit, $results, $provider);
+
+        return ['success' => true, 'error' => null, 'results' => $results, 'provider' => $provider, 'source' => $source, 'remaining' => $remaining];
+    }
+
+    private static function cacheKey(string $query, int $limit): string
+    {
+        return hash('sha256', 'websearch|' . mb_strtolower(trim($query)) . '|' . $limit);
+    }
+
+    private static function getCache(string $query, int $limit): ?array
+    {
+        if (!Database::available()) return null;
+
+        try {
+            $row = \AfiliaFacil\Models\AdSpyCache::where('cache_key', self::cacheKey($query, $limit))
+                ->where('expires_at', '>', date('Y-m-d H:i:s'))
+                ->first();
+            if (!$row) return null;
+
+            $payload = json_decode($row->payload, true);
+            if (!is_array($payload) || empty($payload['results'])) return null;
+
+            return ['results' => $payload['results'], 'provider' => (string)($payload['provider'] ?? 'cache')];
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
+
+    private static function setCache(string $query, int $limit, array $results, string $provider): void
+    {
+        if (!Database::available() || empty($results)) return;
+
+        try {
+            \AfiliaFacil\Models\AdSpyCache::updateOrCreate(
+                ['cache_key' => self::cacheKey($query, $limit)],
+                [
+                    'provider' => $provider,
+                    'payload' => json_encode(['results' => $results, 'provider' => $provider], JSON_UNESCAPED_UNICODE),
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'expires_at' => date('Y-m-d H:i:s', time() + 24 * 3600),
+                ]
+            );
+        } catch (Throwable $e) {
+        }
     }
 
     public static function platformUsedToday(int $userId): int
