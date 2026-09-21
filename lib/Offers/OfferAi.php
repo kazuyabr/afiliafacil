@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Settings.php';
+require_once __DIR__ . '/../Json.php';
 require_once __DIR__ . '/../AdSpy/AiClient.php';
 require_once __DIR__ . '/../AdSpy/AiConfig.php';
 require_once __DIR__ . '/OfferManager.php';
@@ -138,10 +139,6 @@ class OfferAi
 
     private function parseJson(string $text): ?array
     {
-        if (preg_match('/\{[\s\S]*\}/', $text, $m)) {
-            $decoded = json_decode($m[0], true);
-            if (is_array($decoded)) return $decoded;
-        }
-        return null;
+        return Json::parse($text);
     }
 }

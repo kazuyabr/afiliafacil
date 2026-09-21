@@ -3,6 +3,7 @@
 require_once __DIR__ . '/AiClient.php';
 require_once __DIR__ . '/AiConfig.php';
 require_once __DIR__ . '/AdSpyQuota.php';
+require_once __DIR__ . '/../Json.php';
 
 class AiAnalyzer
 {
@@ -64,10 +65,6 @@ class AiAnalyzer
 
     private function parseJson(string $text): ?array
     {
-        if (preg_match('/\{[\s\S]*\}/', $text, $m)) {
-            $decoded = json_decode($m[0], true);
-            if (is_array($decoded)) return $decoded;
-        }
-        return null;
+        return Json::parse($text);
     }
 }
