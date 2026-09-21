@@ -160,6 +160,25 @@ $createdConversation = 0;
 $createdSubagent = 0;
 $createdModerationEvent = 0;
 
+// Guarda o perfil do Socio do usuario de teste para restaurar depois
+// (o teste de envio de mensagem pode gravar o nicho no perfil).
+$smokeUserId = 0;
+$profileBefore = null;
+try {
+    Database::init();
+    if (Database::available()) {
+        $smokeUser = \AfiliaFacil\Models\User::where('email', $email)->first();
+        $smokeUserId = (int)($smokeUser->id ?? 0);
+        if ($smokeUserId > 0) {
+            $p = \AfiliaFacil\Models\AgentProfile::where('user_id', $smokeUserId)->first();
+            $profileBefore = $p
+                ? ['niche' => (string)$p->niche, 'budget' => (string)$p->budget, 'experience' => (string)$p->experience]
+                : ['niche' => '', 'budget' => '', 'experience' => ''];
+        }
+    }
+} catch (Throwable $e) {
+}
+
 try {
     // Sócio: nova conversa + envio (resposta depende de IA; valida o pipeline)
     $conv = smoke_json('POST', $base . '/admin/api/agent.php', ['action' => 'new']);
@@ -171,7 +190,7 @@ try {
         $send = smoke_json('POST', $base . '/admin/api/agent.php', [
             'action' => 'send',
             'conversation_id' => $convId,
-            'message' => 'teste automatizado de smoke',
+            'message' => 'teste automatizado de smoke - validacao do pipeline de resposta do agente',
         ], 150);
         check('agente: enviar mensagem', ($send['json']['success'] ?? false) === true, 'resposta invalida');
     }
@@ -243,6 +262,21 @@ try {
                 ->delete();
         }
     }
+
+    // Restaura o perfil do Socio (o envio de mensagem pode ter gravado nicho/budget/experience)
+    if ($smokeUserId > 0 && $profileBefore !== null) {
+        Database::init();
+        if (Database::available()) {
+            $p = \AfiliaFacil\Models\AgentProfile::where('user_id', $smokeUserId)->first();
+            if ($p) {
+                $p->niche = $profileBefore['niche'];
+                $p->budget = $profileBefore['budget'];
+                $p->experience = $profileBefore['experience'];
+                $p->save();
+            }
+        }
+    }
+
     echo "  [i] dados de teste limpos\n";
 } catch (Throwable $e) {
     $warnings[] = 'limpeza dos dados de teste falhou: ' . $e->getMessage();

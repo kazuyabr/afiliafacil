@@ -471,6 +471,9 @@ class Agent
         if (!$conversation) return false;
 
         \AfiliaFacil\Models\AgentMessage::where('conversation_id', $conversationId)->delete();
+        // Jobs da conversa tambem saem (sem isso ficam orfaos e o cron processa depois,
+        // gastando IA e tentando escrever em conversa deletada)
+        \AfiliaFacil\Models\AgentJob::where('conversation_id', $conversationId)->delete();
         $conversation->delete();
         return true;
     }
