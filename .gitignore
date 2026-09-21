@@ -7,3 +7,7 @@ uploads/
 Thumbs.db
 vendor/
 node_modules/
+
+# Screenshots de teste E2E
+confirm-*.png
+web-search.png
