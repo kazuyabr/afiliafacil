@@ -3,12 +3,14 @@ require_once __DIR__ . '/../lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/PageManager.php';
 require_once Config::getLibDir() . '/Plans.php';
+require_once Config::getLibDir() . '/Dashboard.php';
 
 Auth::requireAuth();
 
 $pm = new PageManager();
 $user = Auth::user();
 $stats = Auth::isAdmin() ? $pm->getStats() : $pm->getStatsByUser((int)$user['id']);
+$dash = Dashboard::summary((int)$user['id'], $user['plan'], Auth::isAdmin());
 $theme = $_SESSION['theme'] ?? 'light';
 ?>
 <!DOCTYPE html>
@@ -39,7 +41,7 @@ $theme = $_SESSION['theme'] ?? 'light';
                 <div class="page-header">
                     <div>
                         <h1>Olá, <?= htmlspecialchars($user['name']) ?> 👋</h1>
-                        <p style="color:var(--text-secondary);margin-top:4px;">Aqui está o resumo da sua conta</p>
+                        <p style="color:var(--text-secondary);margin-top:4px;">Meu Negócio hoje — o que importa, em um olhar</p>
                     </div>
                 </div>
 
@@ -63,6 +65,76 @@ $theme = $_SESSION['theme'] ?? 'light';
                         <div class="stat-icon purple"><i class="fas fa-clone"></i></div>
                         <div class="stat-value"><?= $stats['draft'] ?></div>
                         <div class="stat-label">Rascunhos</div>
+                    </div>
+                </div>
+
+                <div class="grid-2" style="margin-bottom:24px;">
+                    <div class="card">
+                        <div class="card-header"><h3><i class="fas fa-triangle-exclamation" style="color:var(--warning);"></i> Pendências</h3></div>
+                        <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
+                            <?php if (empty($dash['pendencias'])): ?>
+                            <div style="display:flex;align-items:center;gap:10px;padding:12px;color:var(--text-secondary);font-size:.88rem;">
+                                <i class="fas fa-check-circle" style="color:var(--success);font-size:1.2rem;"></i> Tudo em dia — nada precisando de você agora.
+                            </div>
+                            <?php else: ?>
+                            <?php foreach ($dash['pendencias'] as $pend): ?>
+                            <a href="<?= htmlspecialchars($pend['url']) ?>" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:var(--radius);border:1px solid var(--border-color);text-decoration:none;color:var(--text-primary);">
+                                <i class="fas <?= htmlspecialchars($pend['icon']) ?>" style="color:<?= htmlspecialchars($pend['color']) ?>;font-size:1.1rem;"></i>
+                                <span style="font-size:.88rem;"><?= htmlspecialchars($pend['label']) ?></span>
+                            </a>
+                            <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3><i class="fas fa-list-check" style="color:var(--accent);"></i> Próximos passos</h3></div>
+                        <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
+                            <?php $stepNum = 0; ?>
+                            <?php foreach ($dash['proximos'] as $step): $stepNum++; ?>
+                            <a href="<?= htmlspecialchars($step['url']) ?>" style="display:flex;gap:12px;padding:12px;border-radius:var(--radius);border:1px solid var(--border-color);text-decoration:none;color:var(--text-primary);">
+                                <div style="min-width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;"><?= $stepNum ?></div>
+                                <div><strong style="font-size:.88rem;"><?= htmlspecialchars($step['title']) ?></strong><br><span style="font-size:.8rem;color:var(--text-secondary);"><?= htmlspecialchars($step['desc']) ?></span></div>
+                            </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid-2" style="margin-bottom:24px;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-handshake"></i> Sócio de IA</h3>
+                            <a href="/admin/agent.php" class="btn btn-sm btn-outline">Abrir</a>
+                        </div>
+                        <div class="card-body">
+                            <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:.85rem;">
+                                <div><strong style="font-size:1.2rem;"><?= (int)$dash['socio']['conversas'] ?></strong><br><span style="color:var(--text-secondary);">conversas</span></div>
+                                <div><strong style="font-size:1.2rem;"><?= (int)$dash['socio']['mensagens_mes'] ?></strong><br><span style="color:var(--text-secondary);">msgs no mês</span></div>
+                                <div><strong style="font-size:1.2rem;<?= $dash['socio']['pendentes'] > 0 ? 'color:var(--warning);' : '' ?>"><?= (int)$dash['socio']['pendentes'] ?></strong><br><span style="color:var(--text-secondary);">aguardando você</span></div>
+                            </div>
+                            <?php if ($dash['socio']['ultima'] !== ''): ?>
+                            <p style="font-size:.75rem;color:var(--text-secondary);margin:10px 0 0;">Última atividade: <?= date('d/m H:i', strtotime($dash['socio']['ultima'])) ?></p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-fire"></i> Ofertas Escalando</h3>
+                            <a href="/admin/ofertas.php" class="btn btn-sm btn-outline">Ver todas</a>
+                        </div>
+                        <div class="card-body">
+                            <p style="font-size:.85rem;margin:0 0 10px;"><strong style="font-size:1.2rem;"><?= (int)$dash['ofertas']['aprovadas'] ?></strong> <span style="color:var(--text-secondary);">validadas · <?= (int)$dash['criativos'] ?> criativos</span></p>
+                            <?php if (empty($dash['ofertas']['top'])): ?>
+                            <p style="font-size:.82rem;color:var(--text-secondary);">Nenhuma oferta validada ainda.</p>
+                            <?php else: ?>
+                            <?php foreach ($dash['ofertas']['top'] as $top): ?>
+                            <a href="/admin/ofertas.php" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--border-color);text-decoration:none;color:var(--text-primary);font-size:.85rem;">
+                                <span><?= htmlspecialchars(mb_substr($top['name'], 0, 42)) ?></span>
+                                <span style="color:var(--text-secondary);white-space:nowrap;">★ <?= (int)$top['score'] ?> · <?= (int)$top['ads'] ?> ads</span>
+                            </a>
+                            <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
 
@@ -98,12 +170,11 @@ $theme = $_SESSION['theme'] ?? 'light';
                     </div>
                 </div>
 
-                <div class="grid-2">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-clock"></i> Páginas Recentes</h3>
-                            <a href="/admin/pages.php" class="btn btn-sm btn-outline">Ver todas</a>
-                        </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-clock"></i> Páginas Recentes</h3>
+                        <a href="/admin/pages.php" class="btn btn-sm btn-outline">Ver todas</a>
+                    </div>
                         <div class="card-body">
                             <?php
                             $pages = Auth::isAdmin() ? $pm->list() : $pm->listByUser((int)$user['id']);
@@ -140,30 +211,6 @@ $theme = $_SESSION['theme'] ?? 'light';
                                 </table>
                             </div>
                             <?php endif; ?>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-tools"></i> Ferramentas</h3>
-                        </div>
-                        <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
-                            <a href="/admin/pixel.php" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:var(--radius);border:1px solid var(--border-color);transition:all .2s;text-decoration:none;color:var(--text-primary);" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border-color)'">
-                                <div class="stat-icon blue" style="width:40px;height:40px;font-size:1rem;margin:0;"><i class="fas fa-chart-line"></i></div>
-                                <div><strong style="font-size:.9rem;">Rastreamento (Pixel)</strong><br><span style="font-size:.8rem;color:var(--text-secondary);">Facebook, Google ADS, TikTok</span></div>
-                            </a>
-                            <a href="/admin/video.php" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:var(--radius);border:1px solid var(--border-color);transition:all .2s;text-decoration:none;color:var(--text-primary);" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border-color)'">
-                                <div class="stat-icon purple" style="width:40px;height:40px;font-size:1rem;margin:0;"><i class="fas fa-play-circle"></i></div>
-                                <div><strong style="font-size:.9rem;">Player de Vídeo</strong><br><span style="font-size:.8rem;color:var(--text-secondary);">Fakebar, delay, autoplay</span></div>
-                            </a>
-                            <a href="/admin/integrations.php" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:var(--radius);border:1px solid var(--border-color);transition:all .2s;text-decoration:none;color:var(--text-primary);" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border-color)'">
-                                <div class="stat-icon green" style="width:40px;height:40px;font-size:1rem;margin:0;"><i class="fas fa-plug"></i></div>
-                                <div><strong style="font-size:.9rem;">Integrações</strong><br><span style="font-size:.8rem;color:var(--text-secondary);">ManyChat, Mailchimp, Zapier</span></div>
-                            </a>
-                            <a href="/admin/settings.php" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:var(--radius);border:1px solid var(--border-color);transition:all .2s;text-decoration:none;color:var(--text-primary);" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border-color)'">
-                                <div class="stat-icon orange" style="width:40px;height:40px;font-size:1rem;margin:0;"><i class="fas fa-cog"></i></div>
-                                <div><strong style="font-size:.9rem;">Configurações</strong><br><span style="font-size:.8rem;color:var(--text-secondary);">Conta, tema, preferências</span></div>
-                            </a>
                         </div>
                     </div>
                 </div>
