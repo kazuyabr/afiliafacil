@@ -292,9 +292,34 @@ $theme = $_SESSION['theme'] ?? 'light';
                                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                                     <button class="btn btn-primary btn-sm" onclick="saveAdSpy('adspy_meta')"><i class="fas fa-save"></i> Salvar</button>
                                     <button class="btn btn-outline btn-sm" onclick="testAdSpy('adspy_meta')"><i class="fas fa-plug"></i> Testar</button>
+                                    <button class="btn btn-outline btn-sm" onclick="document.getElementById('metaTokenModal').classList.add('active')"><i class="fas fa-circle-question"></i> Como obter</button>
                                 </div>
                                 <div id="metaResult" style="margin-top:10px;"></div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-overlay" id="metaTokenModal">
+                    <div class="modal">
+                        <div class="modal-header">
+                            <h3>Como obter o token do Meta</h3>
+                            <button class="modal-close" onclick="document.getElementById('metaTokenModal').classList.remove('active')">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <ol style="padding-left:20px;line-height:2;">
+                                <li>Acesse <a href="https://developers.facebook.com" target="_blank" rel="noopener">developers.facebook.com</a> com sua conta do Facebook.</li>
+                                <li>Em <strong>Meus aplicativos → Criar aplicativo</strong> (tipo Empresa).</li>
+                                <li>Adicione o produto <strong>API de Marketing</strong> ao aplicativo.</li>
+                                <li>Em <strong>Ferramentas → Graph API Explorer</strong>, selecione seu aplicativo e gere um token de usuário com a permissão <code>ads_read</code>.</li>
+                                <li>Cole o token no campo acima e clique <strong>Testar</strong> — se validar, clique <strong>Salvar</strong>.</li>
+                            </ol>
+                            <div class="alert alert-warning" style="margin-top:12px;">
+                                <i class="fas fa-exclamation-triangle"></i> O token de usuário <strong>expira</strong> (renove periodicamente) e a Meta pode exigir verificação do aplicativo para alguns acessos. Sem token, a busca usa a biblioteca pública — gratuita, porém menos estável.
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-outline" onclick="document.getElementById('metaTokenModal').classList.remove('active')">Fechar</button>
                         </div>
                     </div>
                 </div>

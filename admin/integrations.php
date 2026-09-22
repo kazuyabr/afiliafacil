@@ -28,6 +28,9 @@ $theme = $_SESSION['theme'] ?? 'light';
             </div>
             <div class="page-content">
                 <div class="page-header"><h1>Integrações</h1></div>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> Integrações nativas chegam após o MVP — a primeira será <strong>Webhook</strong> (conecta com n8n, Zapier e Make, liberando milhares de apps). A avaliação completa está em <code>docs/avaliacao-utilidade.md</code>.
+                </div>
                 <div class="grid-3">
                     <?php
                     $integrations = [
@@ -46,7 +49,7 @@ $theme = $_SESSION['theme'] ?? 'light';
                             </div>
                             <h3><?= $int['name'] ?></h3>
                             <p style="font-size:.85rem;color:var(--text-secondary);margin:8px 0 16px;"><?= $int['desc'] ?></p>
-                            <button class="btn btn-sm btn-outline"><i class="fas fa-link"></i> Conectar</button>
+                            <span class="status status-draft">Em breve</span>
                         </div>
                     </div>
                     <?php endforeach; ?>
