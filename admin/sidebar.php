@@ -49,7 +49,7 @@ require_once Config::getLibDir() . '/Plans.php';
 
         <div class="nav-section">Minha Oferta</div>
         <a href="/admin/video.php" class="nav-item <?= $currentPage === 'video.php' ? 'active' : '' ?>">
-            <i class="fas fa-play-circle"></i> Player de Vídeo
+            <i class="fas fa-play-circle"></i> Player das Páginas
         </a>
         <a href="/admin/pixel.php" class="nav-item <?= $currentPage === 'pixel.php' ? 'active' : '' ?>">
             <i class="fas fa-chart-line"></i> Rastreamento
