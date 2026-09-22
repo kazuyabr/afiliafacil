@@ -27,6 +27,11 @@ require_once Config::getLibDir() . '/Plans.php';
         <a href="/admin/pressel.php" class="nav-item <?= $currentPage === 'pressel.php' ? 'active' : '' ?>">
             <i class="fas fa-steam"></i> Pressel
         </a>
+        <?php if (Plans::hasFeature($_SESSION['user_plan'] ?? '', 'video') || Plans::hasFeature($_SESSION['user_plan'] ?? '', 'videos') || Auth::isAdmin()): ?>
+        <a href="/admin/videos.php" class="nav-item <?= $currentPage === 'videos.php' ? 'active' : '' ?>">
+            <i class="fas fa-film"></i> Vídeos
+        </a>
+        <?php endif; ?>
 
         <div class="nav-section">Inspirar</div>
         <?php if (Plans::hasFeature($_SESSION['user_plan'] ?? '', 'adspy') || Auth::isAdmin()): ?>
