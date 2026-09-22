@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/SafePcre.php';
+require_once __DIR__ . '/Crypto.php';
 
 class PageManager
 {
@@ -76,6 +77,12 @@ class PageManager
             'domain' => $data['domain'] ?? '',
             'affiliate_link' => $data['affiliate_link'] ?? '',
             'source_domain' => $data['source_domain'] ?? '',
+            'meta_pixel_id' => $data['meta_pixel_id'] ?? '',
+            'meta_capi_token' => $data['meta_capi_token'] ?? null,
+            'google_conversion_id' => $data['google_conversion_id'] ?? '',
+            'google_conversion_label' => $data['google_conversion_label'] ?? '',
+            'tiktok_pixel_id' => $data['tiktok_pixel_id'] ?? '',
+            'capi_test_code' => $data['capi_test_code'] ?? '',
             'failed_assets' => $data['failed_assets'] ?? [],
             'cloner_version' => $data['cloner_version'] ?? '',
             'views' => 0,
@@ -94,6 +101,12 @@ class PageManager
                 'domain' => $page['domain'],
                 'affiliate_link' => $page['affiliate_link'],
                 'source_domain' => $page['source_domain'],
+                'meta_pixel_id' => $page['meta_pixel_id'],
+                'meta_capi_token' => $page['meta_capi_token'],
+                'google_conversion_id' => $page['google_conversion_id'],
+                'google_conversion_label' => $page['google_conversion_label'],
+                'tiktok_pixel_id' => $page['tiktok_pixel_id'],
+                'capi_test_code' => $page['capi_test_code'],
                 'failed_assets' => $page['failed_assets'],
                 'cloner_version' => $page['cloner_version'],
                 'views' => 0,
@@ -122,7 +135,7 @@ class PageManager
         if (!$page) return null;
 
         $fields = [];
-        foreach (['name', 'status', 'domain', 'affiliate_link', 'source_domain', 'slug', 'type', 'user_id', 'failed_assets', 'cloner_version'] as $field) {
+        foreach (['name', 'status', 'domain', 'affiliate_link', 'source_domain', 'slug', 'type', 'user_id', 'failed_assets', 'cloner_version', 'meta_pixel_id', 'meta_capi_token', 'google_conversion_id', 'google_conversion_label', 'tiktok_pixel_id', 'capi_test_code'] as $field) {
             if (array_key_exists($field, $data)) $fields[$field] = $data[$field];
         }
         $fields['updated_at'] = date('Y-m-d H:i:s');
@@ -217,6 +230,54 @@ class PageManager
         $this->write($pages);
     }
 
+    public function getBySlug(string $slug): ?array
+    {
+        $slug = trim($slug);
+        if ($slug === '') return null;
+
+        if (Database::available()) {
+            $page = \AfiliaFacil\Models\Page::where('slug', $slug)->first();
+            if (!$page) return null;
+            return $this->toArray($page, true);
+        }
+
+        foreach ($this->read() as $page) {
+            if (($page['slug'] ?? '') === $slug) return $page;
+        }
+        return null;
+    }
+
+    /**
+     * Segredos de rastreamento da página (server-side apenas — nunca vai ao browser).
+     * @return array{pixel_id:string, capi_token:string, test_code:string}
+     */
+    public function trackingSecrets(int $id): array
+    {
+        $out = ['pixel_id' => '', 'capi_token' => '', 'test_code' => ''];
+        try {
+            if (Database::available()) {
+                $model = \AfiliaFacil\Models\Page::find($id);
+                if (!$model) return $out;
+                $out['pixel_id'] = (string)($model->meta_pixel_id ?? '');
+                $out['test_code'] = (string)($model->capi_test_code ?? '');
+                $enc = (string)($model->meta_capi_token ?? '');
+                $out['capi_token'] = $enc !== '' ? (Crypto::decrypt($enc) ?? '') : '';
+            } else {
+                foreach ($this->read() as $page) {
+                    if (($page['id'] ?? null) === $id) {
+                        $out['pixel_id'] = (string)($page['meta_pixel_id'] ?? '');
+                        // Modo JSON (dev): token em claro, sem cofre
+                        $out['capi_token'] = (string)($page['meta_capi_token'] ?? '');
+                        $out['test_code'] = (string)($page['capi_test_code'] ?? '');
+                        break;
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+        }
+        return $out;
+    }
+
     public function getStats(): array
     {
         $pages = $this->list();
@@ -240,6 +301,13 @@ class PageManager
             'domain' => $model->domain,
             'affiliate_link' => $model->affiliate_link,
             'source_domain' => $model->source_domain,
+            'meta_pixel_id' => $model->meta_pixel_id ?? '',
+            // Token CAPI nunca vaza no array (segredo): só o flag + descriptografia server-side.
+            'meta_capi_configured' => !empty($model->meta_capi_token),
+            'google_conversion_id' => $model->google_conversion_id ?? '',
+            'google_conversion_label' => $model->google_conversion_label ?? '',
+            'tiktok_pixel_id' => $model->tiktok_pixel_id ?? '',
+            'capi_test_code' => $model->capi_test_code ?? '',
             'failed_assets' => $model->failed_assets ?? [],
             'cloner_version' => $model->cloner_version ?? '',
             'views' => (int)$model->views,

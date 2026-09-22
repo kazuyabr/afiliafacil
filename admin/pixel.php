@@ -1,8 +1,12 @@
 <?php
 require_once __DIR__ . '/../lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
+require_once Config::getLibDir() . '/PageManager.php';
 Auth::requireAuth();
 $theme = $_SESSION['theme'] ?? 'light';
+$user = Auth::user();
+$pm = new PageManager();
+$pages = Auth::isAdmin() ? $pm->list() : $pm->listByUser((int)$user['id']);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="<?= $theme ?>">
@@ -29,46 +33,41 @@ $theme = $_SESSION['theme'] ?? 'light';
             <div class="page-content">
                 <div class="page-header"><h1>Rastreamento (Pixel)</h1></div>
 
-                <div class="grid-3">
-                    <div class="card">
-                        <div class="card-header"><h3><i class="fab fa-facebook" style="color:#1877f2;"></i> Meta Pixel</h3></div>
-                        <div class="card-body">
-                            <div class="form-group">
-                                <label>Pixel ID</label>
-                                <input type="text" class="form-control" placeholder="Ex: 123456789">
-                            </div>
-                            <div class="form-group">
-                                <label>API de Conversão (Access Token)</label>
-                                <input type="text" class="form-control" placeholder="Token da API de conversão">
-                            </div>
-                            <button class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Salvar</button>
-                        </div>
-                    </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> O <strong>pixel do navegador</strong> perde 20–40% das conversões (iOS, ad blockers). A <strong>API de Conversão (CAPI)</strong> envia server-side com o mesmo ID de evento (deduplicação automática). Configure por página — clique em <strong>Editar</strong>.
+                </div>
 
-                    <div class="card">
-                        <div class="card-header"><h3><i class="fab fa-google" style="color:#4285f4;"></i> Google ADS</h3></div>
-                        <div class="card-body">
-                            <div class="form-group">
-                                <label>Conversion ID</label>
-                                <input type="text" class="form-control" placeholder="Ex: AW-123456789">
-                            </div>
-                            <div class="form-group">
-                                <label>Conversion Label</label>
-                                <input type="text" class="form-control" placeholder="Label do evento">
-                            </div>
-                            <button class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Salvar</button>
+                <div class="card">
+                    <div class="card-header"><h3><i class="fas fa-chart-line"></i> Pixels por página</h3></div>
+                    <div class="card-body">
+                        <?php if (empty($pages)): ?>
+                        <div class="empty-state" style="padding:24px;">
+                            <i class="fas fa-file-plus"></i>
+                            <h3>Nenhuma página ainda</h3>
+                            <p>Clone ou crie uma página para configurar o rastreamento.</p>
+                            <a href="/admin/clone.php" class="btn btn-primary btn-sm"><i class="fas fa-clone"></i> Clonar agora</a>
                         </div>
-                    </div>
-
-                    <div class="card">
-                        <div class="card-header"><h3><i class="fab fa-tiktok" style="color:#000;"></i> TikTok Pixel</h3></div>
-                        <div class="card-body">
-                            <div class="form-group">
-                                <label>Pixel ID</label>
-                                <input type="text" class="form-control" placeholder="ID do Pixel TikTok">
-                            </div>
-                            <button class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Salvar</button>
+                        <?php else: ?>
+                        <div class="table-wrapper">
+                            <table class="table">
+                                <thead><tr><th>Página</th><th>URL pública</th><th>Views</th><th>Meta Pixel</th><th>CAPI</th><th>Google</th><th>TikTok</th><th></th></tr></thead>
+                                <tbody>
+                                    <?php foreach ($pages as $p): ?>
+                                    <tr>
+                                        <td><strong><?= htmlspecialchars($p['name']) ?></strong><br><small style="color:var(--text-secondary);"><?= htmlspecialchars($p['status']) ?></small></td>
+                                        <td><a href="/p/<?= htmlspecialchars($p['slug']) ?>" target="_blank" style="font-size:.78rem;">/p/<?= htmlspecialchars($p['slug']) ?></a></td>
+                                        <td><?= number_format($p['views'] ?? 0) ?></td>
+                                        <td><?= !empty($p['meta_pixel_id']) ? '<span class="status status-active">' . htmlspecialchars($p['meta_pixel_id']) . '</span>' : '<span style="color:var(--text-secondary);">—</span>' ?></td>
+                                        <td><?= !empty($p['meta_capi_configured']) ? '<span class="status status-active">ativa</span>' : '<span style="color:var(--text-secondary);">—</span>' ?></td>
+                                        <td><?= !empty($p['google_conversion_id']) ? '<span class="status status-active">ok</span>' : '<span style="color:var(--text-secondary);">—</span>' ?></td>
+                                        <td><?= !empty($p['tiktok_pixel_id']) ? '<span class="status status-active">ok</span>' : '<span style="color:var(--text-secondary);">—</span>' ?></td>
+                                        <td><a href="/admin/pages.php?action=edit&id=<?= (int)$p['id'] ?>" class="btn btn-sm btn-outline">Editar</a></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
                         </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>

@@ -97,6 +97,13 @@ switch ($action) {
         if (isset($_POST['domain'])) $data['domain'] = $_POST['domain'];
         if (isset($_POST['html'])) $data['html'] = $_POST['html'];
         if (isset($_POST['affiliate_link'])) $data['affiliate_link'] = $_POST['affiliate_link'];
+        foreach (['meta_pixel_id', 'google_conversion_id', 'google_conversion_label', 'tiktok_pixel_id', 'capi_test_code'] as $f) {
+            if (isset($_POST[$f])) $data[$f] = trim((string)$_POST[$f]);
+        }
+        // Token CAPI: vazio mantém o existente (o valor real nunca é exibido)
+        if (isset($_POST['meta_capi_token']) && trim((string)$_POST['meta_capi_token']) !== '') {
+            $data['meta_capi_token'] = Crypto::encrypt(trim((string)$_POST['meta_capi_token']));
+        }
 
         $page = $pm->update($id, $data);
         if ($page) {
@@ -105,6 +112,31 @@ switch ($action) {
             http_response_code(404);
             echo json_encode(['error' => 'Página não encontrada']);
         }
+        break;
+
+    case 'test-capi':
+        $id = (int)($_POST['id'] ?? 0);
+        $pm = new PageManager();
+        $page = $pm->get($id);
+        if (!$page) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Página não encontrada']);
+            break;
+        }
+        Auth::requirePageAccess($page);
+        require_once Config::getLibDir() . '/Tracking/ConversionsApi.php';
+        $secrets = $pm->trackingSecrets($id);
+        if ($secrets['pixel_id'] === '' || $secrets['capi_token'] === '') {
+            echo json_encode(['error' => 'Configure o Pixel ID e o token da API de Conversão primeiro.']);
+            break;
+        }
+        if ($secrets['test_code'] === '') {
+            echo json_encode(['error' => 'Configure o código de teste (Events Manager → Test Events) para testar sem poluir os dados.']);
+            break;
+        }
+        $result = ConversionsApi::send($secrets['pixel_id'], $secrets['capi_token'], 'PageView', [], ['test_code' => $secrets['test_code']]);
+        Audit::log('capi_tested', 'page', (string)$id, ['success' => !empty($result['success'])]);
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
         break;
 
     default:

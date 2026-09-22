@@ -88,6 +88,10 @@ function matchRoute(array $routes, string $path): ?string
 }
 
 $file = matchRoute($routes, $path);
+if ($file === null && ($path === '/p/track' || str_starts_with($path, '/p/'))) {
+    require __DIR__ . '/p.php';
+    return true;
+}
 if ($file !== null) {
     require __DIR__ . $file;
     return true;

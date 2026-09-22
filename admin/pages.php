@@ -141,7 +141,46 @@ if ($action === 'new') {
                                 </div>
                                 <div class="form-group">
                                     <label>URL pública</label>
-                                    <input type="text" class="form-control" disabled value="<?= htmlspecialchars(($editPage['domain'] ? 'https://' . $editPage['domain'] . '/' : '/admin/preview.php?id=') . ($editPage['domain'] ? $editPage['slug'] : $editPage['id'])) ?>">
+                                    <div style="display:flex;gap:8px;">
+                                        <input type="text" class="form-control" disabled value="<?= htmlspecialchars('/p/' . $editPage['slug']) ?>">
+                                        <a href="/p/<?= htmlspecialchars($editPage['slug']) ?>" target="_blank" class="btn btn-outline" title="Abrir página pública"><i class="fas fa-external-link-alt"></i></a>
+                                    </div>
+                                    <small style="color:var(--text-secondary);">É este endereço que você anuncia. Views e CAPI funcionam aqui.</small>
+                                </div>
+                                <h4 style="margin:18px 0 10px;font-size:.9rem;"><i class="fas fa-chart-line"></i> Rastreamento (Pixel + CAPI server-side)</h4>
+                                <div class="grid-2">
+                                    <div class="form-group">
+                                        <label>Meta Pixel ID</label>
+                                        <input type="text" name="meta_pixel_id" class="form-control" placeholder="Ex: 123456789" value="<?= htmlspecialchars($editPage['meta_pixel_id'] ?? '') ?>">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>API de Conversão — Access Token <?= !empty($editPage['meta_capi_configured']) ? '<span class="status status-active">configurado</span>' : '' ?></label>
+                                        <input type="password" name="meta_capi_token" class="form-control" placeholder="deixe vazio para manter" value="">
+                                    </div>
+                                </div>
+                                <div class="grid-2">
+                                    <div class="form-group">
+                                        <label>Código de teste (Test Events)</label>
+                                        <input type="text" name="capi_test_code" class="form-control" placeholder="Ex: TEST12345" value="<?= htmlspecialchars($editPage['capi_test_code'] ?? '') ?>">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>TikTok Pixel ID</label>
+                                        <input type="text" name="tiktok_pixel_id" class="form-control" placeholder="ID do Pixel TikTok" value="<?= htmlspecialchars($editPage['tiktok_pixel_id'] ?? '') ?>">
+                                    </div>
+                                </div>
+                                <div class="grid-2">
+                                    <div class="form-group">
+                                        <label>Google Conversion ID</label>
+                                        <input type="text" name="google_conversion_id" class="form-control" placeholder="Ex: AW-123456789" value="<?= htmlspecialchars($editPage['google_conversion_id'] ?? '') ?>">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Google Conversion Label</label>
+                                        <input type="text" name="google_conversion_label" class="form-control" placeholder="Label do evento" value="<?= htmlspecialchars($editPage['google_conversion_label'] ?? '') ?>">
+                                    </div>
+                                </div>
+                                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="testCapi(<?= $editPage['id'] ?>)" id="capiTestBtn"><i class="fas fa-vial"></i> Enviar evento de teste (CAPI)</button>
+                                    <span id="capiTestResult" style="font-size:.8rem;"></span>
                                 </div>
                                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                                     <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Salvar alterações</button>
@@ -348,7 +387,13 @@ if ($action === 'new') {
                         '&name=' + encodeURIComponent(f.name.value) +
                         '&status=' + encodeURIComponent(f.status.value) +
                         '&domain=' + encodeURIComponent(f.domain.value) +
-                        '&affiliate_link=' + encodeURIComponent(f.affiliate_link.value)
+                        '&affiliate_link=' + encodeURIComponent(f.affiliate_link.value) +
+                        '&meta_pixel_id=' + encodeURIComponent(f.meta_pixel_id.value) +
+                        '&meta_capi_token=' + encodeURIComponent(f.meta_capi_token.value) +
+                        '&capi_test_code=' + encodeURIComponent(f.capi_test_code.value) +
+                        '&tiktok_pixel_id=' + encodeURIComponent(f.tiktok_pixel_id.value) +
+                        '&google_conversion_id=' + encodeURIComponent(f.google_conversion_id.value) +
+                        '&google_conversion_label=' + encodeURIComponent(f.google_conversion_label.value)
                 });
                 const data = await resp.json();
                 if (data.success) {
@@ -364,8 +409,26 @@ if ($action === 'new') {
             }
         });
     }
-    function restoreRevision(id, rev) {
-        if (!confirm('Restaurar esta revisão? O HTML atual será sobrescrito (uma nova revisão será criada antes).')) return;
+    async function testCapi(id) {
+        const btn = document.getElementById('capiTestBtn');
+        const out = document.getElementById('capiTestResult');
+        btn.disabled = true;
+        out.textContent = 'Enviando evento de teste...';
+        try {
+            const resp = await fetch('/admin/api/pages.php', { method: 'POST', body: new URLSearchParams({ action: 'test-capi', id }) });
+            const data = await resp.json();
+            if (data.success) {
+                out.innerHTML = '<span style="color:var(--success);">OK — confira em Events Manager → Test Events (event_id ' + (data.event_id || '') + ').</span>';
+            } else {
+                out.innerHTML = '<span style="color:var(--danger);">' + (data.error || 'Falha no teste') + '</span>';
+            }
+        } catch (err) {
+            out.textContent = 'Erro de conexão.';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+    function restoreRevision(id, rev) {        if (!confirm('Restaurar esta revisão? O HTML atual será sobrescrito (uma nova revisão será criada antes).')) return;
         fetch('/admin/api/editor.php?action=restore&id=' + id + '&rev=' + encodeURIComponent(rev))
             .then(r => r.json())
             .then(d => { if (d.success) { showToast('Revisão restaurada!', 'success'); setTimeout(() => location.reload(), 1200); } else alert(d.error || 'Erro ao restaurar'); });
