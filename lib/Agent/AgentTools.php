@@ -141,7 +141,6 @@ class AgentTools
         $data = [
             'plano' => Plans::planName($plan),
             'paginas' => ['limite' => Plans::maxPages($plan)],
-            'dominios' => ['limite' => Plans::maxDomains($plan)],
             'adspy' => AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_SEARCH),
             'ia' => AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_ANALYSIS),
             'ofertas' => OfferQuota::check($userId, $plan),

@@ -36,6 +36,13 @@ async function waitJobDone(page, conversationId, maxTries = 60) {
   await page.click('button:has-text("Nova conversa")');
   await page.waitForTimeout(2500);
   const convId = await page.evaluate(() => conversationId);
+  // Marca a conversa como teste para a limpeza (cleanup.js so remove [e2e])
+  await page.evaluate(async (cid) => {
+    await fetch('/admin/api/agent.php', {
+      method: 'POST',
+      body: new URLSearchParams({ action: 'rename', id: String(cid), title: '[e2e] onboarding-1' })
+    });
+  }, convId);
   const greeting = await page.locator('.msg.agent').last().textContent().catch(() => '');
   const chips = await page.locator('.chip').allTextContents();
   console.log('1. greeting afiliacao=' + /afilia/i.test(greeting) + ' pergunta nicho=' + /nicho/i.test(greeting));
@@ -65,6 +72,13 @@ async function waitJobDone(page, conversationId, maxTries = 60) {
   // 7. Nova conversa -> greeting NAO assume o nicho: oferece escolha mantendo o atual
   await page.click('button:has-text("Nova conversa")');
   await page.waitForTimeout(2500);
+  // Marca a conversa como teste para a limpeza (cleanup.js so remove [e2e])
+  await page.evaluate(async () => {
+    await fetch('/admin/api/agent.php', {
+      method: 'POST',
+      body: new URLSearchParams({ action: 'rename', id: String(conversationId), title: '[e2e] onboarding-2' })
+    });
+  });
   const greeting2 = await page.locator('.msg.agent').last().textContent().catch(() => '');
   const chips2 = await page.locator('.chip').allTextContents();
   console.log('7. greeting2 cita o nicho salvo=' + /finan/i.test(greeting2) + ' e oferece escolha=' + /continuamos|outro/i.test(greeting2));

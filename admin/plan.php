@@ -120,7 +120,6 @@ if (!$isAdmin && isset($_GET['plan']) && isset($_GET['cycle'])) {
                         <ul>
                             <li><i class="fas fa-check"></i> <?= $p['label'] ?></li>
                             <li><i class="fas fa-check"></i> <?= $p['max_pages'] === -1 ? 'Páginas ilimitadas' : $p['max_pages'] . ' páginas' ?></li>
-                            <li><i class="fas fa-check"></i> <?= $p['max_domains'] === -1 ? 'Domínios ilimitados' : $p['max_domains'] . ' domínios' ?></li>
                             <li><i class="fas fa-check"></i> <?= count($p['features']) ?> recursos inclusos</li>
                         </ul>
                         <?php if ($isAdmin): ?>

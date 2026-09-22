@@ -246,6 +246,7 @@ $profileText = AgentProfile::describe($profile);
                     '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (c.subagent_name ? '<i class="fas fa-user-gear" style="font-size:.68rem;color:var(--accent);"></i> ' : '') + esc(c.title) + '</span>' +
                     '<span style="font-size:.64rem;color:var(--text-secondary);">' + esc(formatDate(c.updated_at)) + '</span>' +
                 '</span>' +
+                '<span class="del" onclick="event.stopPropagation();renameConversation(' + c.id + ')" title="Renomear"><i class="fas fa-pen"></i></span>' +
                 '<span class="del" onclick="event.stopPropagation();deleteConversation(' + c.id + ')" title="Excluir"><i class="fas fa-trash"></i></span>' +
             '</div>'
         ).join('');
@@ -439,6 +440,16 @@ $profileText = AgentProfile::describe($profile);
         if (!confirm('Excluir esta conversa?')) return;
         await fetch('/admin/api/agent.php', { method: 'POST', body: new URLSearchParams({ action: 'delete', id }) });
         if (conversationId === id) { conversationId = 0; document.getElementById('agentMessages').innerHTML = ''; }
+        loadConversations();
+    }
+
+    async function renameConversation(id) {
+        const current = (conversationsCache.find(c => c.id === id) || {}).title || '';
+        const title = prompt('Renomear conversa:', current);
+        if (title === null) return;
+        const resp = await fetch('/admin/api/agent.php', { method: 'POST', body: new URLSearchParams({ action: 'rename', id, title }) });
+        const data = await resp.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
         loadConversations();
     }
 

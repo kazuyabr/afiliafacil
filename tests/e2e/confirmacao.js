@@ -19,6 +19,14 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(1500);
   await page.click('button:has-text("Nova conversa")');
   await page.waitForTimeout(1500);
+  // Marca a conversa como teste para a limpeza (cleanup.js so remove [e2e])
+  await page.evaluate(async () => {
+    const r = await fetch('/admin/api/agent.php', {
+      method: 'POST',
+      body: new URLSearchParams({ action: 'rename', id: String(conversationId), title: '[e2e] confirmacao' })
+    });
+    return await r.json();
+  });
   await page.fill('#agentInput', 'espione anuncios de financas no meta e tiktok');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(2000);

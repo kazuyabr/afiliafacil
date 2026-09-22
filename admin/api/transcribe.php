@@ -162,7 +162,7 @@ switch ($action) {
         if (empty($result['success'])) {
             SttQuota::fail($transcriptionId, $result['error'] ?? 'Erro desconhecido');
             Audit::log('transcription_failed', 'transcription', (string)$transcriptionId, ['provider' => $config['provider']]);
-            echo json_encode(['error' => $result['error'] ?? 'Falha na transcrição.', 'id' => $transcriptionId], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['error' => $result['error'] ?? 'Falha na transcrição.', 'id' => $transcriptionId, 'quota_exceeded' => !empty($result['quota_exceeded'])], JSON_UNESCAPED_UNICODE);
             break;
         }
 

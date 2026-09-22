@@ -36,6 +36,13 @@ async function waitJobDone(page, conversationId, maxTries = 70) {
   await page.click('button:has-text("Nova conversa")');
   await page.waitForTimeout(2500);
   const convId = await page.evaluate(() => conversationId);
+  // Marca a conversa como teste para a limpeza (cleanup.js so remove [e2e])
+  await page.evaluate(async (cid) => {
+    await fetch('/admin/api/agent.php', {
+      method: 'POST',
+      body: new URLSearchParams({ action: 'rename', id: String(cid), title: '[e2e] swipe-vazio' })
+    });
+  }, convId);
   await page.locator('.chip', { hasText: 'Outro' }).first().click();
   const s1 = await waitJobDone(page, convId);
   console.log('1. IA pediu o nicho apos "Outro": ' + s1);

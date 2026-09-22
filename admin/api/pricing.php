@@ -43,7 +43,6 @@ switch ($action) {
                 'label' => $p->label,
                 'features' => $p->features ?? [],
                 'max_pages' => (int)$p->max_pages,
-                'max_domains' => (int)$p->max_domains,
                 'max_adspy_searches' => (int)($p->max_adspy_searches ?? 0),
                 'max_ai_analyses' => (int)($p->max_ai_analyses ?? 0),
                 'max_offers_views' => (int)($p->max_offers_views ?? 0),
@@ -69,7 +68,6 @@ switch ($action) {
         if (isset($_POST['name'])) $plan->name = trim($_POST['name']);
         if (isset($_POST['label'])) $plan->label = trim($_POST['label']);
         if (isset($_POST['max_pages'])) $plan->max_pages = (int)$_POST['max_pages'];
-        if (isset($_POST['max_domains'])) $plan->max_domains = (int)$_POST['max_domains'];
         if (isset($_POST['max_adspy_searches'])) $plan->max_adspy_searches = (int)$_POST['max_adspy_searches'];
         if (isset($_POST['max_ai_analyses'])) $plan->max_ai_analyses = (int)$_POST['max_ai_analyses'];
         if (isset($_POST['max_offers_views'])) $plan->max_offers_views = (int)$_POST['max_offers_views'];

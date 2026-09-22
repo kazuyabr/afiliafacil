@@ -13,11 +13,13 @@ const { chromium } = require('playwright');
   await page.waitForURL('**/admin/**');
 
   const result = await page.evaluate(async () => {
-    const out = { conversations: 0, profile: '' };
+    const out = { conversations: 0, skipped: 0, profile: '' };
 
     const listResp = await fetch('/admin/api/agent.php?action=conversations');
     const list = await listResp.json();
     for (const c of (list.conversations || [])) {
+      // So remove conversas de teste (prefixo [e2e]) — NUNCA apaga conversas reais do usuario.
+      if (!String(c.title || '').startsWith('[e2e]')) { out.skipped++; continue; }
       await fetch('/admin/api/agent.php', {
         method: 'POST',
         body: new URLSearchParams({ action: 'delete', id: String(c.id) })
@@ -34,7 +36,8 @@ const { chromium } = require('playwright');
     return out;
   });
 
-  console.log('conversas removidas: ' + result.conversations);
+  console.log('conversas [e2e] removidas: ' + result.conversations);
+  console.log('conversas reais preservadas: ' + result.skipped);
   console.log('perfil: ' + result.profile);
   await browser.close();
 })();

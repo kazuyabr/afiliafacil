@@ -19,6 +19,14 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(1500);
   await page.click('button:has-text("Nova conversa")');
   await page.waitForTimeout(1500);
+  // Marca a conversa como teste para a limpeza (cleanup.js so remove [e2e])
+  await page.evaluate(async () => {
+    const r = await fetch('/admin/api/agent.php', {
+      method: 'POST',
+      body: new URLSearchParams({ action: 'rename', id: String(conversationId), title: '[e2e] pesquisa-web' })
+    });
+    return await r.json();
+  });
   await page.fill('#agentInput', 'pesquise na web tendencias de marketing digital 2026');
   await page.keyboard.press('Enter');
   console.log('1. mensagem enviada');

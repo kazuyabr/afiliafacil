@@ -5,6 +5,7 @@ require_once Config::getLibDir() . '/Database.php';
 require_once Config::getLibDir() . '/Plans.php';
 require_once Config::getLibDir() . '/Ai/SttConfig.php';
 require_once Config::getLibDir() . '/Ai/SttQuota.php';
+require_once Config::getLibDir() . '/Settings.php';
 
 Auth::requireAuth();
 
@@ -15,6 +16,14 @@ $quota = SttQuota::check((int)$user['id'], $user['plan']);
 $available = SttConfig::isAvailable((int)$user['id']);
 $config = SttConfig::forUser((int)$user['id']);
 $maxUpload = min(24, (int)ini_get('upload_max_filesize') ?: 24);
+// Banner de cota da plataforma (STT+TTS compartilham o limite diario da conta CF)
+$platformQuotaOut = false;
+try {
+    $quotaOutAt = (string)Settings::get('ai_quota_error_at', '');
+    $platformQuotaOut = $quotaOutAt !== '' && substr($quotaOutAt, 0, 10) === date('Y-m-d')
+        && ($config['source'] ?? '') !== 'byok';
+} catch (Throwable $e) {
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="<?= $theme ?>">
@@ -61,6 +70,12 @@ $maxUpload = min(24, (int)ini_get('upload_max_filesize') ?: 24);
                 <?php if (!$available): ?>
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i> Transcrição não configurada. Configure o Cloudflare Workers AI da plataforma ou sua própria chave em <a href="/admin/ai-settings.php"><strong>IA (BYOK)</strong></a>.
+                </div>
+                <?php endif; ?>
+
+                <?php if ($platformQuotaOut): ?>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> <strong>Cota da plataforma esgotada hoje.</strong> STT e TTS compartilham o limite diário gratuito — ele renova à meia-noite. Para continuar agora, configure sua própria chave em <a href="/admin/settings.php"><strong>Configurações → Avançado → IA (chaves próprias)</strong></a>.
                 </div>
                 <?php endif; ?>
 

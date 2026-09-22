@@ -10,7 +10,6 @@ class Plans
             'price' => 0,
             'features' => ['clone', 'offers', 'adspy'],
             'max_pages' => 1,
-            'max_domains' => 0,
             'max_offers_views' => 3,
             'max_transcriptions' => 2,
             'max_tts' => 2,
@@ -22,7 +21,6 @@ class Plans
             'price' => 0,
             'features' => [],
             'max_pages' => 0,
-            'max_domains' => 0,
             'label' => 'Trial expirado - assine para continuar',
         ],
         'vsl' => [
@@ -36,7 +34,6 @@ class Plans
             ],
             'features' => ['video', 'delay', 'clone'],
             'max_pages' => 1,
-            'max_domains' => 1,
             'label' => 'Páginas de VSL com delay',
         ],
         'essencial' => [
@@ -50,13 +47,12 @@ class Plans
             ],
             'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'editor', 'offers', 'adspy', 'agent'],
             'max_pages' => 5,
-            'max_domains' => 2,
             'max_offers_views' => 30,
             'max_transcriptions' => 10,
             'max_tts' => 10,
             'max_agent_messages' => 100,
             'max_subagents' => 2,
-            'label' => '5 páginas, 2 domínios',
+            'label' => '5 páginas',
         ],
         'master' => [
             'name' => 'Master',
@@ -69,7 +65,6 @@ class Plans
             ],
             'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'integrations', 'quizz', 'editor', 'offers', 'adspy', 'agent'],
             'max_pages' => -1,
-            'max_domains' => 10,
             'max_offers_views' => 300,
             'max_transcriptions' => 100,
             'max_tts' => 100,
@@ -82,7 +77,6 @@ class Plans
             'price' => 0,
             'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'integrations', 'quizz', 'editor', 'offers', 'adspy', 'agent'],
             'max_pages' => -1,
-            'max_domains' => -1,
             'max_offers_views' => -1,
             'max_transcriptions' => -1,
             'max_tts' => -1,
@@ -122,7 +116,6 @@ class Plans
                     'cycles' => $cycles,
                     'features' => $plan->features ?? [],
                     'max_pages' => (int)$plan->max_pages,
-                    'max_domains' => (int)$plan->max_domains,
                     'max_adspy_searches' => (int)($plan->max_adspy_searches ?? 0),
                     'max_ai_analyses' => (int)($plan->max_ai_analyses ?? 0),
                     'max_offers_views' => (int)($plan->max_offers_views ?? 0),
@@ -205,11 +198,6 @@ class Plans
     public static function maxSubagents(string $plan): int
     {
         return self::get($plan)['max_subagents'] ?? 0;
-    }
-
-    public static function maxDomains(string $plan): int
-    {
-        return self::get($plan)['max_domains'];
     }
 
     public static function hasFeature(string $plan, string $feature): bool

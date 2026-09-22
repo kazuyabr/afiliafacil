@@ -46,6 +46,14 @@ switch ($action) {
         echo json_encode(['success' => true, 'conversation' => $conversation], JSON_UNESCAPED_UNICODE);
         break;
 
+    case 'messages':
+        $rating = (string)($_GET['rating'] ?? '');
+        if (!in_array($rating, ['up', 'down', 'none', ''], true)) $rating = '';
+        $result = AgentMonitor::ratedMessages($rating, (int)($_GET['limit'] ?? 30));
+        $result['success'] = true;
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        break;
+
     case 'export':
         header('Content-Type: application/x-ndjson; charset=UTF-8');
         header('Content-Disposition: attachment; filename="agente-dataset-' . date('Ymd-His') . '.jsonl"');

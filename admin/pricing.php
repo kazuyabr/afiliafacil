@@ -84,15 +84,9 @@ $theme = $_SESSION['theme'] ?? 'light';
                             <input type="text" class="form-control plan-label" value="${esc(p.label)}">
                         </div>
                     </div>
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label>Máx. páginas (-1 = ilimitado)</label>
-                            <input type="number" class="form-control plan-max-pages" value="${p.max_pages}">
-                        </div>
-                        <div class="form-group">
-                            <label>Máx. domínios (-1 = ilimitado)</label>
-                            <input type="number" class="form-control plan-max-domains" value="${p.max_domains}">
-                        </div>
+                    <div class="form-group">
+                        <label>Máx. páginas (-1 = ilimitado)</label>
+                        <input type="number" class="form-control plan-max-pages" value="${p.max_pages}">
                     </div>
                     <div class="grid-2">
                         <div class="form-group">
@@ -152,7 +146,6 @@ $theme = $_SESSION['theme'] ?? 'light';
         body.append('name', card.querySelector('.plan-name').value);
         body.append('label', card.querySelector('.plan-label').value);
         body.append('max_pages', card.querySelector('.plan-max-pages').value);
-        body.append('max_domains', card.querySelector('.plan-max-domains').value);
         body.append('max_adspy_searches', card.querySelector('.plan-max-adspy').value);
         body.append('max_ai_analyses', card.querySelector('.plan-max-ai').value);
         body.append('max_offers_views', card.querySelector('.plan-max-offers').value);

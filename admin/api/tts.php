@@ -142,7 +142,7 @@ switch ($action) {
         if (empty($result['success'])) {
             TtsQuota::fail($generationId, $result['error'] ?? 'Erro desconhecido');
             Audit::log('tts_failed', 'tts', (string)$generationId, ['provider' => $provider]);
-            echo json_encode(['error' => $result['error'] ?? 'Falha na geração.', 'id' => $generationId], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['error' => $result['error'] ?? 'Falha na geração.', 'id' => $generationId, 'quota_exceeded' => !empty($result['quota_exceeded'])], JSON_UNESCAPED_UNICODE);
             break;
         }
 

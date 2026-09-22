@@ -13,7 +13,6 @@ $plans = Plans::all();
 $order = ['trial', 'vsl', 'essencial', 'master'];
 $quotaLabels = [
     'max_pages' => 'Páginas clonadas',
-    'max_domains' => 'Domínios',
     'max_adspy_searches' => 'Buscas de anúncios/mês',
     'max_ai_analyses' => 'Análises IA/mês',
     'max_offers_views' => 'Ofertas vistas/mês',
@@ -21,7 +20,7 @@ $quotaLabels = [
     'max_tts' => 'Narrações/mês',
     'max_agent_messages' => 'Mensagens do Sócio de IA/mês',
 ];
-$quotaKeys = ['max_pages', 'max_domains', 'max_adspy_searches', 'max_ai_analyses', 'max_offers_views', 'max_transcriptions', 'max_tts', 'max_agent_messages'];
+$quotaKeys = ['max_pages', 'max_adspy_searches', 'max_ai_analyses', 'max_offers_views', 'max_transcriptions', 'max_tts', 'max_agent_messages'];
 
 $formatQuota = function ($value) {
     if ($value === -1) return 'ilimitado';

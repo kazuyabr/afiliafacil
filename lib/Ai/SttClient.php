@@ -20,6 +20,43 @@ class SttClient
         }
     }
 
+    private static int $lastStatus = 0;
+    private static ?string $lastBody = null;
+
+    public static function lastStatus(): int
+    {
+        return self::$lastStatus;
+    }
+
+    /** Erro de cota/limite do provider? (ex.: Cloudflare 429 neurons/dia) */
+    public static function isQuotaError(?string $body = null, int $status = 0): bool
+    {
+        if ($status === 429 || self::$lastStatus === 429) return true;
+        $t = mb_strtolower((string)($body ?? self::$lastBody));
+        return str_contains($t, 'neurons') || str_contains($t, 'daily free')
+            || str_contains($t, 'quota exceeded') || str_contains($t, 'too many requests')
+            || str_contains($t, 'rate limit');
+    }
+
+    public static function quotaMessage(string $tab = 'Transcrição'): string
+    {
+        return 'A cota gratuita da plataforma acabou por hoje (STT e TTS compartilham o limite diário). '
+            . 'Configure sua própria chave em Configurações → Avançado → IA (chaves próprias), aba ' . $tab
+            . ', para continuar sem limite — ou tente novamente amanhã.';
+    }
+
+    /** Registra a falha de cota da plataforma (exibida como banner nas telas). */
+    private static function markQuotaError(): void
+    {
+        try {
+            if (!class_exists('Settings', false)) {
+                require_once __DIR__ . '/../Settings.php';
+            }
+            \Settings::set('ai_quota_error_at', date('Y-m-d H:i:s'));
+        } catch (Throwable $e) {
+        }
+    }
+
     private static function cloudflare(array $input, array $config): array
     {
         $accountId = trim($config['account_id'] ?? '');
@@ -41,12 +78,21 @@ class SttClient
         ], $binary, 180);
 
         if ($response === null) {
+            if (self::isQuotaError()) {
+                if (($config['source'] ?? 'platform') === 'platform') self::markQuotaError();
+                return ['success' => false, 'error' => self::quotaMessage('Transcrição'), 'quota_exceeded' => true, 'provider' => 'cloudflare'];
+            }
             return ['success' => false, 'error' => 'Cloudflare: falha na requisição (verifique conta/token).'];
         }
 
         $json = json_decode($response, true);
         if (!is_array($json) || !empty($json['errors'])) {
-            return ['success' => false, 'error' => 'Cloudflare: ' . ($json['errors'][0]['message'] ?? 'resposta inválida')];
+            $cfMsg = $json['errors'][0]['message'] ?? 'resposta inválida';
+            if (self::isQuotaError($cfMsg)) {
+                if (($config['source'] ?? 'platform') === 'platform') self::markQuotaError();
+                return ['success' => false, 'error' => self::quotaMessage('Transcrição'), 'quota_exceeded' => true, 'provider' => 'cloudflare'];
+            }
+            return ['success' => false, 'error' => 'Cloudflare: ' . $cfMsg];
         }
 
         $result = $json['result'] ?? [];
@@ -301,6 +347,9 @@ class SttClient
         $response = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
+
+        self::$lastStatus = $status;
+        self::$lastBody = ($status >= 400 && is_string($response)) ? $response : null;
 
         if ($response === false || $status >= 400) return null;
         return $response;

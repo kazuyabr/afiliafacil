@@ -215,6 +215,22 @@ if (Database::available()) {
                             <div id="twoFaResult" style="margin-top:12px;"></div>
                         </div>
                     </div>
+
+                    <div class="card" style="margin-top:24px;">
+                        <div class="card-header"><h3><i class="fas fa-sliders"></i> Avançado</h3></div>
+                        <div class="card-body">
+                            <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:12px;">Ferramentas avançadas fora do menu principal:</p>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <a class="btn btn-outline btn-sm" href="/admin/ai-settings.php"><i class="fas fa-robot"></i> IA (chaves próprias)</a>
+                                <a class="btn btn-outline btn-sm" href="/admin/transcribe.php"><i class="fas fa-microphone-lines"></i> Transcrições</a>
+                                <a class="btn btn-outline btn-sm" href="/admin/tts.php"><i class="fas fa-volume-high"></i> Narração</a>
+                                <a class="btn btn-outline btn-sm" href="/admin/storage.php"><i class="fas fa-database"></i> Armazenamento</a>
+                                <?php if (Auth::can('manage_roles')): ?>
+                                <a class="btn btn-outline btn-sm" href="/admin/roles.php"><i class="fas fa-user-shield"></i> Cargos</a>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <?php if ($isAdmin): ?>

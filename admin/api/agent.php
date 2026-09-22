@@ -265,6 +265,12 @@ switch ($action) {
         echo json_encode($deleted ? ['success' => true] : ['error' => 'Conversa não encontrada']);
         break;
 
+    case 'rename':
+        $id = (int)($_POST['id'] ?? 0);
+        $title = (string)($_POST['title'] ?? '');
+        echo json_encode($agent->renameConversation($userId, $id, $title), JSON_UNESCAPED_UNICODE);
+        break;
+
     default:
         echo json_encode(['error' => 'Ação inválida']);
 }

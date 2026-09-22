@@ -14,7 +14,7 @@ ob_start();
 <p>Bem-vindo à <?= htmlspecialchars($companyName) ?>. Estes Termos de Uso regulam o acesso e uso da plataforma. Ao criar uma conta ou utilizar qualquer funcionalidade, você declara ter lido, entendido e aceito integralmente estes Termos e a <a href="/privacidade">Política de Privacidade</a>.</p>
 
 <h2>1. Descrição do serviço</h2>
-<p>A plataforma oferece ferramentas para produtores e afiliados, incluindo: clonagem de páginas de vendas, editor de código, pressel, player de vídeo, pixel, back redirect, cookie, domínios, integrações, espionagem de anúncios em bibliotecas públicas, módulo de ofertas ("Ofertas Escalando"), transcrição de áudio/vídeo (STT), narração (TTS) e o agente de IA "Sócio de IA".</p>
+<p>A plataforma oferece ferramentas para produtores e afiliados, incluindo: clonagem de páginas de vendas, editor de código, pressel, player de vídeo, pixel, back redirect, cookie, integrações, espionagem de anúncios em bibliotecas públicas, módulo de ofertas ("Ofertas Escalando"), transcrição de áudio/vídeo (STT), narração (TTS) e o agente de IA "Sócio de IA".</p>
 
 <h2>2. Cadastro e conta</h2>
 <ul>

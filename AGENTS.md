@@ -1,6 +1,6 @@
 # AfiliaFacil
 
-Plataforma completa para afiliados: clonador de páginas, pressel, player de vídeo, pixel, back redirect, cookie de afiliado, domínios, integrações e assinaturas com PIX/Stripe. Concorrente direto da Afiliaze (afiliaze.com.br).
+Plataforma completa para afiliados: clonador de páginas, pressel, player de vídeo, pixel, back redirect, cookie de afiliado, integrações e assinaturas com PIX/Stripe. Concorrente direto da Afiliaze (afiliaze.com.br).
 
 ## Stack
 
@@ -231,11 +231,11 @@ Admin cria novos usuários via registro (`/register`), que inicia como `trial` c
 | Plano | Mensal | Trimestral | Semestral | Anual | Recursos |
 |---|---|---|---|---|---|
 | Trial | grátis 3d | — | — | — | 1 página, clonador |
-| VSL | R$ 79 | R$ 159 | R$ 267 | R$ 468 | player+delay, 1 página, 1 domínio |
-| Essencial | R$ 119 | R$ 237 | R$ 402 | R$ 679 | clonador+pressel+player+pixel+cookie+backredirect, 5 páginas, 2 domínios |
-| Master | R$ 149 | R$ 297 | R$ 492 | R$ 838 | tudo ilimitado + integrações, 10 domínios |
+| VSL | R$ 79 | R$ 159 | R$ 267 | R$ 468 | player+delay, 1 página |
+| Essencial | R$ 119 | R$ 237 | R$ 402 | R$ 679 | clonador+pressel+player+pixel+cookie+backredirect, 5 páginas |
+| Master | R$ 149 | R$ 297 | R$ 492 | R$ 838 | tudo ilimitado + integrações |
 
-Definição central em `lib/Plans.php` — limites (max_pages/max_domains/features) aplicados via gating no backend (ex.: `api/clone.php`). Plano `trial_expired` bloqueia features e força upgrade.
+Definição central em `lib/Plans.php` — limites (max_pages/features) aplicados via gating no backend (ex.: `api/clone.php`). Plano `trial_expired` bloqueia features e força upgrade.
 
 ## Pagamentos
 

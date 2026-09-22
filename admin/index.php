@@ -94,11 +94,6 @@ $theme = $_SESSION['theme'] ?? 'light';
                                 <h3>Pressel</h3>
                                 <p>Gere pressels prontas em segundos</p>
                             </a>
-                            <a href="/admin/domains.php" class="feature-card" style="text-decoration:none;">
-                                <div class="feature-icon" style="background:#fff3cd;color:#fd7e14;"><i class="fas fa-globe"></i></div>
-                                <h3>Domínios</h3>
-                                <p>Configure domínios próprios</p>
-                            </a>
                         </div>
                     </div>
                 </div>

@@ -5,6 +5,7 @@ require_once Config::getLibDir() . '/Database.php';
 require_once Config::getLibDir() . '/Plans.php';
 require_once Config::getLibDir() . '/Ai/TtsConfig.php';
 require_once Config::getLibDir() . '/Ai/TtsQuota.php';
+require_once Config::getLibDir() . '/Settings.php';
 
 Auth::requireAuth();
 
@@ -14,6 +15,14 @@ $theme = $_SESSION['theme'] ?? 'light';
 $quota = TtsQuota::check((int)$user['id'], $user['plan']);
 $available = TtsConfig::isAvailable((int)$user['id']);
 $config = TtsConfig::forUser((int)$user['id']);
+// Banner de cota da plataforma (STT+TTS compartilham o limite diario da conta CF)
+$platformQuotaOut = false;
+try {
+    $quotaOutAt = (string)Settings::get('ai_quota_error_at', '');
+    $platformQuotaOut = $quotaOutAt !== '' && substr($quotaOutAt, 0, 10) === date('Y-m-d')
+        && ($config['source'] ?? '') !== 'byok';
+} catch (Throwable $e) {
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="<?= $theme ?>">
@@ -60,6 +69,12 @@ $config = TtsConfig::forUser((int)$user['id']);
                 <?php if (!$available): ?>
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i> Narração não configurada. Configure o Cloudflare Workers AI da plataforma ou sua própria chave em <a href="/admin/ai-settings.php"><strong>IA (BYOK)</strong></a>.
+                </div>
+                <?php endif; ?>
+
+                <?php if ($platformQuotaOut): ?>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> <strong>Cota da plataforma esgotada hoje.</strong> STT e TTS compartilham o limite diário gratuito — ele renova à meia-noite. Para continuar agora, configure sua própria chave em <a href="/admin/settings.php"><strong>Configurações → Avançado → IA (chaves próprias)</strong></a>.
                 </div>
                 <?php endif; ?>
 

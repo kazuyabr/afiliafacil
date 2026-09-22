@@ -144,6 +144,60 @@ class AgentMonitor
         }
     }
 
+    /**
+     * Respostas da IA para os modais dos cards (up/down/sem avaliacao/todas).
+     * Traz titulo da conversa + e-mail para contexto imediato.
+     */
+    public static function ratedMessages(string $rating = '', int $limit = 30): array
+    {
+        if (!Database::available()) return ['items' => []];
+
+        try {
+            $query = \AfiliaFacil\Models\AgentMessage::query()
+                ->join('agent_conversations', 'agent_conversations.id', '=', 'agent_messages.conversation_id')
+                ->leftJoin('users', 'users.id', '=', 'agent_conversations.user_id')
+                ->where('agent_messages.role', 'agent')
+                ->select([
+                    'agent_messages.id',
+                    'agent_messages.conversation_id',
+                    'agent_messages.content',
+                    'agent_messages.rating',
+                    'agent_messages.rating_note',
+                    'agent_messages.created_at',
+                    'agent_conversations.title as conv_title',
+                    'users.email as user_email',
+                ]);
+
+            if ($rating === 'up') {
+                $query->where('agent_messages.rating', 1);
+            } elseif ($rating === 'down') {
+                $query->where('agent_messages.rating', -1);
+            } elseif ($rating === 'none') {
+                $query->whereNull('agent_messages.rating');
+            }
+
+            $rows = $query->orderByDesc('agent_messages.id')->limit(min(50, max(1, $limit)))->get();
+
+            $items = [];
+            foreach ($rows as $m) {
+                $items[] = [
+                    'id' => (int)$m->id,
+                    'conversation_id' => (int)$m->conversation_id,
+                    'conv_title' => $m->conv_title ?? '',
+                    'user_email' => $m->user_email ?? '',
+                    'content' => (string)$m->content,
+                    'rating' => $m->rating !== null ? (int)$m->rating : null,
+                    'rating_note' => $m->rating_note ?? '',
+                    'created_at' => (string)$m->created_at,
+                ];
+            }
+
+            return ['items' => $items];
+        } catch (Throwable $e) {
+            return ['items' => [], 'error' => $e->getMessage()];
+        }
+    }
+
     public static function exportJsonl(int $limit = 5000): string
     {
         if (!Database::available()) return '';

@@ -480,6 +480,23 @@ class Agent
         return true;
     }
 
+    public function renameConversation(int $userId, int $conversationId, string $title): array
+    {
+        $conversation = $this->getConversation($userId, $conversationId);
+        if (!$conversation) return ['error' => 'Conversa não encontrada.'];
+        $title = trim($title);
+        if ($title === '') return ['error' => 'Informe um título para a conversa.'];
+        if (mb_strlen($title) > 80) $title = mb_substr($title, 0, 80);
+        try {
+            // Renomear nao altera updated_at (evita reordenar a lista por causa do novo nome).
+            $conversation->title = $title;
+            $conversation->save();
+            return ['success' => true, 'title' => $title];
+        } catch (Throwable $e) {
+            return ['error' => 'Falha ao renomear: ' . $e->getMessage()];
+        }
+    }
+
     private function handleResponse(int $userId, string $plan, int $conversationId, string $rawResponse, string $userMessage = ''): array
     {
         $parsed = $this->parseResponse($rawResponse);
@@ -947,6 +964,11 @@ class Agent
 
     private function saveMessage(int $conversationId, string $role, string $content, string $toolName = '', ?array $toolArgs = null, ?array $toolResult = null, string $status = '', array $extra = [], string $source = ''): int
     {
+        // Resposta vazia: a IA as vezes retorna string vazia (parse nulo, comentario vazio).
+        // Um card vazio no chat parece bug — salva um fallback amigavel em vez disso.
+        if ($role === 'agent' && trim($content) === '') {
+            $content = 'Não consegui formular uma resposta agora. Pode reformular seu pedido? Tente ser mais específico sobre o que você precisa.';
+        }
         $payload = [
             'conversation_id' => $conversationId,
             'role' => $role,
@@ -974,7 +996,7 @@ class Agent
             if (!$conversation) return;
 
             if ($titleCandidate !== '' && ($conversation->title === 'Nova conversa' || $conversation->title === '')) {
-                $conversation->title = mb_substr($titleCandidate, 0, 80);
+                $conversation->title = mb_substr($titleCandidate, 0, 50);
             }
             $conversation->updated_at = date('Y-m-d H:i:s');
             $conversation->save();

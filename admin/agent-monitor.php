@@ -35,6 +35,11 @@ $stats = AgentMonitor::stats();
         .msg-line .txt { font-size:.83rem; line-height:1.6; white-space:pre-wrap; margin-top:3px; }
         .rating-up { color:var(--success); font-weight:700; }
         .rating-down { color:var(--danger); font-weight:700; }
+        .stat-card.mon-click { cursor:pointer; transition:transform .12s ease, box-shadow .12s ease; }
+        .stat-card.mon-click:hover { transform:translateY(-2px); box-shadow:0 4px 14px rgba(0,0,0,.12); }
+        .mon-row { display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px dashed var(--border-color); }
+        .mon-row:last-child { border-bottom:none; }
+        .mon-back { display:inline-block;margin-bottom:10px;font-size:.78rem; }
     </style>
 </head>
 <body>
@@ -57,11 +62,11 @@ $stats = AgentMonitor::stats();
                 </div>
 
                 <div class="stats-grid" style="margin-bottom:20px;">
-                    <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-comments"></i></div><div class="stat-value"><?= $stats['conversations'] ?></div><div class="stat-label">Conversas</div></div>
-                    <div class="stat-card"><div class="stat-icon purple"><i class="fas fa-robot"></i></div><div class="stat-value"><?= $stats['agent_messages'] ?></div><div class="stat-label">Respostas da IA</div></div>
-                    <div class="stat-card"><div class="stat-icon green"><i class="fas fa-thumbs-up"></i></div><div class="stat-value"><?= $stats['up'] ?></div><div class="stat-label">Avaliações boas</div></div>
-                    <div class="stat-card"><div class="stat-icon orange"><i class="fas fa-thumbs-down"></i></div><div class="stat-value"><?= $stats['down'] ?></div><div class="stat-label">Avaliações ruins</div></div>
-                    <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-percent"></i></div><div class="stat-value"><?= $stats['rated_pct'] ?>%</div><div class="stat-label">Respostas avaliadas</div></div>
+                    <div class="stat-card mon-click" onclick="openCard('conversations')" title="Ver conversas recentes"><div class="stat-icon blue"><i class="fas fa-comments"></i></div><div class="stat-value"><?= $stats['conversations'] ?></div><div class="stat-label">Conversas</div></div>
+                    <div class="stat-card mon-click" onclick="openCard('responses')" title="Ver respostas recentes da IA"><div class="stat-icon purple"><i class="fas fa-robot"></i></div><div class="stat-value"><?= $stats['agent_messages'] ?></div><div class="stat-label">Respostas da IA</div></div>
+                    <div class="stat-card mon-click" onclick="openCard('up')" title="Ver respostas avaliadas como boas"><div class="stat-icon green"><i class="fas fa-thumbs-up"></i></div><div class="stat-value"><?= $stats['up'] ?></div><div class="stat-label">Avaliações boas</div></div>
+                    <div class="stat-card mon-click" onclick="openCard('down')" title="Ver respostas avaliadas como ruins"><div class="stat-icon orange"><i class="fas fa-thumbs-down"></i></div><div class="stat-value"><?= $stats['down'] ?></div><div class="stat-label">Avaliações ruins</div></div>
+                    <div class="stat-card mon-click" onclick="openCard('none')" title="Ver respostas ainda sem avaliação"><div class="stat-icon blue"><i class="fas fa-percent"></i></div><div class="stat-value"><?= $stats['rated_pct'] ?>%</div><div class="stat-label">Respostas avaliadas</div></div>
                 </div>
 
                 <div class="card" style="margin-bottom:20px;">
@@ -163,7 +168,10 @@ $stats = AgentMonitor::stats();
             ).join('') + '</tbody></table>';
     }
 
-    async function openConversation(id) {
+    let monBack = '';
+
+    async function openConversation(id, back) {
+        if (back !== undefined) monBack = back;
         const modal = document.getElementById('monModal');
         modal.classList.add('active');
         document.getElementById('monModalBody').innerHTML = '<div style="text-align:center;padding:24px;"><i class="fas fa-spinner fa-spin"></i></div>';
@@ -175,7 +183,8 @@ $stats = AgentMonitor::stats();
         const c = data.conversation;
         document.getElementById('monModalTitle').textContent = c.title + (c.subagent_name ? ' — ' + c.subagent_name : '');
 
-        let html = '<p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:12px;">Usuário: ' + esc(c.user_email) + ' · atualizada em ' + esc(c.updated_at) + '</p>';
+        let html = (monBack ? '<a href="#" class="mon-back" onclick="openCard(\'' + monBack + '\');return false;"><i class="fas fa-arrow-left"></i> Voltar</a>' : '') +
+            '<p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:12px;">Usuário: ' + esc(c.user_email) + ' · atualizada em ' + esc(c.updated_at) + '</p>';
         html += c.messages.map(m => {
             const who = m.role === 'user' ? 'Usuário' : (m.role === 'tool' ? 'Ação (' + esc(m.tool_name) + ')' : 'IA');
             const rating = m.rating === 1 ? ' <span class="rating-up">👍</span>' : (m.rating === -1 ? ' <span class="rating-down">👎 ' + esc(m.rating_note || '') + '</span>' : '');
@@ -184,6 +193,67 @@ $stats = AgentMonitor::stats();
         }).join('');
 
         document.getElementById('monModalBody').innerHTML = html;
+    }
+
+    const MON_CARD_TITLES = {
+        conversations: 'Conversas recentes',
+        responses: 'Respostas recentes da IA',
+        up: 'Avaliadas como boas (👍)',
+        down: 'Avaliadas como ruins (👎)',
+        none: 'Sem avaliação ainda'
+    };
+
+    function monMsgHtml(m) {
+        const rating = m.rating === 1 ? ' <span class="rating-up">👍</span>' : (m.rating === -1 ? ' <span class="rating-down">👎 ' + esc(m.rating_note || '') + '</span>' : ' <span style="font-size:.7rem;color:var(--text-secondary);">sem avaliação</span>');
+        return '<div class="msg-line"><span class="who">' + esc(m.conv_title || ('Conversa #' + m.conversation_id)) + ' · ' + esc(m.user_email) + rating + '</span>' +
+            '<div class="txt">' + esc((m.content || '').substring(0, 600)) + '</div>' +
+            '<div style="margin-top:6px;display:flex;gap:8px;align-items:center;font-size:.72rem;color:var(--text-secondary);">' +
+                '<span>' + esc(m.created_at || '') + '</span>' +
+                '<button class="btn btn-outline btn-sm" onclick="openConversation(' + m.conversation_id + ')"><i class="fas fa-eye"></i> Ver diálogo</button>' +
+            '</div></div>';
+    }
+
+    async function openCard(kind) {
+        monBack = kind;
+        const modal = document.getElementById('monModal');
+        modal.classList.add('active');
+        document.getElementById('monModalTitle').textContent = MON_CARD_TITLES[kind] || 'Detalhe';
+        document.getElementById('monModalBody').innerHTML = '<div style="text-align:center;padding:24px;"><i class="fas fa-spinner fa-spin"></i></div>';
+
+        try {
+            if (kind === 'conversations') {
+                const resp = await fetch('/admin/api/agent-monitor.php?action=list&limit=15');
+                const data = await resp.json();
+                const items = data.items || [];
+                if (!items.length) {
+                    document.getElementById('monModalBody').innerHTML = '<div style="text-align:center;color:var(--text-secondary);padding:24px;">Nenhuma conversa ainda.</div>';
+                    return;
+                }
+                document.getElementById('monModalBody').innerHTML = items.map(c =>
+                    '<div class="mon-row"><div style="flex:1;min-width:0;">' +
+                        '<div style="font-weight:600;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(c.title) + '</div>' +
+                        '<div style="font-size:.72rem;color:var(--text-secondary);">' + esc(c.user_email) + ' · ' + c.messages + ' msgs' +
+                        (c.up ? ' · <span class="rating-up">👍 ' + c.up + '</span>' : '') + (c.down ? ' · <span class="rating-down">👎 ' + c.down + '</span>' : '') + '</div>' +
+                    '</div><button class="btn btn-outline btn-sm" onclick="openConversation(' + c.id + ')"><i class="fas fa-eye"></i></button></div>'
+                ).join('');
+                return;
+            }
+
+            const rating = kind === 'responses' ? '' : kind;
+            const resp = await fetch('/admin/api/agent-monitor.php?action=messages&rating=' + encodeURIComponent(rating) + '&limit=20');
+            const data = await resp.json();
+            const items = data.items || [];
+            const exportBtn = (kind === 'up' || kind === 'down' || kind === 'none')
+                ? '<div style="margin-bottom:10px;"><a class="btn btn-outline btn-sm" href="/admin/api/agent-monitor.php?action=export"><i class="fas fa-file-export"></i> Exportar dataset (JSONL)</a></div>'
+                : '';
+            if (!items.length) {
+                document.getElementById('monModalBody').innerHTML = exportBtn + '<div style="text-align:center;color:var(--text-secondary);padding:24px;">Nenhuma resposta aqui ainda.</div>';
+                return;
+            }
+            document.getElementById('monModalBody').innerHTML = exportBtn + items.map(monMsgHtml).join('');
+        } catch (e) {
+            document.getElementById('monModalBody').innerHTML = '<div class="alert alert-warning">Falha ao carregar: ' + esc(e.message) + '</div>';
+        }
     }
 
     loadMonitor();

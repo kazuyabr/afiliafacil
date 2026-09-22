@@ -113,7 +113,7 @@ $trialDays = (int)Settings::get('trial_days', 3);
                 ['icon' => 'fas fa-cookie-bite', 'title' => 'Marcação de Cookie', 'desc' => 'Marque cookie de afiliado e receba comissão mesmo se a compra ocorrer depois.'],
                 ['icon' => 'fas fa-undo', 'title' => 'Back Redirect', 'desc' => 'Impeça a saída do visitante e redirecione para uma promoção especial.'],
                 ['icon' => 'fas fa-hourglass-half', 'title' => 'Delay & VSL', 'desc' => 'Oculte elementos e revele no momento psicológico ideal, sincronizado com o vídeo.'],
-                ['icon' => 'fas fa-globe', 'title' => 'Domínio Próprio', 'desc' => 'Use seu domínio ou subdomínio próprio com SSL e hospedagem premium inclusa.'],
+                ['icon' => 'fas fa-handshake', 'title' => 'Sócio de IA', 'desc' => 'Um agente de IA que ajuda a escolher nicho, encontrar ofertas validadas e montar sua estrutura.'],
                 ['icon' => 'fas fa-plug', 'title' => 'Integrações', 'desc' => 'ManyChat, Mailchimp, ActiveCampaign e muitos outros. Zapier e webhooks.'],
             ];
             foreach ($features as $f): ?>
@@ -159,7 +159,6 @@ $trialDays = (int)Settings::get('trial_days', 3);
                     if ($has) $items[] = [$featureLabels[$feat], true];
                 }
                 $items[] = [$plan['max_pages'] === -1 ? 'Páginas ilimitadas' : $plan['max_pages'] . ' página(s)', true];
-                $items[] = [$plan['max_domains'] === -1 ? 'Domínios ilimitados' : $plan['max_domains'] . ' domínio(s)', true];
 
                 $displayPlans[] = [
                     'id' => $pid,
@@ -193,12 +192,12 @@ $trialDays = (int)Settings::get('trial_days', 3);
         </div>
         <div class="lp-faq">
             <details open>
-                <summary>Já tenho um domínio! Posso usá-lo?</summary>
-                <p>Sim! Você pode usar qualquer domínio comprado em HostGator, GoDaddy, Registro.br, Umbler ou qualquer outro registrador. Basta apontar o DNS conforme instruções do painel.</p>
+                <summary>Preciso de domínio ou hospedagem?</summary>
+                <p>Não! Suas páginas são publicadas no endereço da plataforma (afiliafacil.com/p/sua-pagina), com SSL e hospedagem inclusa — sem DNS, sem configuração.</p>
             </details>
             <details>
                 <summary>Quantas páginas posso clonar?</summary>
-                <p>Depende do seu plano: 1 página no VSL, 5 páginas no Essencial e ilimitadas no Master. A clonagem em si não tem limite de páginas por domínio.</p>
+                <p>Depende do seu plano: 1 página no VSL, 5 páginas no Essencial e ilimitadas no Master.</p>
             </details>
             <details>
                 <summary>Preciso de hospedagem ou WordPress?</summary>
