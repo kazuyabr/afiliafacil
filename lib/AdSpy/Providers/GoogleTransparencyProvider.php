@@ -24,6 +24,10 @@ class GoogleTransparencyProvider extends AdSpyProvider
             return $this->emptyResult('Google: configure sua chave SerpApi em IA (BYOK) > Busca de Anuncios (gratis: 250 buscas/mes em serpapi.com).');
         }
 
+        // A engine busca por DOMINIO: se o usuario colou uma URL, extrai o host antes.
+        $domain = $this->extractDomain($query);
+        if ($domain !== null) $query = $domain;
+
         $json = $this->request($apiKey, $query, $options);
 
         // A engine do Google Ads Transparency busca por DOMINIO (ex: "hotmart.com").
@@ -94,6 +98,23 @@ class GoogleTransparencyProvider extends AdSpyProvider
     {
         $query = trim($query);
         return $query !== '' && !str_contains($query, '.') && !str_contains($query, ' ') && !str_starts_with($query, 'AR');
+    }
+
+    /**
+     * Extrai o dominio quando o usuario cola uma URL (https://loja.com/produto -> loja.com).
+     * Retorna null quando a entrada ja e termo/dominio puro (nada a extrair).
+     */
+    private function extractDomain(string $query): ?string
+    {
+        $q = trim($query);
+        if ($q === '') return null;
+        $lower = strtolower($q);
+        if (!preg_match('#^https?://#i', $q) && !str_starts_with($lower, 'www.')) return null;
+
+        $host = parse_url(preg_match('#^https?://#i', $q) ? $q : 'https://' . $q, PHP_URL_HOST);
+        if (!is_string($host) || $host === '' || !str_contains($host, '.')) return null;
+        $host = preg_replace('/^www\./i', '', strtolower($host));
+        return $host !== '' ? $host : null;
     }
 
     private function domainCandidate(string $query): ?string

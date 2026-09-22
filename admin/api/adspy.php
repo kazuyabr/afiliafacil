@@ -40,6 +40,11 @@ switch ($action) {
         ]);
         break;
 
+    case 'status':
+        $manager = new AdSpyManager();
+        echo json_encode(['success' => true, 'providers' => $manager->providerStatus($userId)], JSON_UNESCAPED_UNICODE);
+        break;
+
     case 'search':
         $query = trim($_POST['query'] ?? '');
         $providers = $_POST['providers'] ?? AdSpyManager::PROVIDERS;

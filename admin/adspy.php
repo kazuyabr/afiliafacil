@@ -79,6 +79,8 @@ if ($pageId > 0) {
                     </div>
                 </div>
 
+                <div id="providerStatus" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
+
                 <div class="card" style="margin-bottom:24px;">
                     <div class="card-body">
                         <?php if ($pageId > 0): ?>
@@ -90,7 +92,7 @@ if ($pageId > 0) {
                         <div class="form-group">
                             <label>Termo, domínio ou anunciante</label>
                             <div class="input-group">
-                                <input type="text" id="adspyQuery" class="form-control" placeholder="ex: preguicaartificial.com.br, nome do produto, marca..." value="<?= htmlspecialchars($_GET['query'] ?? '') ?>">
+                                <input type="text" id="adspyQuery" class="form-control" placeholder="ex: preguicaartificial.com.br, https://loja.com/produto, nome do produto, marca..." value="<?= htmlspecialchars($_GET['query'] ?? '') ?>">
                                 <button class="btn btn-primary" onclick="runSearch()" id="searchBtn"><i class="fas fa-search"></i> Espionar</button>
                             </div>
                         </div>
@@ -142,6 +144,28 @@ if ($pageId > 0) {
 
     function selectedProviders() {
         return [...document.querySelectorAll('.provider-check:checked')].map(c => c.value);
+    }
+
+    function daysRunning(startedAt) {
+        const d = new Date(String(startedAt).replace(' ', 'T'));
+        if (isNaN(d.getTime())) return String(startedAt).substring(0, 10);
+        const days = Math.max(1, Math.round((Date.now() - d.getTime()) / 86400000));
+        return 'há ' + days + (days === 1 ? ' dia' : ' dias');
+    }
+
+    async function loadProviderStatus() {
+        try {
+            const resp = await fetch('/admin/api/adspy.php?action=status');
+            const data = await resp.json();
+            const providers = data.providers || {};
+            const icons = { meta: '<i class="fab fa-facebook" style="color:#1877f2;"></i>', google: '<i class="fab fa-google" style="color:#4285f4;"></i>', tiktok: '<i class="fab fa-tiktok"></i>' };
+            document.getElementById('providerStatus').innerHTML = ['meta', 'google', 'tiktok'].map(pid => {
+                const p = providers[pid] || {};
+                const dot = '<span style="width:8px;height:8px;border-radius:50%;background:' + (p.ok !== false ? 'var(--success)' : 'var(--danger)') + ';display:inline-block;"></span>';
+                return '<span class="quota-pill" style="padding:6px 12px;font-size:.78rem;" title="' + esc(p.hint || p.label || '') + '">' +
+                    dot + (icons[pid] || '') + ' <strong>' + esc(pid.toUpperCase()) + '</strong>&nbsp;' + esc(p.label || '') + '</span>';
+            }).join('');
+        } catch (e) {}
     }
 
     async function runSearch() {
@@ -215,9 +239,11 @@ if ($pageId > 0) {
                 '<div class="ad-advertiser">' + esc(ad.advertiser || 'Anunciante desconhecido') + '</div>' +
                 (ad.title ? '<div style="font-size:.8rem;font-weight:500;">' + esc(ad.title) + '</div>' : '') +
                 (ad.text ? '<div class="ad-text">' + esc(ad.text) + '</div>' : '') +
-                '<div class="ad-meta"><span>' + esc(ad.provider) + (ad.started_at ? ' · ' + esc(ad.started_at) : '') + '</span>' +
-                (ad.link ? '<a href="' + esc(ad.link) + '" target="_blank" class="btn btn-sm btn-outline"><i class="fas fa-external-link-alt"></i></a>' : '') +
-                '</div></div></div>';
+                '<div class="ad-meta"><span>' + esc(ad.provider) + (ad.started_at ? ' · ' + esc(daysRunning(ad.started_at)) : '') + '</span>' +
+                '<span style="display:flex;gap:6px;">' +
+                (ad.landing_page ? '<a href="/admin/clone.php?url=' + encodeURIComponent(ad.landing_page) + '" target="_blank" class="btn btn-sm btn-outline" title="Clonar esta página"><i class="fas fa-clone"></i></a>' : '') +
+                (ad.link ? '<a href="' + esc(ad.link) + '" target="_blank" class="btn btn-sm btn-outline" title="Ver anúncio original"><i class="fas fa-external-link-alt"></i></a>' : '') +
+                '</span></div></div></div>';
         }).join('');
     }
 
@@ -282,6 +308,7 @@ if ($pageId > 0) {
         bodyEl.innerHTML = html || '<p>Sem conteúdo na análise.</p>';
     }
 
+    loadProviderStatus();
     if (PAGE_ID > 0) {
         runDossier();
     } else if (document.getElementById('adspyQuery').value.trim() !== '') {

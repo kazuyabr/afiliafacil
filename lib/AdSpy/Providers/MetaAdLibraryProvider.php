@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/AdSpyProvider.php';
 require_once __DIR__ . '/../AdSpyKeys.php';
+require_once __DIR__ . '/../SteelBrowser.php';
 
 class MetaAdLibraryProvider extends AdSpyProvider
 {
@@ -83,8 +84,14 @@ class MetaAdLibraryProvider extends AdSpyProvider
             ['Referer: https://www.facebook.com/ads/library/']
         );
 
+        // Scraping direto bloqueado (403/sessao)? Tenta via Steel Browser (JS rendering).
+        if ($body === null && SteelBrowser::isConfigured()) {
+            $steel = SteelBrowser::fetch('https://www.facebook.com/ads/library/async/search_ads/?' . http_build_query($params));
+            if ($steel['ok']) $body = $steel['html'];
+        }
+
         if ($body === null) {
-            return $this->emptyResult('Meta: biblioteca pública indisponível (bloqueio ou mudança de layout). Configure META_AD_ACCESS_TOKEN para a API oficial.');
+            return $this->emptyResult('Meta: biblioteca pública indisponível (bloqueio ou mudança de layout). Configure META_AD_ACCESS_TOKEN para a API oficial ou STEEL_API_URL para scraping com navegador.');
         }
 
         $json = json_decode($body, true);
@@ -114,7 +121,7 @@ class MetaAdLibraryProvider extends AdSpyProvider
         }
 
         if (empty($ads)) {
-            return $this->emptyResult('Meta: nenhum anúncio retornado (a biblioteca pública pode exigir sessão de navegador). Configure META_AD_ACCESS_TOKEN.');
+            return $this->emptyResult('Meta: nenhum anúncio retornado (a biblioteca pública pode exigir sessão de navegador). Configure META_AD_ACCESS_TOKEN ou STEEL_API_URL.');
         }
 
         return ['ads' => $ads, 'total' => count($ads), 'error' => null];

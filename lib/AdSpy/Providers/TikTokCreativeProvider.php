@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/AdSpyProvider.php';
+require_once __DIR__ . '/../SteelBrowser.php';
 
 class TikTokCreativeProvider extends AdSpyProvider
 {
@@ -30,8 +31,14 @@ class TikTokCreativeProvider extends AdSpyProvider
             ]
         );
 
+        // Scraping direto bloqueado (sessao exigida)? Tenta via Steel Browser.
+        if ($body === null && SteelBrowser::isConfigured()) {
+            $steel = SteelBrowser::fetch('https://ads.tiktok.com/creative_radar_api/v1/top_ads/v2/list?' . http_build_query($params));
+            if ($steel['ok']) $body = $steel['html'];
+        }
+
         if ($body === null) {
-            return $this->emptyResult('TikTok: Creative Center indisponível (bloqueio ou mudança de API).');
+            return $this->emptyResult('TikTok: Creative Center indisponível (bloqueio ou mudança de API). Configure STEEL_API_URL para scraping com navegador.');
         }
 
         $json = json_decode($body, true);

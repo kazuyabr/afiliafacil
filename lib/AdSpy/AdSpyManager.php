@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Moderation/ContentModerator.php';
 require_once __DIR__ . '/AdSpyQuota.php';
+require_once __DIR__ . '/SteelBrowser.php';
 require_once __DIR__ . '/Providers/MetaAdLibraryProvider.php';
 require_once __DIR__ . '/Providers/GoogleTransparencyProvider.php';
 require_once __DIR__ . '/Providers/TikTokCreativeProvider.php';
@@ -123,6 +124,45 @@ class AdSpyManager
         }
 
         return ['results' => $results, 'errors' => $errors];
+    }
+
+    /**
+     * Fonte efetiva de cada provider para o usuario (exibida como status na UI).
+     * Ordem: byok (chave propria) > platform (chave do sistema) > public/scraping > none.
+     */
+    public function providerStatus(int $userId): array
+    {
+        $metaByok = AdSpyKeys::meta($userId) !== '';
+        $metaPlatform = trim((string)(getenv('META_AD_ACCESS_TOKEN') ?: '')) !== '';
+        $serpByok = AdSpyKeys::serpapi($userId) !== '';
+        // A chave SerpApi da plataforma serve SOMENTE ao sistema/cron (user 0).
+        $serpPlatform = $userId === 0 && trim((string)(getenv('SERPAPI_KEY') ?: '')) !== '';
+        $steel = SteelBrowser::isConfigured();
+
+        $metaSource = $metaByok ? 'byok' : ($metaPlatform ? 'platform' : 'public');
+        $googleSource = $serpByok ? 'byok' : ($serpPlatform ? 'platform' : 'none');
+
+        return [
+            'meta' => [
+                'source' => $metaSource,
+                'label' => $metaByok ? 'API oficial (sua chave)' : ($metaPlatform ? 'API oficial (plataforma)' : 'Biblioteca pública'),
+                'ok' => true,
+                'hint' => $metaSource === 'public' ? 'Pode exigir sessão e falhar. Para resultados estáveis, configure seu token em Configurações → Avançado → IA.' : '',
+            ],
+            'google' => [
+                'source' => $googleSource,
+                'label' => $serpByok ? 'SerpApi (sua chave)' : ($serpPlatform ? 'SerpApi (plataforma)' : 'Sem chave'),
+                'ok' => $googleSource !== 'none',
+                'hint' => $googleSource === 'none' ? 'Busca por domínio (grátis: 250 buscas/mês em serpapi.com). Configure em Configurações → Avançado → IA.' : '',
+            ],
+            'tiktok' => [
+                'source' => $steel ? 'steel' : 'scraping',
+                'label' => $steel ? 'Navegador (Steel)' : 'Scraping direto',
+                'ok' => true,
+                'hint' => !$steel ? 'Pode exigir sessão e falhar. O admin pode ativar o Steel Browser (STEEL_API_URL).' : '',
+            ],
+            'steel' => ['configured' => $steel],
+        ];
     }
 
     public function dossier(array $page, int $userId, string $plan): array
