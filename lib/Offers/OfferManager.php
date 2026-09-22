@@ -21,6 +21,11 @@ class OfferManager
             } else {
                 $query->where('status', 'approved');
             }
+            // Ofertas demo (slug demo-*) sao dados ficticios do seed: ocultas por padrao.
+            // A curadoria admin passa include_demo=1 para ve-las e limpa-las.
+            if (empty($filters['include_demo'])) {
+                $query->where('slug', 'not like', 'demo-%');
+            }
             if (!empty($filters['niche'])) {
                 $niche = trim((string)$filters['niche']);
                 $query->where(function ($sub) use ($niche) {
@@ -379,6 +384,7 @@ class OfferManager
 
         try {
             return \AfiliaFacil\Models\Offer::where('status', 'approved')
+                ->where('slug', 'not like', 'demo-%')
                 ->whereNotNull($column)
                 ->where($column, '!=', '')
                 ->distinct()
@@ -491,6 +497,7 @@ class OfferManager
         try {
             $rows = \AfiliaFacil\Models\Offer::selectRaw('niche, count(*) as total')
                 ->where('status', 'approved')
+                ->where('slug', 'not like', 'demo-%')
                 ->whereNotNull('niche')
                 ->where('niche', '<>', '')
                 ->groupBy('niche')

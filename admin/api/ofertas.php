@@ -42,6 +42,8 @@ switch ($action) {
             'traffic' => trim($_GET['traffic'] ?? ''),
             'q' => trim($_GET['q'] ?? ''),
             'order' => $_GET['order'] ?? 'score',
+            // Admin (curadoria) ve as demos para limpa-las; clientes nunca veem dados ficticios.
+            'include_demo' => $isAdmin,
         ];
         $result = $manager->list($filters, min(120, max(1, (int)($_GET['limit'] ?? 60))), max(0, (int)($_GET['offset'] ?? 0)));
         $result['quota'] = OfferQuota::check($userId, $user['plan']);
@@ -84,6 +86,11 @@ switch ($action) {
             break;
         }
 
+        if (!$isAdmin && str_starts_with((string)($offer['slug'] ?? ''), 'demo-')) {
+            echo json_encode(['error' => 'Oferta não disponível']);
+            break;
+        }
+
         if (!$isAdmin) {
             OfferQuota::consume($userId, $id);
             Audit::log('offer_viewed', 'offer', (string)$id, ['name' => $offer['name']]);
@@ -102,7 +109,7 @@ switch ($action) {
         $query = \AfiliaFacil\Models\OfferCreative::query();
         if ($offerId > 0) $query->where('offer_id', $offerId);
         if (!$isAdmin) {
-            $approvedIds = \AfiliaFacil\Models\Offer::where('status', 'approved')->pluck('id')->all();
+            $approvedIds = \AfiliaFacil\Models\Offer::where('status', 'approved')->where('slug', 'not like', 'demo-%')->pluck('id')->all();
             $query->whereIn('offer_id', $approvedIds);
         }
         $items = $query->orderByDesc('id')->limit(120)->get()->map(fn($c) => [
@@ -132,7 +139,7 @@ switch ($action) {
         if ($offerId > 0) $query->where('offer_id', $offerId);
         if ($type !== '') $query->where('type', $type);
         if (!$isAdmin) {
-            $approvedIds = \AfiliaFacil\Models\Offer::where('status', 'approved')->pluck('id')->all();
+            $approvedIds = \AfiliaFacil\Models\Offer::where('status', 'approved')->where('slug', 'not like', 'demo-%')->pluck('id')->all();
             $query->whereIn('offer_id', $approvedIds);
         }
         $items = $query->orderByDesc('id')->limit(120)->get()->map(fn($p) => [
@@ -263,6 +270,43 @@ switch ($action) {
             'endpoint' => $scheme . '://' . $host . '/cron/monitor.php?key=SEU_CRON_KEY',
         ]);
         break;
+
+    case 'creative-download':
+    case 'creative-vary':
+        if (!Database::available()) { echo json_encode(['error' => 'Banco de dados indisponível']); break; }
+        $creativeId = (int)($_GET['id'] ?? 0);
+        $creative = \AfiliaFacil\Models\OfferCreative::find($creativeId);
+        $offer = $creative ? \AfiliaFacil\Models\Offer::find($creative->offer_id) : null;
+        if (!$creative || !$offer) {
+            http_response_code(404);
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode(['error' => 'Criativo não encontrado']);
+            exit;
+        }
+        if (!$isAdmin && ($offer->status !== 'approved' || str_starts_with((string)($offer->slug ?? ''), 'demo-'))) {
+            http_response_code(403);
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode(['error' => 'Criativo não disponível']);
+            exit;
+        }
+
+        require_once Config::getLibDir() . '/Offers/CreativeStudio.php';
+        $url = $creative->media_url ?: $creative->thumbnail_url;
+        $isVary = $action === 'creative-vary';
+        $file = $isVary ? CreativeStudio::vary($url) : CreativeStudio::download($url);
+        if (empty($file['success'])) {
+            http_response_code(502);
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode(['error' => $file['error'] ?? 'Falha ao obter a imagem']);
+            exit;
+        }
+
+        Audit::log($isVary ? 'creative_varied' : 'creative_downloaded', 'offer_creative', (string)$creativeId, ['offer_id' => (int)$offer->id]);
+        header('Content-Type: ' . $file['mime']);
+        header('Content-Length: ' . strlen($file['data']));
+        header('Content-Disposition: attachment; filename="' . CreativeStudio::filename($creativeId, $isVary ? 'vary' : 'download', $file['ext']) . '"');
+        echo $file['data'];
+        exit;
 
     default:
         echo json_encode(['error' => 'Ação inválida']);

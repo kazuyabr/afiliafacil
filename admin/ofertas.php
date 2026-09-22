@@ -153,6 +153,9 @@ $quota = OfferQuota::check((int)$user['id'], $user['plan']);
                 </div>
 
                 <div id="tab-creatives" style="display:none;">
+                    <div class="alert alert-warning" style="margin-bottom:16px;">
+                        <i class="fas fa-triangle-exclamation"></i> <strong>Antes de anunciar:</strong> reutilizar o criativo idêntico ao do concorrente pode vincular suas contas — as plataformas detectam imagens duplicadas pelo hash e pelo ID da entidade (página) de origem. Baixe e <strong>crie uma variação</strong> antes de usar, e adapte texto e oferta.
+                    </div>
                     <div id="creativesGrid" class="grid-3"></div>
                 </div>
 
@@ -539,6 +542,10 @@ $quota = OfferQuota::check((int)$user['id'], $user['plan']);
                         '<span class="offer-tag">' + esc(c.platform) + '</span>' +
                         (c.ad_url ? '<a href="' + esc(c.ad_url) + '" target="_blank" style="font-size:.72rem;">Ver <i class="fas fa-external-link-alt"></i></a>' : '') +
                     '</div>' +
+                    ((c.thumbnail_url || c.media_url) ? '<div style="display:flex;gap:6px;margin-top:8px;">' +
+                        '<a class="btn btn-outline btn-sm" href="/admin/api/ofertas.php?action=creative-download&id=' + c.id + '" title="Baixar imagem original"><i class="fas fa-download"></i> Baixar</a>' +
+                        (c.media_type !== 'video' ? '<a class="btn btn-outline btn-sm" href="/admin/api/ofertas.php?action=creative-vary&id=' + c.id + '" title="Baixar variação (muda o hash da imagem)"><i class="fas fa-wand-magic-sparkles"></i> Variação</a>' : '') +
+                    '</div>' : '') +
                 '</div>' +
             '</div>'
         ).join('');
