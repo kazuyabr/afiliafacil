@@ -36,6 +36,7 @@ if (Database::available()) {
                 'action' => $e->action,
                 'reason' => $e->reason,
                 'content' => $e->content,
+                'clean_content' => $e->clean_content ?? '',
                 'ip' => $e->ip,
                 'user_agent' => $e->user_agent,
                 'created_at' => (string)$e->created_at,
@@ -51,7 +52,7 @@ if (Database::available()) {
             header('Content-Type: text/csv; charset=UTF-8');
             header('Content-Disposition: attachment; filename="moderacao-' . date('Ymd-His') . '.csv"');
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['id', 'user_id', 'context', 'category', 'action', 'reason', 'content', 'ip', 'user_agent', 'created_at'], ';');
+            fputcsv($out, ['id', 'user_id', 'context', 'category', 'action', 'reason', 'content', 'clean_content', 'ip', 'user_agent', 'created_at'], ';');
             foreach ($payload as $row) {
                 fputcsv($out, $row, ';');
             }
@@ -60,6 +61,9 @@ if (Database::available()) {
         }
 
         $events = (clone $query)->orderByDesc('id')->limit(200)->get();
+
+        $modUserIds = $events->pluck('user_id')->filter()->unique()->all();
+        $modUsers = $modUserIds ? \AfiliaFacil\Models\User::whereIn('id', $modUserIds)->get()->keyBy('id') : collect();
 
         $stats['total'] = (int)\AfiliaFacil\Models\ModerationEvent::count();
         $stats['blocked'] = (int)\AfiliaFacil\Models\ModerationEvent::where('action', 'blocked')->count();
@@ -110,8 +114,8 @@ if (Database::available()) {
                         <p style="color:var(--text-secondary);margin-top:4px;font-size:.9rem;">Registros de conteúdo bloqueado ou redigido — retidos com data, hora, IP e conteúdo para eventual solicitação de autoridades.</p>
                     </div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <a class="btn btn-outline btn-sm" href="?export=csv&category=<?= urlencode($filterCategory) ?>&action=<?= urlencode($filterAction) ?>"><i class="fas fa-file-csv"></i> Exportar CSV</a>
-                        <a class="btn btn-outline btn-sm" href="?export=json&category=<?= urlencode($filterCategory) ?>&action=<?= urlencode($filterAction) ?>"><i class="fas fa-file-code"></i> Exportar JSON</a>
+                        <a class="btn btn-outline btn-sm" href="?export=csv&category=<?= urlencode($filterCategory) ?>&action=<?= urlencode($filterAction) ?>&user=<?= urlencode($filterUser) ?>"><i class="fas fa-file-csv"></i> Exportar CSV</a>
+                        <a class="btn btn-outline btn-sm" href="?export=json&category=<?= urlencode($filterCategory) ?>&action=<?= urlencode($filterAction) ?>&user=<?= urlencode($filterUser) ?>"><i class="fas fa-file-code"></i> Exportar JSON</a>
                     </div>
                 </div>
 
@@ -174,13 +178,15 @@ if (Database::available()) {
                                 <?php foreach ($events as $event): ?>
                                 <tr>
                                     <td style="white-space:nowrap;"><?= htmlspecialchars((string)$event->created_at) ?></td>
-                                    <td><?= (int)$event->user_id ?></td>
+                                    <td><small><?= htmlspecialchars($modUsers[$event->user_id]->email ?? ('#' . (int)$event->user_id)) ?></small></td>
                                     <td><?= htmlspecialchars($event->context) ?></td>
                                     <td><span class="badge-cat cat-<?= htmlspecialchars($event->category) ?>"><?= htmlspecialchars($event->category) ?></span></td>
                                     <td><?= $event->action === 'blocked' ? '<span style="color:var(--danger);font-weight:600;">bloqueado</span>' : 'redigido' ?></td>
                                     <td style="max-width:260px;"><?= htmlspecialchars($event->reason) ?></td>
-                                    <td><div class="content" title="Clique para ver" onclick="showContent(<?= (int)$event->id ?>)"><?= htmlspecialchars(mb_substr((string)$event->content, 0, 120)) ?></div>
-                                        <template id="content-<?= (int)$event->id ?>"><?= htmlspecialchars((string)$event->content) ?></template>
+                                    <td><div class="content" title="Clique para ver original x limpo" onclick="showModEvent(<?= (int)$event->id ?>)"><?= htmlspecialchars(mb_substr((string)$event->content, 0, 120)) ?></div>
+                                        <template id="mod-content-<?= (int)$event->id ?>"><?= htmlspecialchars((string)$event->content) ?></template>
+                                        <template id="mod-clean-<?= (int)$event->id ?>"><?= htmlspecialchars((string)($event->clean_content ?? '')) ?></template>
+                                        <template id="mod-meta-<?= (int)$event->id ?>"><?= htmlspecialchars(($modUsers[$event->user_id]->email ?? ('#' . (int)$event->user_id)) . ' · ' . $event->context . ' · ' . $event->category . ' · ' . $event->action . ' · ' . $event->created_at . ' · ' . $event->ip) ?></template>
                                     </td>
                                     <td style="white-space:nowrap;"><?= htmlspecialchars($event->ip) ?></td>
                                 </tr>
@@ -194,12 +200,34 @@ if (Database::available()) {
         </div>
     </div>
 
+    <div class="modal-overlay" id="modModal">
+        <div class="modal" style="max-width:760px;width:94%;">
+            <div class="modal-header">
+                <h3>Conteúdo registrado</h3>
+                <button class="modal-close" onclick="document.getElementById('modModal').classList.remove('active')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="modModalSub" style="font-size:.78rem;color:var(--text-secondary);margin-bottom:12px;"></p>
+                <h4 style="font-size:.8rem;margin-bottom:6px;">Original</h4>
+                <pre class="audit-pre" id="modModalOrig" style="background:var(--bg-secondary);border-radius:var(--radius);padding:12px;font-size:.78rem;line-height:1.6;white-space:pre-wrap;max-height:240px;overflow-y:auto;margin:0 0 12px;"></pre>
+                <h4 style="font-size:.8rem;margin-bottom:6px;">Como ficou (limpo)</h4>
+                <pre class="audit-pre" id="modModalClean" style="background:var(--bg-secondary);border-radius:var(--radius);padding:12px;font-size:.78rem;line-height:1.6;white-space:pre-wrap;max-height:240px;overflow-y:auto;margin:0;"></pre>
+            </div>
+        </div>
+    </div>
+
     <script src="/assets/js/app.js"></script>
     <script>
-    function showContent(id) {
-        const template = document.getElementById('content-' + id);
-        if (!template) return;
-        alert('Conteúdo registrado:\n\n' + template.textContent);
+    function showModEvent(id) {
+        const orig = document.getElementById('mod-content-' + id);
+        const clean = document.getElementById('mod-clean-' + id);
+        const meta = document.getElementById('mod-meta-' + id);
+        if (!orig) return;
+        document.getElementById('modModalSub').textContent = meta ? meta.textContent : '';
+        document.getElementById('modModalOrig').textContent = orig.textContent || '(vazio)';
+        const cleanTxt = clean ? clean.textContent : '';
+        document.getElementById('modModalClean').textContent = cleanTxt !== '' ? cleanTxt : '(igual ao original — bloqueio total)';
+        document.getElementById('modModal').classList.add('active');
     }
     </script>
 </body>
