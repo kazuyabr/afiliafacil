@@ -116,6 +116,7 @@ $profileText = AgentProfile::describe($profile);
                                 <span class="quota-pill" id="quotaPill"><i class="fas fa-comments"></i> <strong><?= $quota['source'] === 'byok' ? 'BYOK - sem limite' : ($quota['limit'] === -1 ? 'ilimitado' : $quota['used'] . '/' . $quota['limit']) ?></strong></span>
                                 <button class="btn btn-outline btn-sm" onclick="editPermissions()" title="Permissões do Sócio"><i class="fas fa-shield-halved"></i></button>
                                 <button class="btn btn-outline btn-sm" onclick="editProfile()" title="Editar perfil"><i class="fas fa-user-pen"></i></button>
+                                <button class="btn btn-outline btn-sm" onclick="openKnowledge()" title="Base de conhecimento (.md)"><i class="fas fa-book-open"></i></button>
                             </div>
                         </div>
                         <div class="principles"><i class="fas fa-shield-halved"></i> Sem promessa de ganho fácil. Comece pequeno e teste. Eu pergunto antes de agir — e te aviso quando algo parece furada. <strong>Uso ilegal é bloqueado e registrado.</strong></div>
@@ -197,6 +198,45 @@ $profileText = AgentProfile::describe($profile);
             <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;padding:0 20px 20px;">
                 <button class="btn btn-outline" onclick="closePermissionsModal()">Cancelar</button>
                 <button class="btn btn-primary" onclick="savePermissions()"><i class="fas fa-save"></i> Salvar permissões</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="knowledgeModal">
+        <div class="modal" style="max-width:720px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-book-open" style="color:var(--accent);"></i> Base de conhecimento</h3>
+                <button class="modal-close" onclick="closeKnowledgeModal()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 12px;">
+                    Documentos <strong>.md</strong> que o Sócio e os subagentes consultam ao responder —
+                    seu material próprio (métodos, ofertas, regras). Selecione o dono, escreva ou suba um arquivo.
+                </p>
+                <input type="hidden" id="knowledgeId" value="0">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Dono do documento</label>
+                        <select id="knowledgeScope" class="form-control" onchange="loadKnowledgeList()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Título</label>
+                        <input type="text" id="knowledgeTitle" class="form-control" placeholder="ex: Meu método de validação">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Conteúdo (markdown)</label>
+                    <textarea id="knowledgeContent" class="form-control" rows="6" placeholder="Cole ou escreva o conteúdo..."></textarea>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+                    <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0;"><i class="fas fa-upload"></i> Subir .md/.txt
+                        <input type="file" id="knowledgeFile" accept=".md,.markdown,.txt" style="display:none;" onchange="loadKnowledgeFile(this)">
+                    </label>
+                    <button class="btn btn-primary btn-sm" onclick="saveKnowledge()"><i class="fas fa-save"></i> Salvar documento</button>
+                    <button class="btn btn-outline btn-sm" onclick="resetKnowledgeForm()">Limpar</button>
+                </div>
+                <div id="knowledgeError" style="margin-bottom:8px;"></div>
+                <div id="knowledgeList"></div>
             </div>
         </div>
     </div>
@@ -843,6 +883,102 @@ $profileText = AgentProfile::describe($profile);
         } else {
             document.getElementById('permissionsError').innerHTML = '<div class="alert alert-danger">' + esc(data.error || 'Falha ao salvar.') + '</div>';
         }
+    }
+
+    function knowledgeScope() {
+        return parseInt(document.getElementById('knowledgeScope').value || '0', 10);
+    }
+
+    async function openKnowledge() {
+        const sel = document.getElementById('knowledgeScope');
+        sel.innerHTML = '<option value="0">Sócio de IA</option>' +
+            (subagentsCache || []).map(s => '<option value="' + s.id + '">Subagente: ' + esc(s.name) + '</option>').join('');
+        resetKnowledgeForm();
+        await loadKnowledgeList();
+        document.getElementById('knowledgeModal').classList.add('active');
+    }
+
+    function closeKnowledgeModal() {
+        document.getElementById('knowledgeModal').classList.remove('active');
+    }
+
+    function resetKnowledgeForm() {
+        document.getElementById('knowledgeId').value = '0';
+        document.getElementById('knowledgeTitle').value = '';
+        document.getElementById('knowledgeContent').value = '';
+        document.getElementById('knowledgeFile').value = '';
+        document.getElementById('knowledgeError').innerHTML = '';
+    }
+
+    function loadKnowledgeFile(input) {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            document.getElementById('knowledgeContent').value = String(reader.result || '');
+            const titleEl = document.getElementById('knowledgeTitle');
+            if (!titleEl.value.trim()) {
+                titleEl.value = file.name.replace(/\.(md|markdown|txt)$/i, '').replace(/[-_]+/g, ' ').trim().substring(0, 120);
+            }
+            showToast('Arquivo carregado — revise e salve.', 'info');
+        };
+        reader.readAsText(file);
+    }
+
+    async function loadKnowledgeList() {
+        const scope = knowledgeScope();
+        const resp = await fetch('/admin/api/agent.php?action=knowledge-list&subagent_id=' + scope);
+        const data = await resp.json();
+        const box = document.getElementById('knowledgeList');
+        const items = data.items || [];
+        if (!items.length) {
+            box.innerHTML = '<div style="font-size:.8rem;color:var(--text-secondary);text-align:center;padding:12px;">Nenhum documento aqui ainda.</div>';
+            return;
+        }
+        box.innerHTML = items.map(d =>
+            '<div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--border-color);">' +
+                '<div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(d.title) + '</div>' +
+                '<div style="font-size:.7rem;color:var(--text-secondary);">' + d.chars + ' caracteres · ' + esc(d.updated_at || '') + '</div></div>' +
+                '<button class="btn btn-outline btn-sm" onclick="editKnowledge(' + d.id + ')" title="Editar"><i class="fas fa-pen"></i></button>' +
+                '<button class="btn btn-outline btn-sm" onclick="deleteKnowledge(' + d.id + ')" title="Excluir"><i class="fas fa-trash"></i></button>' +
+            '</div>'
+        ).join('');
+    }
+
+    async function editKnowledge(id) {
+        const resp = await fetch('/admin/api/agent.php?action=knowledge-get&id=' + id);
+        const data = await resp.json();
+        if (!data.success) { showToast(data.error || 'Falha ao carregar.', 'error'); return; }
+        document.getElementById('knowledgeId').value = data.doc.id;
+        document.getElementById('knowledgeTitle').value = data.doc.title;
+        document.getElementById('knowledgeContent').value = data.doc.content;
+        document.getElementById('knowledgeScope').value = String(data.doc.subagent_id || 0);
+        document.getElementById('knowledgeTitle').focus();
+    }
+
+    async function saveKnowledge() {
+        const body = new URLSearchParams({
+            action: 'knowledge-save',
+            id: document.getElementById('knowledgeId').value,
+            subagent_id: String(knowledgeScope()),
+            title: document.getElementById('knowledgeTitle').value,
+            content: document.getElementById('knowledgeContent').value
+        });
+        const resp = await fetch('/admin/api/agent.php', { method: 'POST', body });
+        const data = await resp.json();
+        if (!data.success) {
+            document.getElementById('knowledgeError').innerHTML = '<div class="alert alert-danger">' + esc(data.error || 'Falha ao salvar.') + '</div>';
+            return;
+        }
+        resetKnowledgeForm();
+        await loadKnowledgeList();
+        showToast('Documento salvo na base de conhecimento.', 'success');
+    }
+
+    async function deleteKnowledge(id) {
+        if (!confirm('Excluir este documento da base de conhecimento?')) return;
+        await fetch('/admin/api/agent.php', { method: 'POST', body: new URLSearchParams({ action: 'knowledge-delete', id }) });
+        await loadKnowledgeList();
     }
 
     (async () => {

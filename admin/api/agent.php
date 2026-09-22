@@ -8,6 +8,7 @@ require_once Config::getLibDir() . '/Agent/AgentQuota.php';
 require_once Config::getLibDir() . '/Agent/AgentProfile.php';
 require_once Config::getLibDir() . '/Agent/AgentSubagents.php';
 require_once Config::getLibDir() . '/Agent/AgentPermissions.php';
+require_once Config::getLibDir() . '/Agent/AgentKnowledge.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -269,6 +270,37 @@ switch ($action) {
         $id = (int)($_POST['id'] ?? 0);
         $title = (string)($_POST['title'] ?? '');
         echo json_encode($agent->renameConversation($userId, $id, $title), JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'knowledge-list':
+        $subagentId = (int)($_GET['subagent_id'] ?? 0);
+        if ($subagentId > 0 && !AgentSubagents::get($userId, $subagentId)) {
+            echo json_encode(['error' => 'Subagente não encontrado']);
+            break;
+        }
+        echo json_encode(['success' => true, 'items' => AgentKnowledge::list($userId, $subagentId)], JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'knowledge-get':
+        $doc = AgentKnowledge::get($userId, (int)($_GET['id'] ?? 0));
+        if (!$doc) { echo json_encode(['error' => 'Documento não encontrado']); break; }
+        echo json_encode(['success' => true, 'doc' => $doc], JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'knowledge-save':
+        $result = AgentKnowledge::save(
+            $userId,
+            (int)($_POST['subagent_id'] ?? 0),
+            (string)($_POST['title'] ?? ''),
+            (string)($_POST['content'] ?? ''),
+            (int)($_POST['id'] ?? 0)
+        );
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        break;
+
+    case 'knowledge-delete':
+        $deleted = AgentKnowledge::delete($userId, (int)($_POST['id'] ?? 0));
+        echo json_encode($deleted ? ['success' => true] : ['error' => 'Documento não encontrado']);
         break;
 
     default:

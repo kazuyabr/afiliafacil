@@ -17,6 +17,7 @@ require_once __DIR__ . '/AgentSubagents.php';
 require_once __DIR__ . '/AgentPermissions.php';
 require_once __DIR__ . '/AgentPrompts.php';
 require_once __DIR__ . '/AgentJobs.php';
+require_once __DIR__ . '/AgentKnowledge.php';
 
 class Agent
 {
@@ -759,6 +760,12 @@ class Agent
         }
 
         $system = $isSubagent ? AgentPrompts::subagent($subagent) : AgentPrompts::base();
+
+        // Base de conhecimento: material .md do proprio usuario (Socio + subagente).
+        $knowledge = AgentKnowledge::forPrompt($userId, $isSubagent ? (int)$subagent['id'] : 0, $message);
+        if ($knowledge !== '') {
+            $context .= "\n\n" . $knowledge;
+        }
 
         return [
             ['role' => 'system', 'content' => $system],
