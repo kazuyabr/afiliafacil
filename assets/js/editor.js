@@ -1,5 +1,7 @@
 let cmEditor = null;
 let dirty = false;
+let lastInspectInfo = null;
+let pageMeta = { affiliateLink: '', sourceDomain: '' };
 
 function editorStatus(msg) {
     const el = document.getElementById('editorStatus');
@@ -45,6 +47,10 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(data => {
             if (data.success) {
                 cmEditor.setValue(data.page.html || '');
+                pageMeta = {
+                    affiliateLink: data.page.affiliate_link || '',
+                    sourceDomain: data.page.source_domain || ''
+                };
                 editorStatus('Pronto — ' + (data.page.html.length / 1024).toFixed(1) + ' KB');
                 renderRevisions(data.revisions || []);
             } else {
@@ -84,25 +90,41 @@ function onInspectorMessage(e) {
     }
 }
 
-function selectElementInCode(info) {
-    const html = cmEditor.getValue();
+/**
+ * Localiza o elemento inspecionado no código (cascata: tag exata -> snippet ->
+ * atributo único -> texto). Retorna {start, end} (offsets) ou null.
+ */
+function locateInCode(html, info, fullOnly) {
     let found = null;
 
-    if (info.tagSnippet && info.tagSnippet.length < 1500) {
+    if (!fullOnly && info.tagSnippet && info.tagSnippet.length < 1500) {
         found = findInCode(html, info.tagSnippet);
     }
     if (!found && info.snippet && info.snippet.length < 3000) {
         found = findInCode(html, info.snippet);
     }
-    if (!found && info.tagSnippet) {
+    if (!fullOnly && !found && info.tagSnippet) {
         found = findUniqueAttrAnchor(html, info.tagSnippet);
     }
     if (!found && info.snippet) {
         found = findUniqueAttrAnchor(html, info.snippet);
     }
-    if (!found && info.text) {
+    if (!fullOnly && !found && info.text) {
         found = findTextAnchor(html, info.text);
     }
+    return found;
+}
+
+function posFromOffset(html, offset) {
+    const line = countLinesBefore(html, offset);
+    const lineStart = line > 0 ? html.lastIndexOf('\n', offset - 1) + 1 : 0;
+    return { line: line, ch: offset - lineStart };
+}
+
+function selectElementInCode(info) {
+    lastInspectInfo = info;
+    const html = cmEditor.getValue();
+    const found = locateInCode(html, info, false);
 
     if (!found) {
         editorStatus('Elemento não localizado no código — salve e recarregue');
@@ -110,13 +132,11 @@ function selectElementInCode(info) {
         return;
     }
 
-    const startLine = countLinesBefore(html, found.start);
-    const endLine = countLinesBefore(html, found.end);
-    const startCh = found.start - (startLine > 0 ? html.lastIndexOf('\n', found.start - 1) + 1 : 0);
-    const endCh = found.end - (endLine > 0 ? html.lastIndexOf('\n', found.end - 1) + 1 : 0);
+    const from = posFromOffset(html, found.start);
+    const to = posFromOffset(html, found.end);
 
-    cmEditor.setSelection({ line: startLine, ch: startCh }, { line: endLine, ch: endCh });
-    cmEditor.scrollIntoView({ line: startLine, ch: startCh }, { line: endLine, ch: endCh });
+    cmEditor.setSelection(from, to);
+    cmEditor.scrollIntoView(from, to);
     cmEditor.focus();
 
     updateElementPanel(info, true);
@@ -220,6 +240,217 @@ function updateElementPanel(info, located) {
     status.className = 'element-status ' + (located ? 'ok' : 'warn');
     status.textContent = located ? '✔ Localizado no código' : '⚠ Não localizado no código';
     panel.appendChild(status);
+
+    if (located) renderVisualForm(panel, info);
+}
+
+const VISUAL_NO_TEXT_TAGS = ['img', 'input', 'video', 'iframe', 'source', 'br', 'hr', 'script', 'style'];
+
+function visualKinds(info) {
+    const tag = (info.tag || '').toLowerCase();
+    return {
+        text: !!info.text && !VISUAL_NO_TEXT_TAGS.includes(tag),
+        src: !!info.src || tag === 'img',
+        href: !!info.href || tag === 'a'
+    };
+}
+
+function renderVisualForm(panel, info) {
+    const kinds = visualKinds(info);
+    if (!kinds.text && !kinds.src && !kinds.href) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'element-edit';
+    wrap.style.marginTop = '10px';
+    wrap.style.display = 'flex';
+    wrap.style.flexDirection = 'column';
+    wrap.style.gap = '8px';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size:.72rem;font-weight:700;text-transform:uppercase;color:var(--text-secondary);';
+    title.textContent = 'Editar sem ver código';
+    wrap.appendChild(title);
+
+    function field(label, id, value, multiline) {
+        const lab = document.createElement('label');
+        lab.style.cssText = 'font-size:.72rem;color:var(--text-secondary);display:block;';
+        lab.textContent = label;
+        let input;
+        if (multiline) {
+            input = document.createElement('textarea');
+            input.rows = 2;
+            input.style.minHeight = '52px';
+        } else {
+            input = document.createElement('input');
+            input.type = 'text';
+        }
+        input.id = id;
+        input.className = 'form-control';
+        input.style.fontSize = '.8rem';
+        input.value = value || '';
+        wrap.appendChild(lab);
+        wrap.appendChild(input);
+        return input;
+    }
+
+    if (kinds.text) field('Texto', 'elEditText', info.text, true);
+    if (kinds.src) field('Imagem (URL)', 'elEditSrc', info.src, false);
+    if (kinds.href) field('Link (URL)', 'elEditHref', info.href, false);
+
+    const warn = document.createElement('div');
+    warn.id = 'elEditWarn';
+    warn.style.cssText = 'font-size:.75rem;color:var(--warning);display:none;';
+    wrap.appendChild(warn);
+
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.gap = '8px';
+    row.style.flexWrap = 'wrap';
+
+    const apply = document.createElement('button');
+    apply.className = 'btn btn-sm btn-primary';
+    apply.innerHTML = '<i class="fas fa-pen"></i> Aplicar no código';
+    apply.onclick = applyVisualEdit;
+    row.appendChild(apply);
+
+    if (kinds.href && pageMeta.affiliateLink) {
+        const aff = document.createElement('button');
+        aff.className = 'btn btn-sm btn-outline';
+        aff.title = 'Preencher com o link de afiliado da página';
+        aff.innerHTML = '<i class="fas fa-link"></i> Meu link';
+        aff.onclick = () => {
+            const el = document.getElementById('elEditHref');
+            if (el) el.value = pageMeta.affiliateLink;
+        };
+        row.appendChild(aff);
+    }
+    wrap.appendChild(row);
+
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-size:.7rem;color:var(--text-secondary);';
+    hint.textContent = 'Aplica no código acima — depois salve (Ctrl+S), a revisão é criada sozinha.';
+    wrap.appendChild(hint);
+
+    panel.appendChild(wrap);
+}
+
+function elWarn(msg) {
+    const el = document.getElementById('elEditWarn');
+    if (el) {
+        el.textContent = msg;
+        el.style.display = msg ? 'block' : 'none';
+    }
+    if (msg) editorStatus(msg);
+}
+
+function hostOf(url) {
+    try {
+        return new URL(url, 'https://x.invalid').hostname.toLowerCase();
+    } catch (e) {
+        return '';
+    }
+}
+
+/**
+ * Aplica a edição visual direto no HTML do CodeMirror.
+ * Texto exige o elemento COMPLETO localizado (snippet); src/href aceitam só a tag.
+ */
+function applyVisualEdit() {
+    const info = lastInspectInfo;
+    if (!info) { elWarn('Clique em um elemento no preview primeiro.'); return; }
+    const tag = (info.tag || '').toLowerCase();
+    const kinds = visualKinds(info);
+    const html = cmEditor.getValue();
+
+    const wantText = kinds.text ? document.getElementById('elEditText').value : null;
+    const wantSrc = kinds.src ? document.getElementById('elEditSrc').value.trim() : null;
+    const wantHref = kinds.href ? document.getElementById('elEditHref').value.trim() : null;
+
+    const changedText = wantText !== null && wantText !== (info.text || '');
+    const changedSrc = wantSrc !== null && wantSrc !== (info.src || '');
+    const changedHref = wantHref !== null && wantHref !== (info.href || '');
+    if (!changedText && !changedSrc && !changedHref) { elWarn('Nada mudou.'); return; }
+
+    // Localiza: snippet completo quando há edição de texto; tag basta p/ src/href
+    let found = locateInCode(html, info, changedText);
+    if (!found) { elWarn('Elemento com estrutura complexa — edite no código.'); return; }
+    const elHtml = html.slice(found.start, found.end);
+    const tagEnd = elHtml.indexOf('>');
+    if (tagEnd < 0) { elWarn('Tag inválida — edite no código.'); return; }
+    let opening = elHtml.slice(0, tagEnd + 1);
+    let rest = elHtml.slice(tagEnd + 1);
+
+    const warnings = [];
+
+    if (changedText) {
+        if (rest === '' || rest.indexOf('</' + tag + '>') < 0) {
+            // Range cobre só a tag de abertura: expande até o fechamento.
+            // (Tags iguais aninhadas podem confundir — o guard de filhos protege.)
+            const closeTag = '</' + tag + '>';
+            const closeIdx = html.indexOf(closeTag, found.start);
+            if (closeIdx < 0) { elWarn('Sem conteúdo de texto aqui — edite no código.'); return; }
+            found = { start: found.start, end: closeIdx + closeTag.length };
+            const expanded = html.slice(found.start, found.end);
+            const te = expanded.indexOf('>');
+            opening = expanded.slice(0, te + 1);
+            rest = expanded.slice(te + 1);
+        }
+        const closeAt = rest.lastIndexOf('<');
+        const inner = closeAt >= 0 ? rest.slice(0, closeAt) : rest;
+        if (inner.includes('<')) { elWarn('Elemento com filhos — edite o texto no código.'); return; }
+        if (wantText.trim() === '' && (tag === 'a' || tag === 'button')) {
+            warnings.push('Botão/link sem texto não converte.');
+        }
+        rest = wantText + (closeAt >= 0 ? rest.slice(closeAt) : '');
+    }
+
+    function setAttr(openingTag, attr, value) {
+        const re = new RegExp('(\\s' + attr + '\\s*=\\s*)(["\'])(.*?)\\2', 'i');
+        if (re.test(openingTag)) {
+            return openingTag.replace(re, (m, p1, p2) => p1 + p2 + value.replace(/\$/g, '$$$$') + p2);
+        }
+        return openingTag.replace(/>$/, ' ' + attr + '="' + value.replace(/"/g, '&quot;') + '">');
+    }
+
+    if (changedSrc) {
+        if (wantSrc === '') warnings.push('Imagem sem URL não carrega.');
+        opening = setAttr(opening, 'src', wantSrc);
+    }
+    if (changedHref) {
+        if (tag !== 'a') {
+            warnings.push('Só <a> tem href — para botões, edite o texto ou converta em link.');
+        } else {
+            if (wantHref === '') warnings.push('Link vazio não converte.');
+            if (wantHref !== '' && pageMeta.sourceDomain !== '') {
+                const h = hostOf(wantHref).replace(/^www\./, '');
+                if (h !== '' && h === pageMeta.sourceDomain.replace(/^www\./, '').toLowerCase()) {
+                    warnings.push('Aponta para o domínio original — use seu link de afiliado (botão Meu link).');
+                }
+            }
+            opening = setAttr(opening, 'href', wantHref);
+        }
+    }
+
+    const newElHtml = opening + rest;
+    const from = posFromOffset(html, found.start);
+    const to = posFromOffset(html, found.end);
+    cmEditor.replaceRange(newElHtml, from, to);
+
+    // Re-seleciona o trecho aplicado e atualiza o painel
+    const newEnd = found.start + newElHtml.length;
+    cmEditor.setSelection(from, posFromOffset(cmEditor.getValue(), newEnd));
+    lastInspectInfo = Object.assign({}, info, {
+        text: changedText ? wantText : info.text,
+        src: changedSrc ? wantSrc : info.src,
+        href: changedHref ? wantHref : info.href
+    });
+    updateElementPanel(lastInspectInfo, true);
+    elWarn('');
+    editorStatus(warnings.length ? 'Aplicado com avisos: ' + warnings.join(' ') : 'Aplicado no código — salve (Ctrl+S).');
+    if (warnings.length) {
+        const w = document.getElementById('elEditWarn');
+        if (w) { w.textContent = warnings.join(' '); w.style.display = 'block'; }
+    }
 }
 
 function toggleInteract() {

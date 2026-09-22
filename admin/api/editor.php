@@ -61,6 +61,8 @@ switch ($action) {
                 'id' => $page['id'],
                 'name' => $page['name'],
                 'html' => $page['html'] ?? '',
+                'affiliate_link' => $page['affiliate_link'] ?? '',
+                'source_domain' => $page['source_domain'] ?? '',
             ],
             'revisions' => $revisions,
         ]);

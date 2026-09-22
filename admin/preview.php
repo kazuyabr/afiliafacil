@@ -110,6 +110,12 @@ if ($isInspector) {
         var snippet = el.outerHTML || '';
         var tagSnippet = '';
         if (snippet) {
+            // Remove o outline do inspector antes de ler (senao o snippet nao
+            // bate com o codigo-fonte no editor). So as declaracoes outline*;
+            // se o style ficar vazio, remove o atributo inteiro.
+            snippet = snippet
+                .replace(/\s*outline(?:-offset)?\s*:[^;"]+;?/gi, '')
+                .replace(/\s*style="\s*"/gi, '');
             var closeIdx = snippet.indexOf('>');
             tagSnippet = closeIdx >= 0 ? snippet.slice(0, closeIdx + 1) : snippet;
             if (tagSnippet.length > 1500) tagSnippet = tagSnippet.slice(0, 1500);
