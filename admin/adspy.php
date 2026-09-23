@@ -162,8 +162,12 @@ if ($pageId > 0) {
             document.getElementById('providerStatus').innerHTML = ['meta', 'google', 'tiktok'].map(pid => {
                 const p = providers[pid] || {};
                 const dot = '<span style="width:8px;height:8px;border-radius:50%;background:' + (p.ok !== false ? 'var(--success)' : 'var(--danger)') + ';display:inline-block;"></span>';
-                return '<span class="quota-pill" style="padding:6px 12px;font-size:.78rem;" title="' + esc(p.hint || p.label || '') + '">' +
-                    dot + (icons[pid] || '') + ' <strong>' + esc(pid.toUpperCase()) + '</strong>&nbsp;' + esc(p.label || '') + '</span>';
+                const needsConfig = p.ok === false || (p.hint && p.hint.includes('configure'));
+                const target = pid === 'tiktok' ? null : '/admin/ai-settings.php#adspy';
+                const click = needsConfig && target ? ' cursor:pointer;" onclick="location.href=\'' + target + '\'"' : '"';
+                return '<span class="quota-pill" style="padding:6px 12px;font-size:.78rem;transition:all .12s ease' + click + ' title="' + esc(p.hint || p.label || '') + (target && needsConfig ? ' — clique para configurar' : '') + '">' +
+                    dot + (icons[pid] || '') + ' <strong>' + esc(pid.toUpperCase()) + '</strong>&nbsp;' + esc(p.label || '') +
+                    (needsConfig && target ? ' <i class="fas fa-cog" style="margin-left:4px;opacity:.7;"></i>' : '') + '</span>';
             }).join('');
         } catch (e) {}
     }
@@ -196,6 +200,14 @@ if ($pageId > 0) {
         }
     }
 
+    function configLinkFor(msg) {
+        // Erros de chave/token viram links diretos para a aba de configuração da IA
+        if (/META_AD_ACCESS_TOKEN|Meta API|token/i.test(msg)) return '/admin/ai-settings.php#adspy';
+        if (/STEEL_API_URL|Steel/i.test(msg)) return null; // Steel é da plataforma (admin), não do usuário
+        if (/SerpApi|Google.*chave/i.test(msg)) return '/admin/ai-settings.php#adspy';
+        return null;
+    }
+
     function renderResults(data) {
         const errors = data.errors || {};
         if (errors.quota) {
@@ -204,7 +216,10 @@ if ($pageId > 0) {
         }
         Object.entries(errors).forEach(([pid, msg]) => {
             if (pid === 'query') return;
-            document.getElementById('errors').innerHTML += '<div class="alert alert-warning"><strong>' + esc(pid) + ':</strong> ' + esc(msg) + '</div>';
+            const link = configLinkFor(msg);
+            const inner = '<strong>' + esc(pid) + ':</strong> ' + esc(msg) +
+                (link ? ' <a href="' + link + '" style="font-weight:600;text-decoration:underline;">Configurar agora <i class="fas fa-arrow-right" style="font-size:.7rem;"></i></a>' : '');
+            document.getElementById('errors').innerHTML += '<div class="alert alert-warning" style="cursor:' + (link ? 'pointer' : 'default') + '"' + (link ? ' onclick="location.href=\'' + link + '\'"' : '') + '>' + inner + '</div>';
         });
 
         const results = data.results || {};

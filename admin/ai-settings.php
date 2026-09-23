@@ -821,6 +821,14 @@ $theme = $_SESSION['theme'] ?? 'light';
         loadAdSpy('adspy_serpapi');
         loadAdSpy('adspy_meta');
         loadUsagePanel();
+        // Hash deep-link: #adspy, #stt, #tts, #chat abrem a aba direto
+        const h = (location.hash || '').replace('#', '');
+        if (['chat', 'stt', 'tts', 'adspy'].includes(h)) {
+            switchTab(h);
+            if (h === 'adspy') {
+                setTimeout(() => document.getElementById('tab-adspy').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+            }
+        }
     });
     </script>
 </body>

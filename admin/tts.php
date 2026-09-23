@@ -68,13 +68,13 @@ try {
 
                 <?php if (!$available): ?>
                 <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle"></i> Narração não configurada. Configure o Cloudflare Workers AI da plataforma ou sua própria chave em <a href="/admin/ai-settings.php"><strong>IA (BYOK)</strong></a>.
+                    <i class="fas fa-exclamation-triangle"></i> Narração não configurada. Configure o Cloudflare Workers AI da plataforma ou sua própria chave em <a href="/admin/ai-settings.php#tts"><strong>IA (BYOK)</strong></a>.
                 </div>
                 <?php endif; ?>
 
                 <?php if ($platformQuotaOut): ?>
                 <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle"></i> <strong>Cota da plataforma esgotada hoje.</strong> STT e TTS compartilham o limite diário gratuito — ele renova à meia-noite. Para continuar agora, configure sua própria chave em <a href="/admin/settings.php"><strong>Configurações → Avançado → IA (chaves próprias)</strong></a>.
+                    <i class="fas fa-exclamation-triangle"></i> <strong>Cota da plataforma esgotada hoje.</strong> STT e TTS compartilham o limite diário gratuito — ele renova à meia-noite. Para continuar agora, <a href="/admin/ai-settings.php#tts"><strong><i class="fas fa-arrow-right"></i> configure sua própria chave aqui</strong></a>.
                 </div>
                 <?php endif; ?>
 

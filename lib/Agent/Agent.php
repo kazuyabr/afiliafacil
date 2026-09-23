@@ -141,7 +141,7 @@ class Agent
 
             $candidates = AiConfig::candidates($userId);
             if (empty($candidates)) {
-                $this->saveMessage($conversationId, 'agent', 'Não consigo pensar agora: a IA não está configurada. Peça ao administrador para configurar o Cloudflare Workers AI da plataforma (CF_AI_TOKEN) ou configure sua própria chave em IA (BYOK).');
+                $this->saveMessage($conversationId, 'agent', 'Não consigo pensar agora: a IA não está configurada. Peça ao administrador para configurar o Cloudflare Workers AI da plataforma (CF_AI_TOKEN) ou configure sua própria chave em Configurações → Avançado → IA (chaves próprias).');
                 AgentJobs::complete($jobId);
                 return ['success' => true];
             }
@@ -615,10 +615,10 @@ class Agent
     {
         if (AiClient::isQuotaError()) {
             if ($plan === 'premium') {
-                return 'A IA da plataforma atingiu o limite diário de uso (cota gratuita da conta Cloudflare). Como administrador, você pode somar cotas configurando uma chave alternativa (CF_AI_TOKEN_2/CF_ACCOUNT_ID_2 no .env) ou usar sua própria chave (BYOK) em IA → Configurações → aba Análise.';
+                return 'A IA da plataforma atingiu o limite diário de uso (cota gratuita da conta Cloudflare). Como administrador, você pode somar cotas configurando uma chave alternativa (CF_AI_TOKEN_2/CF_ACCOUNT_ID_2 no .env) ou usar sua própria chave (BYOK) em Configurações → Avançado → IA (chaves próprias), aba Análise.';
             }
 
-            return 'A IA da plataforma atingiu o limite diário de uso. Você pode continuar agora configurando sua própria chave (BYOK) em IA → Configurações → aba Análise, ou tentar novamente mais tarde.';
+            return 'A IA da plataforma atingiu o limite diário de uso. Você pode continuar agora configurando sua própria chave (BYOK) em Configurações → Avançado → IA (chaves próprias), aba Análise, ou tentar novamente mais tarde.';
         }
 
         return 'Tive um problema para responder agora (falha na chamada da IA). Tente novamente em instantes.';
