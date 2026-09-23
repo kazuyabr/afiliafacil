@@ -1,0 +1,53 @@
+{
+  "name": "AF - Monitor de Campanhas (Meta/Google Ads)",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "hours", "hoursInterval": 4 } ] } },
+      "id": "b1",
+      "name": "A cada 4 horas",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/{{$env.META_AD_ACCOUNT_ID}}/insights",
+        "qs": { "access_token": "[configure sua chave]" , "fields": "campaign_name,spend,clicks,impressions,cpc,ctr,frequency", "date_preset": "today", "level": "campaign" },
+        "options": {}
+      },
+      "id": "b2",
+      "name": "Puxa metricas Meta Ads (configure a chave)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "number": [ { "value1": "={{$json.spend}}", "operation": "larger", "value2": 300 } ] }
+      },
+      "id": "b3",
+      "name": "Gasto acima do limite?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "subject": "⚠️ Gasto alto em campanha",
+        "toEmail": "voce@exemplo.com",
+        "text": "A campanha {{$json.campaign_name}} gastou R$ {{$json.spend}} hoje, com CTR {{$json.ctr}}% e CPC R$ {{$json.cpc}}. Revise."
+      },
+      "id": "b4",
+      "name": "Alerta por email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [920, 240]
+    }
+  ],
+  "connections": {
+    "b1": { "main": [ [ { "node": "b2", "type": "main", "index": 0 } ] ] },
+    "b2": { "main": [ [ { "node": "b3", "type": "main", "index": 0 } ] ] },
+    "b3": { "main": [ [ { "node": "b4", "type": "main", "index": 0 } ] ] }
+  }
+}

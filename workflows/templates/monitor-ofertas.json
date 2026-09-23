@@ -1,0 +1,53 @@
+{
+  "name": "AF - Monitor de Ofertas (payout/GEO/cap mudando)",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "hours", "hoursInterval": 6 } ] } },
+      "id": "d1",
+      "name": "A cada 6 horas",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://SEU_N8N/webhook/ofertas-afiliafacil",
+        "sendBody": true,
+        "bodyParameters": { "parameters": [ { "name": "offer_id", "value": "={{ $json.oferta_id }}" } ] },
+        "options": {}
+      },
+      "id": "d2",
+      "name": "Puxa snapshot no AfiliaFacil",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compara com snapshot anterior (pasado via webhook ou banco local)\nconst previous = $input.first().json.previous_payout || 0;\nconst current = $input.first().json.current_payout || 0;\nif (current > previous * 1.1) { return [{ json: { ...$input.first().json, alert: 'payout subiu', diff: current - previous } }]; }\nreturn [];"
+      },
+      "id": "d3",
+      "name": "Detecta mudanca de payout",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "subject": "📈 Oferta subiu payout",
+        "toEmail": "voce@exemplo.com",
+        "text": "A oferta {{$json.name}} subiu o payout de R$ {{$json.previous_payout}} para R$ {{$json.current_payout}}. Boas chances de escalar agora."
+      },
+      "id": "d4",
+      "name": "Alerta payout",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [920, 240]
+    }
+  ],
+  "connections": {
+    "d1": { "main": [ [ { "node": "d2", "type": "main", "index": 0 } ] ] },
+    "d2": { "main": [ [ { "node": "d3", "type": "main", "index": 0 } ] ] },
+    "d3": { "main": [ [ { "node": "d4", "type": "main", "index": 0 } ] ] }
+  }
+}

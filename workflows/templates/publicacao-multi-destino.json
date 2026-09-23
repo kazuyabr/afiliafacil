@@ -1,0 +1,70 @@
+{
+  "name": "AF - Publicacao Multi-destino (um post → varios canais)",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "af-publica", "options": {} },
+      "id": "h1",
+      "name": "Webhook (novo conteudo)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://{{$env.FACEBOOK_PAGE_ID}}/photos",
+        "sendBody": true,
+        "bodyParameters": { "parameters": [ { "name": "url", "value": "={{$body.imagem_url}}" }, { "name": "caption", "value": "={{$body.texto}}" }, { "name": "access_token", "value": "[configure o token]" } ] },
+        "options": {}
+      },
+      "id": "h2",
+      "name": "Publica no Facebook Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v21.0/{{$env.INSTAGRAM_ACCOUNT_ID}}/media",
+        "sendBody": true,
+        "bodyParameters": { "parameters": [ { "name": "image_url", "value": "={{$body.imagem_url}}" }, { "name": "caption", "value": "={{$body.texto}}" }, { "name": "access_token", "value": "[configure o token]" } ] },
+        "options": {}
+      },
+      "id": "h3",
+      "name": "Prepara Instagram (1/2)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v21.0/{{$env.INSTAGRAM_ACCOUNT_ID}}/media_publish",
+        "sendBody": true,
+        "bodyParameters": { "parameters": [ { "name": "creation_id", "value": "={{$node['Prepara Instagram (1/2)'].json.id}}" }, { "name": "access_token", "value": "[configure o token]" } ] },
+        "options": {}
+      },
+      "id": "h4",
+      "name": "Publica Instagram (2/2)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "subject": "✅ Conteudo publicado",
+        "toEmail": "voce@exemplo.com",
+        "text": "Conteudo publicado no Facebook e Instagram."
+      },
+      "id": "h5",
+      "name": "Confirma por email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [920, 300]
+    }
+  ],
+  "connections": {
+    "h1": { "main": [ [ { "node": "h2", "type": "main", "index": 0 }, { "node": "h3", "type": "main", "index": 0 } ] ] },
+    "h3": { "main": [ [ { "node": "h4", "type": "main", "index": 0 } ] ] },
+    "h2": { "main": [ [ { "node": "h5", "type": "main", "index": 0 } ] ] },
+    "h4": { "main": [ [ { "node": "h5", "type": "main", "index": 0 } ] ] }
+  }
+}

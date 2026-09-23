@@ -1,0 +1,61 @@
+{
+  "name": "AF - Follow-up WhatsApp (abandono + remarketing)",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "af-abandono", "options": {} },
+      "id": "g1",
+      "name": "Webhook (clicou mas nao comprou)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [260, 300]
+    },
+    {
+      "parameters": { "amount": 30, "unit": "minutes" },
+      "id": "g2",
+      "name": "Espera 30 min",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://hooks.manychat.com/external-broadcast/[[SUA_API_KEY]]/owner_paper/v1/sending/sendFlow",
+        "sendBody": true,
+        "bodyParameters": { "parameters": [ { "name": "subscriber_id", "value": "={{$body.subscriber_id}}" }, { "name": "flow_ns", "value": "content2026_swimlane_1" } ] },
+        "options": {}
+      },
+      "id": "g3",
+      "name": "Dispara fluxo ManyChat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": { "amount": 2, "unit": "days" },
+      "id": "g4",
+      "name": "Espera 2 dias",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://hooks.manychat.com/external-broadcast/[[SUA_API_KEY]]/owner_paper/v1/sending/sendFlow",
+        "sendBody": true,
+        "bodyParameters": { "parameters": [ { "name": "subscriber_id", "value": "={{$body.subscriber_id}}" }, { "name": "flow_ns", "value": "content2026_swimlane_ultimo" } ] },
+        "options": {}
+      },
+      "id": "g5",
+      "name": "Ultimo toque (urgencia)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 300]
+    }
+  ],
+  "connections": {
+    "g1": { "main": [ [ { "node": "g2", "type": "main", "index": 0 } ] ] },
+    "g2": { "main": [ [ { "node": "g3", "type": "main", "index": 0 } ] ] },
+    "g3": { "main": [ [ { "node": "g4", "type": "main", "index": 0 } ] ] },
+    "g4": { "main": [ [ { "node": "g5", "type": "main", "index": 0 } ] ] }
+  }
+}

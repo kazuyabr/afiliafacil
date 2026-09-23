@@ -1,0 +1,51 @@
+{
+  "name": "AF - Relatorio Semanal (gasto + vendas + ROI)",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "days", "daysInterval": 7 } ] } },
+      "id": "e1",
+      "name": "Toda semana",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v21.0/{{$env.META_AD_ACCOUNT_ID}}/insights?fields=campaign_name,spend,clicks,purchases,action_values&date_preset=last_7d&level=campaign&access_token=[configure sua chave]",
+        "options": {}
+      },
+      "id": "e2",
+      "name": "Meta Ads ultimos 7d",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Consolida os dados\nconst itens = $input.all();\nconst totalGasto = itens.reduce((s, i) => s + parseFloat(i.json.spend||0), 0);\nconst totalVendas = itens.reduce((s, i) => s + parseFloat(i.json.purchases?.[0]?.value||0), 0);\nreturn [{ json: { totalGasto: totalGasto.toFixed(2), totalVendas, roi: totalGasto>0 ? (totalVendas/totalGasto).toFixed(2) : 0, campanhas: itens.length } }];"
+      },
+      "id": "e3",
+      "name": "Consolida dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "subject": "📊 Relatorio Semanal",
+        "toEmail": "voce@exemplo.com",
+        "text": "Gasto: R$ {{$json.totalGasto}}\nVendas: {{$json.totalVendas}}\nROI: {{$json.roi}}x\nCampanhas ativas: {{$json.campanhas}}"
+      },
+      "id": "e4",
+      "name": "Envia relatorio",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [920, 300]
+    }
+  ],
+  "connections": {
+    "e1": { "main": [ [ { "node": "e2", "type": "main", "index": 0 } ] ] },
+    "e2": { "main": [ [ { "node": "e3", "type": "main", "index": 0 } ] ] },
+    "e3": { "main": [ [ { "node": "e4", "type": "main", "index": 0 } ] ] }
+  }
+}

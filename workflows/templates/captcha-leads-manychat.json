@@ -1,0 +1,53 @@
+{
+  "name": "AF - Captacao de Leads (AfiliaFacil → ManyChat/Sheet)",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "af-lead", "options": {} },
+      "id": "f1",
+      "name": "Webhook (novo lead)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "string": [ { "value1": "={{$body.email}}", "operation": "isNotEmpty" } ] }
+      },
+      "id": "f2",
+      "name": "Tem email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://hooks.manychat.com/external-broadcast/[[SUA_API_KEY]]/owner_paper/v1/subscribers",
+        "sendBody": true,
+        "bodyParameters": { "parameters": [ { "name": "phone", "value": "={{$body.phone}}" }, { "name": "whatsapp_phone", "value": "={{$body.phone}}" } ] },
+        "options": { "response": { "neverError": false } }
+      },
+      "id": "f3",
+      "name": "Cria contato no ManyChat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 240]
+    },
+    {
+      "parameters": {
+        "subject": "🎉 Novo lead: {{$body.nome}}",
+        "toEmail": "voce@exemplo.com",
+        "text": "Email: {{$body.email}}\nTelefone: {{$body.phone}}\nFonte: {{$body.source}}"
+      },
+      "id": "f4",
+      "name": "Notifica voce",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [920, 240]
+    }
+  ],
+  "connections": {
+    "f1": { "main": [ [ { "node": "f2", "type": "main", "index": 0 } ] ] },
+    "f2": { "main": [ [ { "node": "f3", "type": "main", "index": 0 } ] ] },
+    "f3": { "main": [ [ { "node": "f4", "type": "main", "index": 0 } ] ] }
+  }
+}

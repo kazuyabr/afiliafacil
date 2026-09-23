@@ -1,0 +1,48 @@
+{
+  "name": "AF - Monitor de Landing Pages (uptime + tracking)",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "minutes", "minutesInterval": 30 } ] } },
+      "id": "c1",
+      "name": "A cada 30 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": { "url": "https://sua-pagina.afiliafacil.com", "options": { "lowercaseHeaders": false, "redirect": { "redirect": { "followRedirects": true } } } },
+      "id": "c2",
+      "name": "Testa sua pagina",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "number": [ { "value1": "={{$response.statusCode}}", "operation": "notEqual", "value2": 200 } ] }
+      },
+      "id": "c3",
+      "name": "Pagina fora do ar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "subject": "🚨 Sua landing page está fora do ar",
+        "toEmail": "voce@exemplo.com",
+        "text": "A pagina {{$json.url}} respondeu com status {{$response.statusCode}}. Verifique imediatamente: afiliafacil.com/admin/pages.php"
+      },
+      "id": "c4",
+      "name": "Alerta pagina caiu",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [920, 240]
+    }
+  ],
+  "connections": {
+    "c1": { "main": [ [ { "node": "c2", "type": "main", "index": 0 } ] ] },
+    "c2": { "main": [ [ { "node": "c3", "type": "main", "index": 0 } ] ] },
+    "c3": { "main": [ [ { "node": "c4", "type": "main", "index": 0 } ] ] }
+  }
+}

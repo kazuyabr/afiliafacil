@@ -1,0 +1,52 @@
+{
+  "name": "AF - Espionar Anuncios (swipe de campanhas do nicho)",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "days", "daysInterval": 2 } ] } },
+      "id": "i1",
+      "name": "A cada 2 dias",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://serpapi.com/search",
+        "qs": { "engine": "google_ads_transparency_center", "api_key": "[sua chave SerpApi]", "text": "[seu nicho ex: emagrecimento]", "country": "BR" },
+        "options": {}
+      },
+      "id": "i2",
+      "name": "SerpApi: adversarios do nicho",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "number": [ { "value1": "={{$json.ads?.length || 0}}", "operation": "larger", "value2": 5 } ] }
+      },
+      "id": "i3",
+      "name": "Mais de 5 anunciantes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "subject": "🕵️ Novo anunciante no seu nicho",
+        "toEmail": "voce@exemplo.com",
+        "text": "Foram encontrados {{$json.ads.length}} anuncios para [seu nicho]. Veja em AfiliaFacil → Espionar Anuncios."
+      },
+      "id": "i4",
+      "name": "Alerta de mercado",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [920, 240]
+    }
+  ],
+  "connections": {
+    "i1": { "main": [ [ { "node": "i2", "type": "main", "index": 0 } ] ] },
+    "i2": { "main": [ [ { "node": "i3", "type": "main", "index": 0 } ] ] },
+    "i3": { "main": [ [ { "node": "i4", "type": "main", "index": 0 } ] ] }
+  }
+}
