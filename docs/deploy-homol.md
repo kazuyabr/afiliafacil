@@ -44,19 +44,24 @@ docker exec afiliafacil php bin/smoke.php
 
 O script mostra a URL `https://xxxx.trycloudflare.com` para enviar ao cliente.
 
+> Confirme o guard da infálNo: `./bin/homol.ps1` (powered) → verifica `docker ps` → `smoke` → `túnel` + gera link + ele licencia. `-Stop` fecha tudo.
+
 ## 3. Checklist antes de enviar ao cliente
 
 - [ ] `bin/smoke.php` retornou **SMOKE OK** (0 falhas)
 - [ ] `bin/seed-demo.php` criou contas e ofertas demo
-- [ ] Login nas 4 contas (admin + 3 demo) funcionando — **cada conta demo tem senha própria**:
+- [ ] Login nas 4 contas (admin + 3 demo) funcionando — **senhas individuais**:
       `demo.trial` → `Trial.Demo@2026` · `demo.pro` → `Pro.Demo@2026` · `demo.master` → `Master.Demo@2026` · admin → `admin123`
-- [ ] Sócio de IA responde de verdade (chave CF configurada) — não apenas a mensagem de fallback
-- [ ] Transcrição de um áudio/vídeo curto funcionando
-- [ ] Narração de um texto curto funcionando
-- [ ] Ad Spy com pelo menos 1 plataforma respondendo (Meta/Google/TikTok)
+- [ ] Sócio de IA responde de verdade (chave CF configurada) — não apenas fallback
+- [ ] E2E rápido: `node tests/e2e/onboarding.js` OK
+- [ ] Clonagem + preview + ZIP de uma URL pública OK
+- [ ] Editor visual: clicar em título/imagem/link do preview → edição sem código OK
+- [ ] Página pública `/p/{slug}` abre sem login + injeta pixel+CAPI com mesmo eventID
+- [ ] Espionar Anúncio puxa domínio quando cola URL
 - [ ] Checkout PIX exibindo QR + copia e cola (não precisa pagar)
 - [ ] Páginas legais acessíveis (`/termos`, `/privacidade`, `/cookies`, `/degustacao`)
 - [ ] Roteiro `docs/roteiro-testes-homol.md` revisado e PDF gerado
+- [ ] **Commit + push já feito na feature** (gitflow: sem branch desconectada)
 
 ## 4. Cron de ofertas na homologação
 

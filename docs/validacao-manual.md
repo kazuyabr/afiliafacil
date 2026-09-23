@@ -1,105 +1,124 @@
-# Validação Manual — AfiliaFacil (antes da homologação)
+# Validação Manual — AfiliaFacil (confirmar antes da homologação)
 
-Checklist para **você** validar no browser antes de enviar ao cliente.
+Checklist para **você** (dono) validar tudo antes de enviar ao cliente.
 Acesse `http://localhost:9876` (ou a URL do túnel) e marque cada item.
 
-> Dica: rode antes `docker exec afiliafacil php bin/smoke.php` — se der **SMOKE OK**, os fluxos automatizados estão de pé.
-
-## 1. Acesso e conta
-- [ ] Login com `admin@afiliafacil.com` / `admin123`
-- [ ] Login com cada conta demo (`demo.trial@`, `demo.pro@`, `demo.master@` / `demo123456`)
-- [ ] Tema claro/escuro alterna e persiste ao recarregar
-- [ ] 2FA: ativar em Configurações → Segurança (QR + códigos de recuperação), sair, entrar e validar a etapa 2; desativar no final
-- [ ] Cadastro novo em `/register`: aceite dos termos obrigatório; consentimento opcional
-
-## 2. Páginas e clonador
-- [ ] Clonar uma URL real (ex.: uma página de vendas simples) com link de afiliado
-- [ ] Preview da página clonada renderiza (assets via proxy)
-- [ ] Baixar ZIP e abrir localmente (imagens/CSS carregando)
-- [ ] Editar metadados (nome, status, domínio, link de afiliado)
-- [ ] Editor IDE: abrir, editar código, salvar, ver revisão anterior, restaurar
-- [ ] Inspector: clicar em elemento do preview seleciona a tag no código; Ctrl+Click interage
-- [ ] Re-clonar (badge "Clone antigo" quando aplicável)
-- [ ] Limite de páginas por plano (trial = 1)
-
-## 3. Planos e pagamentos
-- [ ] Página Meu Plano mostra o plano atual correto em cada conta demo
-- [ ] Admin vê o card ADMIN e planos comerciais desabilitados
-- [ ] Checkout PIX: QR + copia e cola gerados (admin aprova em Pagamentos)
-- [ ] Checkout Stripe (se configurado): redireciona para o Stripe e volta
-- [ ] Painel de Preços (admin): editar quota e ver refletir
-
-## 4. Ofertas Escalando
-- [ ] Swipe file com as ofertas demo (sparkline, badges de escala, filtros)
-- [ ] Abrir dossiê de uma oferta (consome quota; reabrir a mesma não consome)
-- [ ] Curadoria (admin): aprovar/rejeitar, aprovar em lote, configurações do monitor
-- [ ] "Buscar ofertas agora" / "Atualizar métricas agora" executam sem erro
-- [ ] Gerar `CRON_KEY` e copiar o comando cron
-
-## 5. Ad Spy
-- [ ] Busca por termo/domínio retorna anúncios (ou erro tratado por plataforma)
-- [ ] Dossiê a partir de uma página clonada
-- [ ] Análise IA gera resumo/ângulos (com chave CF configurada)
-- [ ] Pills de quota corretas (Trial 3/3, Pro 30/10, Master 300/100)
-
-## 6. Transcrições (STT)
-- [ ] Transcrever uma URL de áudio curta (ex.: mp3 público) — com chave CF
-- [ ] Transcrever uma página com vídeo (detecção automática)
-- [ ] Upload de arquivo (até 24MB)
-- [ ] Copiar texto, baixar TXT e SRT (timestamps)
-- [ ] Botão "Discutir com o Sócio de IA" abre o agente com o contexto
-
-## 7. Narração (TTS)
-- [ ] Gerar narração de um texto curto — com chave CF
-- [ ] Player toca e download funciona
-- [ ] Carregar texto de uma transcrição (integração STT→TTS)
-
-## 8. Sócio de IA e Subagentes
-- [ ] Conversa: ele pergunta antes de assumir (teste um pedido vago)
-- [ ] **Assíncrono**: enviar mensagem e navegar para outra tela — a resposta chega e o **sino no topbar** avisa (badge/toast); clicar leva à conversa
-- [ ] Ação com confirmação: card com motivo/custo + Confirmar/Cancelar
-- [ ] **Precisão**: pedir "ofertas do nicho gamer" → ele busca com `q` e informa que não há (sem divagar para outros nichos)
-- [ ] Recusa más práticas (ex.: "prometa ganho garantido") com aviso
-- [ ] **Rating**: 👍/👎 em uma resposta (👎 abre comentário opcional)
-- [ ] Subagentes (conta Pro/Master): criar pelo modal (template), conversar, editar, ativar/desativar, excluir
-- [ ] Limite de subagentes por plano (Pro 2 / Master 5)
-- [ ] Gating: conta Trial sem acesso a subagentes
-
-## 8b. Monitor da IA (admin/Curador de IA)
-- [ ] `/admin/agent-monitor.php` mostra stats (conversas, respostas, 👍/👎, % avaliado)
-- [ ] Filtros (principal/subagente, avaliação, período, busca) e diálogo completo com ratings
-- [ ] Exportar dataset JSONL (pares pergunta/resposta + rating)
-- [ ] Cargo "Curador de IA" (permissão `manage_ai`) acessa o monitor; usuário comum não
-
-## 9. Moderação e legal
-- [ ] Mensagem criminosa no Sócio é bloqueada (não consome quota)
-- [ ] Admin → Moderação registra o evento (usuário, hora, IP, conteúdo)
-- [ ] Exportação CSV/JSON da moderação
-- [ ] Páginas `/termos`, `/privacidade`, `/cookies`, `/degustacao` com os dados da empresa (Configurações)
-
-## 10. BYOK e quotas
-- [ ] Configurar uma chave própria em IA (BYOK) → pill muda para "BYOK — sem limite"
-- [ ] Esgotar a quota da plataforma em uma conta demo → mensagem orienta configurar a chave
-
-## 11. Treinamento e dados
-- [ ] Admin → Treinamento mostra contadores
-- [ ] Exportar JSONL do dataset
-- [ ] Configurações → Privacidade: ativar consentimento, gerar interação, ver amostra contada; revogar e confirmar que para
-- [ ] "Baixar meus dados" (MD/JSONL) em conta Pro/Master
-
-## 12. Administração
-- [ ] Usuários: criar/editar/ativar/excluir; admin só gerenciável por admin
-- [ ] Cargos: CRUD (master protegido)
-- [ ] Auditoria: registros das ações
-- [ ] Storage R2: salvar config e testar conexão (se tiver R2)
-
-## 13. Feedback
-- [ ] Enviar feedback (sugestão/reclamação/elogio/bug) como conta demo e ver no histórico
-- [ ] Validação: mensagem com menos de 10 caracteres é recusada
-- [ ] Admin responde → o usuário vê a resposta e o status "respondido"
-- [ ] Badge de novos no menu (admin)
-- [ ] Exportar CSV e JSON (admin) — insumo para o especialista de mercado
+> Rode antes `docker exec afiliafacil php bin/smoke.php` → **SMOKE OK** = base de pé.
 
 ---
 
-**Se algo falhar**: anote o módulo, o passo e o que aconteceu (print ajuda) — isso vira o plano de correção antes da homologação.
+## 1. Acesso e ambiente
+- [ ] Login admin (`admin@afiliafacil.com` / `admin123`)
+- [ ] Login contas demo (`demo.trial`→Trial, `demo.pro`→Pro, `demo.master`→Master)
+- [ ] Tema claro/escuro alterna e persiste após recarregar
+- [ ] 2FA: ativar, sair, entrar (etapa 2), validar, desativar
+- [ ] Cadastro novo em `/register`: aceite dos termos obrigatório
+
+## 2. Menu (por jornada) — abra tudo no menu (sem link quebrado)
+- [ ] **Meu Negócio**: Dashboard com cards **Meu Negócio hoje** (pendências + próximos passos + Top ofertas) + "Meu Plano"
+- [ ] **Criar**: Clonador, Pressel, Vídeos (ffmpeg admin)
+- [ ] **Inspirar**: Espionar Anúncios, Ofertas Escalando
+- [ ] **IA**: Sócio de IA
+- [ ] **Minha Oferta**: Player das Páginas, Pixel, Back Redirect, Cookie, Integrações
+- [ ] **Admin** (só admin): Monitor da IA, Usuários, Preços, Cobrança, Auditoria, Moderação, Treinamento, Configurações
+- [ ] **Conta**: Feedback, Configurações (com Avançado: IA/BYOK, Transcrições, Narração, Storage)
+
+## 3. Páginas e clonador
+- [ ] Clonar URL real, preview renderiza (assets via proxy), ZIP baixável
+- [ ] **Editor de código**: editar + salvar + revisão criada
+- [ ] **Editor visual** (novo): clicar em h1/img/link → form à esquerda → aplicar sem código → salvar
+- [ ] **Aviso inteligente**: trocar link por outro do MESMO domínio original → aviso sugere link de afiliado
+- [ ] Limite de páginas por plano (Trial = 1) bloqueia
+- [ ] Re-clonar cri uma revisão, não sobrescreve direto
+
+## 4. Planos e cobrança
+- [ ] "Meu Plano" mostra plano atual correto em cada conta
+- [ ] Cobrança (admin) lista PIX pendentes; aprovar/rejeitar funciona
+- [ ] Sem menção a "domínios" nos labels dos planos (migration 33)
+- [ ] Checkout PIX: QR + copia e cola gerados
+
+## 5. Espionagem (Ad Spy)
+- [ ] Busca por **URL** (ex.: `https://hotmart.com/pagina`) → extrai domínio e busca certo
+- [ ] Busca por dominio puro (ex.: `hotmart.com`) funciona
+- [ ] Pills de status: mostram `SerpApi (sua chave)`, `Biblioteca pública`, `Scraping direto` por provider
+- [ ] Cards mostram **"há X dias"** e botão Clonar quando tem landing_page
+- [ ] Dossiê a partir de página clonada signals+ads reais
+- [ ] Sem gasto em quota: páginas pendentes não consomem `max_adspy_searches`
+
+## 6. Ofertas Escalando
+- [ ] Apenas ofertas **aprovadas** (não demos `demo-*`) aparecem no público
+- [ ] Dossiê abre, views decrementam 1 por oferta, reabrir a mesma não gasta
+- [ ] Curadoria (admin): aprovar/rejeitar em lote funciona
+- [ ] **Botões Baixar/Variação** por criativo (variação muda o hash — GD)
+- [ ] "Aviso Entity ID" aparece no topo da aba Criativos
+- [ ] A hierarquia da oferta conta com `@`? (curadoria admin)
+
+## 7. Sócio de IA + Conhecimento (novo)
+- [ ] Sócio **pergunta antes de assumir** (nicho/orçamento)
+- [ ] Ele **executa** (listar_ofertas) e comenta o resultado
+- [ ] Rating 👍👎 funciona e aparece no **Monitor**
+- [ ] **Base de conhecimento** (🔑 livro): subir .md → salvar → Sócio responde com esse conteúdo em mensagens seguintes
+- [ ] Subagente também usa a base (docs do subagente + do Sócio)
+- [ ] Resposta vazia da IA mostra fallback amigável (nunca texto em branco)
+
+## 8. Monitor da IA + Auditoria + Moderação (admin)
+- [ ] Monitor: cards clicáveis (Conversas/Respostas/👍/👎/Sem avaliação) abrem modal
+- [ ] Auditoria: filtros por ação, usuário, período, busca + só falhas + export CSV
+- [ ] Moderação: modal original × limpo; e-mail do usuário em vez de ID
+- [ ] Moderação aparece na url quando há conteúdo bloqueado
+
+## 9. Rastreamento e página pública (novo)
+- [ ] Editar página → bloco **Rastreamento (Pixel + CAPI)** com Pixel ID, Token CAPI, Código de teste, Google, TikTok
+- [ ] Página pública: acessar `/p/{slug}` sem login → renderiza e conta 1 view
+- [ ] Com pixel configurado: código fbq injetado com **mesmo** eventID do server-side (dedupe)
+- [ ] Rascunho em `/p/{slug}` → 404
+- [ ] `/p/track` sem CAPI configurado → JSON de erro gracioso (não 500)
+- [ ] Bot não incrementa view (facebookexternalhit)
+
+## 10. Vídeos (ffmpeg — admin)
+- [ ] Menu **Criar → Vídeos** visível só para plano com feature `video`/`videos` ou admin
+- [ ] Upload de MP4 real, importar por URL, cortar trecho, capa, queimar legenda .srt, variação (muda hash)
+- [ ] Cada operação gera novo arquivo com sufixo; original intacto
+- [ ] Excluir via UI remove o arquivo
+
+## 11. Workflows (pos-MVP — revisão final)
+- [ ] Workflow templates em `workflows/templates/` (8 arquivos JSON válidos)
+- [ ] `docs/n8n-setup.md` + `docs/manychat-integracao.md` com passos claros
+
+## 12. Configurações — Avançado斴
+- [ ] **Configurações → Avançado**: IA/BYOK, Transcrições, Narração, Armazenamento, Cargos acessiveis
+- [ ] IA (BYOK): salvar chave → pill "BYOK — sem limite"; testar sem salvar valida a digitada
+- [ ] Modelos locais (LM Studio): detectar host.docker.internal, carregar/descarregar VRAM
+
+## 13. Legal e dados
+- [ ] `/termos`, `/privacidade`, `/cookies`, `/degustacao` com tabela dinâmica
+- [ ] Configurações → Privacidade: consentimento + download de dados (Markdown/JSONL)
+- [ ] Conteúdo criminoso no Sócio **bloqueado sem consumir quota** + registrado na Moderação
+
+---
+
+## Resumo rápido (para o PDF do roteiro)
+
+**Total previsto**: 60–80 minutos na primeira vez, 25min em re-teste.
+
+**Os 5 críticos** (se falhar, não entrega):
+1. Login + smoke OK
+2. Clonar página + preview + ZIP
+3. Página pública (`/p/{slug}`) serve sem login + CAPI injetado
+4. Sócio de IA responde de verdade (chave CF válida)
+5. Sem item oculto vazando no menu p/ conta trial (Domínios/Transcrições/Narração/BYOK/Cargos/Armazenamento/Treinamento)
+
+**Se algo falhar**: anote módulo + passo + o que aconteceu + print → vira plano de correção.
+
+---
+
+## Onde estão os documentos finais
+
+| Arquivo | Conteúdo |
+|---|---|
+| `docs/roteiro-testes-homol.md` | Roteiro do cliente (linguagem leiga) |
+| `docs/roteiro-testes-homol.pdf` | Versão PDF para enviar (email/impressão) |
+| `docs/validacao-manual.md` | Este checklist (dono) |
+| `docs/deploy-homol.md` | Checklist técnico (setup, túnel, cron) |
+| `AGENTS.md` | Regras do projeto + ponteiro p/ todos os docs |
+| `docs/avaliacao-utilidade.md` | Por que este MVP (vereditos, corte, lacunas) |
