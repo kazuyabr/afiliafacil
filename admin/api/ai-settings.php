@@ -65,6 +65,132 @@ switch ($action) {
 
     case 'save':
         $config = UserAiConfig::where('user_id', $userId)->where('capability', $capability)->first();
+        $provider = trim($_POST['provider'] ?? '');
+        $model = trim($_POST['model'] ?? '');
+        if ($capability === 'chat' && ($provider === '' || $model === '')) break;
+
+        if ($capability === 'stt' && !in_array($provider, SttConfig::PROVIDERS, true)) {
+            echo json_encode(['error' => 'Provider inválido']);
+            break;
+        }
+        if ($capability === 'tts' && !in_array($provider, TtsConfig::PROVIDERS, true)) {
+            echo json_encode(['error' => 'Provider inválido']);
+            break;
+        }
+        if ($capability === 'adspy_serpapi') {
+            $provider = 'serpapi';
+        } elseif ($capability === 'adspy_meta') {
+            $provider = 'meta';
+        }
+
+        $data = [
+            'provider' => $provider,
+            'model' => $model,
+            'base_url' => trim($_POST['base_url'] ?? ''),
+            'api_type' => trim($_POST['api_type'] ?? ''),
+            'enabled' => ($_POST['enabled'] ?? '1') === '1',
+        ];
+
+        // Meta long-lived token: app_id + secret + token atual → troca (commission) de 60 dias
+        if ($capability === 'adspy_meta') {
+            $data['meta_app_id'] = trim($_POST['meta_app_id'] ?? '');
+            $appSecret = trim((string)($_POST['meta_app_secret'] ?? ''));
+            if ($appSecret !== '' && class_exists('Crypto')) {
+                $data['meta_app_secret_encrypted'] = Crypto::encrypt($appSecret);
+            }
+        }
+
+        // Ações que modificam dados precisam de POST + validação extra aqui
+        $apiKey = trim((string)($_POST['api_key'] ?? ''));
+        if ($apiKey !== '') {
+            $data['api_key_encrypted'] = Crypto::encrypt($apiKey);
+        } elseif (in_array($capability, ['adspy_serpapi', 'adspy_meta'], true)) {
+            // Se nao mandou chave nova, preserva a gravada
+            if ($config && empty($data['meta_app_secret_encrypted'] ?? '')) {
+                // noop (JS manda string vazia → nao sobrescreve)
+            }
+        }
+
+        // Salva ou cria via updateOrCreate por constraint
+        if ($config) {
+            $config->update($data);
+        } else {
+            $data['user_id'] = $userId;
+            $data['capability'] = $capability;
+            $data['created_at'] = date('Y-m-d H:i:s');
+            UserAiConfig::create($data);
+        }
+
+        Audit::log('ai_config_saved', 'user', (string)$userId, ['capability' => $capability, 'provider' => $data['provider'], 'model' => $data['model']]);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'meta-exchange': {
+        // Troca o token curto (1h) por um de longa duração (60 dias)
+        // Requer app_id + app_secret + token atual.
+        $appId = trim($_POST['meta_app_id'] ?? '');
+        $appSecret = trim($_POST['meta_app_secret'] ?? '');
+        $short = trim($_POST['short_token'] ?? '');
+
+        if ($appId === '' || $appSecret === '' || $short === '') {
+            echo json_encode(['ok' => false, 'error' => 'Informe App ID, App Secret e o token curto.']);
+            break;
+        }
+
+        $url = 'https://graph.facebook.com/v21.0/oauth/access_token?' . http_build_query([
+            'grant_type' => 'fb_exchange_token',
+            'client_id' => $appId,
+            'client_secret' => $appSecret,
+            'fb_exchange_token' => $short,
+        ]);
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_CONNECTTIMEOUT => 10,
+        ]);
+        $body = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $json = json_decode((string)$body, true);
+        if (!is_array($json) || $status >= 400) {
+            $msg = is_array($json) && isset($json['error']['message']) ? $json['error']['message'] : ('HTTP ' . $status);
+            echo json_encode(['ok' => false, 'error' => 'Meta: ' . $msg]);
+            break;
+        }
+
+        $longToken = (string)($json['access_token'] ?? '');
+        if ($longToken === '') {
+            echo json_encode(['ok' => false, 'error' => 'A Meta não devolveu um token longo. Confira App ID + Secret.']);
+            break;
+        }
+
+        // Salva no mesmo registro do adspy_meta (substitui o curto pelo longo)
+        $config = UserAiConfig::where('user_id', $userId)->where('capability', 'adspy_meta')->first();
+        $blob = [
+            'provider' => 'meta',
+            'api_key_encrypted' => Crypto::encrypt($longToken),
+            'meta_app_id' => $appId,
+            'meta_app_secret_encrypted' => Crypto::encrypt($appSecret),
+            'enabled' => true,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        if ($config) {
+            $config->update($blob);
+        } else {
+            $blob['user_id'] = $userId;
+            $blob['capability'] = 'adspy_meta';
+            $blob['created_at'] = date('Y-m-d H:i:s');
+            UserAiConfig::create($blob);
+        }
+
+        Audit::log('ai_config_saved', 'user', (string)$userId, ['capability' => 'adspy_meta', 'provider' => 'meta', 'action' => 'token_exchange']);
+        echo json_encode(['ok' => true, 'message' => 'Token de longa duração salvo (~60 dias).', 'token' => $longToken]);
+        break;
+    }
+        $config = UserAiConfig::where('user_id', $userId)->where('capability', $capability)->first();
 
         $data = [
             'provider' => trim($_POST['provider'] ?? 'cloudflare'),

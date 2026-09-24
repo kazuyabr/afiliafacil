@@ -4,6 +4,7 @@ require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Moderation/ContentModerator.php';
 require_once __DIR__ . '/AdSpyQuota.php';
 require_once __DIR__ . '/SteelBrowser.php';
+require_once __DIR__ . '/AdSpyHealth.php';
 require_once __DIR__ . '/Providers/MetaAdLibraryProvider.php';
 require_once __DIR__ . '/Providers/GoogleTransparencyProvider.php';
 require_once __DIR__ . '/Providers/TikTokCreativeProvider.php';
@@ -76,12 +77,20 @@ class AdSpyManager
 
             $results[$pid] = $r;
             if (empty($r['error'])) {
+                // Grava o estado REAL da busca (usado nas pills depois)
+                AdSpyHealth::record(
+                    $userId,
+                    $pid,
+                    empty($r['ads']) ? 'empty' : 'ok',
+                    empty($r['ads']) ? 'Sem resultados na busca' : (string)(count($r['ads']) . ' anúncios')
+                );
                 // So cachea quando ha resultado: "vazio" precisa ser re-verificado
                 // (usuario pode ter configurado a chave depois)
                 if (!empty($r['ads'])) $this->setCache($cacheKey, $pid, $r);
                 AdSpyQuota::consume($userId, AdSpyQuota::KIND_SEARCH, $query, $pid, count($r['ads'] ?? []), false);
                 $consumed++;
             } else {
+                AdSpyHealth::record($userId, $pid, 'error', (string)$r['error']);
                 $errors[$pid] = $r['error'];
             }
         }
@@ -144,24 +153,47 @@ class AdSpyManager
         $metaSource = $metaByok ? 'byok' : ($metaPlatform ? 'platform' : 'public');
         $googleSource = $serpByok ? 'byok' : ($serpPlatform ? 'platform' : 'none');
 
+        // A pill so fica verde quando o ultimo resultado (real) foi ok —
+        // error/empty/unknown sempre usam cores neutras/alerta.
+        $health = function (string $pid) use ($userId): array {
+            $h = AdSpyHealth::get($userId, $pid);
+            $ok = $h['status'] === 'ok';
+            $color = $h['status'] === 'ok' ? 'var(--success)'
+                : ($h['status'] === 'empty' ? 'var(--warning,#f59e0b)' : 'var(--danger)');
+            return ['ok' => $ok, 'color' => $color, 'status' => $h['status'], 'message' => $h['message'], 'at' => $h['at']];
+        };
+
+        $metaH = $health('meta');
+        $googleH = $health('google');
+        $tiktokH = $health('tiktok');
+
         return [
             'meta' => [
                 'source' => $metaSource,
                 'label' => $metaByok ? 'API oficial (sua chave)' : ($metaPlatform ? 'API oficial (plataforma)' : 'Biblioteca pública'),
-                'ok' => true,
-                'hint' => $metaSource === 'public' ? 'Pode exigir sessão e falhar. Para resultados estáveis, configure seu token em Configurações → Avançado → IA.' : '',
+                'ok' => $metaH['ok'],
+                'color' => $metaH['color'],
+                'last' => $metaH['message'],
+                'at' => $metaH['at'],
+                'hint' => $metaH['status'] === 'error' ? $metaH['message'] : ($metaH['status'] === 'empty' ? 'A chave falhou na ultima busca. Verifique o token.' : ''),
             ],
             'google' => [
                 'source' => $googleSource,
                 'label' => $serpByok ? 'SerpApi (sua chave)' : ($serpPlatform ? 'SerpApi (plataforma)' : 'Sem chave'),
-                'ok' => $googleSource !== 'none',
-                'hint' => $googleSource === 'none' ? 'Busca por domínio (grátis: 250 buscas/mês em serpapi.com). Configure em Configurações → Avançado → IA.' : '',
+                'ok' => $googleH['ok'] && $googleSource !== 'none',
+                'color' => $googleH['color'],
+                'last' => $googleH['message'],
+                'at' => $googleH['at'],
+                'hint' => $googleSource === 'none' ? 'Busca por domínio (grátis: 250 buscas/mês em serpapi.com). Configure em Configurações → Avançado → IA.' : ($googleH['status'] === 'error' ? $googleH['message'] : ''),
             ],
             'tiktok' => [
                 'source' => $steel ? 'steel' : 'scraping',
                 'label' => $steel ? 'Navegador (Steel)' : 'Scraping direto',
-                'ok' => true,
-                'hint' => !$steel ? 'Scraping direto não funciona. Admin: Configurações → Steel Browser.' : '',
+                'ok' => $tiktokH['ok'],
+                'color' => $tiktokH['color'],
+                'last' => $tiktokH['message'],
+                'at' => $tiktokH['at'],
+                'hint' => !$steel ? 'Scraping direto não funciona. Admin: Configurações → Steel Browser.' : ($tiktokH['status'] === 'error' ? $tiktokH['message'] : ''),
             ],
             'steel' => ['configured' => $steel],
         ];

@@ -296,6 +296,27 @@ $theme = $_SESSION['theme'] ?? 'light';
                                     <button class="btn btn-outline btn-sm" onclick="document.getElementById('metaTokenModal').classList.add('active')"><i class="fas fa-circle-question"></i> Como obter</button>
                                 </div>
                                 <div id="metaResult" style="margin-top:10px;"></div>
+
+                                <div class="alert alert-warning" style="margin-top:16px;margin-bottom:12px;">
+                                    <i class="fas fa-clock"></i> <strong>Tokens expiram em ~1 hora.</strong> Se o seu parar de funcionar, gere outro em <a href="https://developers.facebook.com" target="_blank">developers.facebook.com</a> e cole aqui.
+                                </div>
+                                <div style="border:1px dashed var(--border-color);border-radius:var(--radius);padding:12px;margin-top:8px;">
+                                    <h4 style="margin:0 0 8px;font-size:.85rem;"><i class="fas fa-bolt"></i> Tornar token de longa duração (~2 meses)</h4>
+                                    <p style="font-size:.75rem;color:var(--text-secondary);margin:0 0 8px;">
+                                        Com o <strong>App ID</strong> e <strong>App Secret</strong> do seu aplicativo, trocamos o token curto por um de longa duração — sem precisar renovar toda hora.
+                                    </p>
+                                    <div class="grid-2">
+                                        <div class="form-group" style="margin:0;">
+                                            <label>App ID</label>
+                                            <input type="text" id="metaAppId" class="form-control" placeholder="ex: 1234567890123456">
+                                        </div>
+                                        <div class="form-group" style="margin:0;">
+                                            <label>App Secret</label>
+                                            <input type="password" id="metaAppSecret" class="form-control" placeholder="cole o App Secret">
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="exchangeMetaToken()"><i class="fas fa-arrow-rotate-right"></i> Trocar por longa duração</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -767,6 +788,10 @@ $theme = $_SESSION['theme'] ?? 'light';
         body.append('provider', cap === 'adspy_serpapi' ? 'serpapi' : 'meta');
         body.append('api_key', document.getElementById(prefix + 'Key').value);
         body.append('enabled', document.getElementById(prefix + 'Enabled').checked ? '1' : '0');
+        if (cap === 'adspy_meta') {
+            body.append('meta_app_id', (document.getElementById('metaAppId')?.value || '').trim());
+            body.append('meta_app_secret', (document.getElementById('metaAppSecret')?.value || '').trim());
+        }
 
         const ctrl = new AbortController();
         const timeout = setTimeout(() => ctrl.abort(), 30000);
@@ -784,6 +809,35 @@ $theme = $_SESSION['theme'] ?? 'light';
             showToast(err.name === 'AbortError' ? 'Operação demorou demais — tente de novo' : 'Erro de conexão: ' + (err.message || 'desconhecido'), 'error');
         } finally {
             clearTimeout(timeout);
+        }
+    }
+
+    async function exchangeMetaToken() {
+        const appId = document.getElementById('metaAppId').value.trim();
+        const appSecret = document.getElementById('metaAppSecret').value.trim();
+        const short = document.getElementById('metaKey').value.trim();
+        const el = document.getElementById('metaResult');
+
+        if (!appId || !appSecret || !short) {
+            el.innerHTML = '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Preencha App ID, App Secret e o token curto no campo acima.</div>';
+            return;
+        }
+
+        el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Trocando por token de longa duração...';
+        const body = new URLSearchParams({ action: 'meta-exchange', meta_app_id: appId, meta_app_secret: appSecret, short_token: short });
+        try {
+            const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body, signal: new AbortController().signal });
+            const data = await resp.json();
+            el.innerHTML = data.ok
+                ? '<div class="alert alert-success"><i class="fas fa-check"></i> ' + esc(data.message) + '</div>'
+                : '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> ' + esc(data.error || 'Falha') + '</div>';
+            if (data.ok) {
+                document.getElementById('metaKey').value = '';
+                document.getElementById('metaAppSecret').value = '';
+                loadAdSpy('adspy_meta');
+            }
+        } catch (e) {
+            el.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> Erro de conexão.</div>';
         }
     }
 
