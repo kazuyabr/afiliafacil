@@ -30,6 +30,7 @@ $cmTheme = $theme === 'dark' ? 'material-darker' : 'default';
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="<?= $theme ?>">
 <head>
+    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editor Online — <?= htmlspecialchars($page['name']) ?> - AfiliaFacil</title>

@@ -17,7 +17,10 @@ class MetaAdLibraryProvider extends AdSpyProvider
         $token = AdSpyKeys::meta($userId) ?: (getenv('META_AD_ACCESS_TOKEN') ?: '');
         if ($token !== '') {
             $result = $this->searchOfficialApi($query, $options, $token);
-            if ($result['total'] > 0 || $result['error'] === null) return $result;
+            if ($result['error'] === null) return $result;
+            // Erro real da API oficial: NAO cai no scraping silencioso — o usuario
+            // precisa saber que a CHAVE DELE falhou (e por quê).
+            return $result;
         }
 
         return $this->searchPublicLibrary($query, $options);
@@ -38,11 +41,14 @@ class MetaAdLibraryProvider extends AdSpyProvider
         if (!empty($options['started_after'])) $params['ad_delivery_date_min'] = $options['started_after'];
 
         $body = $this->httpGet('https://graph.facebook.com/v21.0/ads_archive?' . http_build_query($params));
-        if ($body === null) return $this->emptyResult('Meta API: falha na requisição (verifique o token)');
+        if ($body === null) return $this->emptyResult('Meta API: sem resposta (timeout/bloqueio). Tente de novo em instantes.');
 
         $json = json_decode($body, true);
-        if (!is_array($json) || isset($json['error'])) {
-            return $this->emptyResult('Meta API: ' . ($json['error']['message'] ?? 'resposta inválida'));
+        if (!is_array($json)) {
+            return $this->emptyResult('Meta API: resposta invalida.');
+        }
+        if (isset($json['error'])) {
+            return $this->emptyResult($this->friendlyMetaError($json['error']));
         }
 
         $ads = [];
@@ -61,7 +67,35 @@ class MetaAdLibraryProvider extends AdSpyProvider
             ]);
         }
 
+        if (empty($ads)) {
+            // Token valido + zero resultados = o app Meta sofre a restricao "somente
+            // anuncios politicos/sociais" sem aprovacao. Aviso honesto, sem falsar erro.
+            return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
+                'hint' => 'Meta: 0 anúncios com sua chave. Se o termo tem anúncios, seu aplicativo Meta provavelmente ainda nao foi aprovado para a biblioteca completa'];
+        }
+
         return ['ads' => $ads, 'total' => count($ads), 'error' => null];
+    }
+
+    /** Traduz o cru JSON de erro da Meta em orientacao pratica. */
+    private function friendlyMetaError(array $err): string
+    {
+        $msg = (string)($err['message'] ?? 'erro desconhecido');
+        $code = (int)($err['code'] ?? 0);
+
+        if ($code === 190 || str_contains($msg, 'access token')) {
+            return 'Meta API: o token foi rejeitado (' . $msg . '). Gere um novo em developers.facebook.com e atualize em Configurações → Avançado → IA (Busca de Anúncios).';
+        }
+        if ($code === 200 || str_contains(mb_strtolower($msg), 'permission')) {
+            return 'Meta API: permissão negada (' . $msg . '). O app precisa da permissao ads_read válida de um usuário com conta ativa.';
+        }
+        if ($code === 613 || $code === 4 || $code === 17 || str_contains(mb_strtolower($msg), 'rate limit')) {
+            return 'Meta API: limite de chamadas temporário atingido. Aguarde alguns minutos e tente de novo.';
+        }
+        if (str_contains(mb_strtolower($msg), 'ads_archive') || str_contains(mb_strtolower($msg), 'library')) {
+            return 'Meta API: o acesso a ads_archive exige app revisado/aprovado pela Meta — sem isso, somente anúncios políticos/sociais ficam visíveis.';
+        }
+        return 'Meta API: ' . $msg;
     }
 
     private function searchPublicLibrary(string $query, array $options): array

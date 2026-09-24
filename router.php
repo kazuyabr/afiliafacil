@@ -98,4 +98,5 @@ if ($file !== null) {
 }
 
 http_response_code(404);
-echo '<!DOCTYPE html><html><head><title>404</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#f8f9fa;"><div style="text-align:center;"><h1 style="font-size:4rem;margin:0;">404</h1><p>Página não encontrada</p><a href="/">Voltar ao início</a></div></body></html>';
+echo '<!DOCTYPE html><html><head>
+    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg"><title>404</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#f8f9fa;"><div style="text-align:center;"><h1 style="font-size:4rem;margin:0;">404</h1><p>Página não encontrada</p><a href="/">Voltar ao início</a></div></body></html>';

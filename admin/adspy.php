@@ -33,6 +33,7 @@ if ($pageId > 0) {
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="<?= $theme ?>">
 <head>
+    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Espionar Anúncios - AfiliaFacil</title>
@@ -201,10 +202,8 @@ if ($pageId > 0) {
     }
 
     function configLinkFor(msg) {
-        // Erros de chave/token viram links diretos para a aba de configuração da IA
-        if (/META_AD_ACCESS_TOKEN|Meta API|token/i.test(msg)) return '/admin/ai-settings.php#adspy';
-        if (/STEEL_API_URL|Steel/i.test(msg)) return null; // Steel é da plataforma (admin), não do usuário
-        if (/SerpApi|Google.*chave/i.test(msg)) return '/admin/ai-settings.php#adspy';
+        // Link "Configurar agora" so quando e problema DE CHAVE de usuario — nao em timeout genérico
+        if (/token foi rejeitado|access token|token.*inv[aá]lido|chave SerpApi rejeitada|SerpApi key/i.test(msg)) return '/admin/ai-settings.php#adspy';
         return null;
     }
 
@@ -220,6 +219,14 @@ if ($pageId > 0) {
             const inner = '<strong>' + esc(pid) + ':</strong> ' + esc(msg) +
                 (link ? ' <a href="' + link + '" style="font-weight:600;text-decoration:underline;">Configurar agora <i class="fas fa-arrow-right" style="font-size:.7rem;"></i></a>' : '');
             document.getElementById('errors').innerHTML += '<div class="alert alert-warning" style="cursor:' + (link ? 'pointer' : 'default') + '"' + (link ? ' onclick="location.href=\'' + link + '\'"' : '') + '>' + inner + '</div>';
+        });
+
+        // Resultados vazios (nao sao erros): info separada, sem "ar" de falha
+        const resultsForHints = data.results || {};
+        Object.entries(resultsForHints).forEach(([pid, r]) => {
+            if (!r || r.error) return;
+            if (!r.empty || !r.hint) return;
+            document.getElementById('errors').innerHTML += '<div class="alert alert-info"><strong>' + esc(pid) + ':</strong> ' + esc(r.hint) + '</div>';
         });
 
         const results = data.results || {};

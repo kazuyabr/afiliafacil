@@ -176,6 +176,7 @@ $exportQs = http_build_query(array_filter([
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="<?= $theme ?>">
 <head>
+    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Auditoria - AfiliaFacil</title>

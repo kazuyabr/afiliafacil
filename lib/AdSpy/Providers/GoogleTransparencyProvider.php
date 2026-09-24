@@ -43,7 +43,21 @@ class GoogleTransparencyProvider extends AdSpyProvider
         }
 
         if ($json === null) return $this->emptyResult('Google: falha na requisição ao SerpApi');
-        if (isset($json['error'])) return $this->emptyResult('Google: ' . $json['error']);
+        if (isset($json['error'])) {
+            $msg = (string)$json['error'];
+            // SerpApi usa a mesma string para "sem nada pra mostrar"
+            if (str_contains($msg, "hasn't returned any results")) {
+                return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
+                    'hint' => 'Google: nenhum anúncio para este domínio/termo'];
+            }
+            if (str_contains($msg, 'Invalid API key')) {
+                return $this->emptyResult('Google: chave SerpApi rejeitada — confira em Configurações → Avançado → IA (Busca de Anúncios).');
+            }
+            if (str_contains($msg, 'limit')) {
+                return $this->emptyResult('Google: limite da conta SerpApi atingido (free = 250/mês).');
+            }
+            return $this->emptyResult('Google: ' . $msg);
+        }
 
         $ads = [];
         foreach ($json['ad_creatives'] ?? [] as $item) {
@@ -62,6 +76,13 @@ class GoogleTransparencyProvider extends AdSpyProvider
                 'status' => 'active',
                 'link' => $item['details_link'] ?? '',
             ]);
+        }
+
+        if (empty($ads)) {
+            // Zero resultados no Google = na maioria das vezes é "sem anuncios para esse dominio",
+            // nao erro de API. Informar como info (nao como falha).
+            return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
+                'hint' => 'Google: nenhum anúncio para este domínio/termo'];
         }
 
         return ['ads' => $ads, 'total' => count($ads), 'error' => null];

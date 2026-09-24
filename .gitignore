@@ -14,3 +14,5 @@ web-search.png
 card-debug.png
 chat-area.png
 *-debug.png
+.cortex/
+*.cortex.hooks/

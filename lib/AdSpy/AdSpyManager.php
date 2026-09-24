@@ -76,7 +76,9 @@ class AdSpyManager
 
             $results[$pid] = $r;
             if (empty($r['error'])) {
-                $this->setCache($cacheKey, $pid, $r);
+                // So cachea quando ha resultado: "vazio" precisa ser re-verificado
+                // (usuario pode ter configurado a chave depois)
+                if (!empty($r['ads'])) $this->setCache($cacheKey, $pid, $r);
                 AdSpyQuota::consume($userId, AdSpyQuota::KIND_SEARCH, $query, $pid, count($r['ads'] ?? []), false);
                 $consumed++;
             } else {

@@ -43,7 +43,7 @@ class TikTokCreativeProvider extends AdSpyProvider
 
         $json = json_decode($body, true);
         if (!is_array($json) || (int)($json['code'] ?? -1) !== 0) {
-            return $this->emptyResult('TikTok: resposta inesperada do Creative Center.');
+            return $this->emptyResult('TikTok: Creative Center exige sessão (a resposta mudou e pode estar bloqueando scraping). Quando o admin ativar o Steel Browser (STEEL_API_URL no sistema), a busca volta a funcionar via navegador.');
         }
 
         $ads = [];
@@ -64,6 +64,11 @@ class TikTokCreativeProvider extends AdSpyProvider
                 'status' => 'active',
                 'link' => !empty($item['id']) ? 'https://ads.tiktok.com/business/creativecenter/topads/' . $item['id'] . '/pc/pt' : '',
             ]);
+        }
+
+        if (empty($ads)) {
+            return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
+                'hint' => 'TikTok: nenhum anúncio para este termo no Creative Center'];
         }
 
         return ['ads' => $ads, 'total' => count($ads), 'error' => null];
