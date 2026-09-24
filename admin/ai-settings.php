@@ -725,13 +725,24 @@ $theme = $_SESSION['theme'] ?? 'light';
 
     async function testAi(capability) {
         const el = document.getElementById(capability === 'chat' ? 'aiTestResult' : capability === 'stt' ? 'sttTestResult' : 'ttsTestResult');
-        el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testando...';
+        el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testando (máx 40s)...';
         const body = new URLSearchParams({ action: 'test', capability });
-        const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body });
-        const data = await resp.json();
-        el.innerHTML = data.ok
-            ? '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + esc(data.message) + '</div>'
-            : '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> ' + esc(data.error || 'Falha') + '</div>';
+        const ctrl = new AbortController();
+        const timeout = setTimeout(() => ctrl.abort(), 40000);
+        try {
+            const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body, signal: ctrl.signal });
+            const data = await resp.json();
+            el.innerHTML = data.ok
+                ? '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + esc(data.message) + '</div>'
+                : '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> ' + esc(data.error || 'Falha') + '</div>';
+        } catch (err) {
+            const msg = err.name === 'AbortError'
+                ? 'O provedor demorou demais para responder (timeout). Verifique a chave e tente de novo.'
+                : 'Erro de conexão: ' + (err.message || 'desconhecido');
+            el.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> ' + esc(msg) + '</div>';
+        } finally {
+            clearTimeout(timeout);
+        }
     }
 
     document.getElementById('aiProvider').addEventListener('change', updateModels);
@@ -756,32 +767,52 @@ $theme = $_SESSION['theme'] ?? 'light';
         body.append('api_key', document.getElementById(prefix + 'Key').value);
         body.append('enabled', document.getElementById(prefix + 'Enabled').checked ? '1' : '0');
 
-        const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body });
-        const data = await resp.json();
-        if (data.success) {
-            showToast('Chave salva', 'success');
-            document.getElementById(prefix + 'Key').value = '';
-            loadAdSpy(cap);
-        } else {
-            showToast(data.error || 'Erro ao salvar', 'error');
+        const ctrl = new AbortController();
+        const timeout = setTimeout(() => ctrl.abort(), 30000);
+        try {
+            const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body, signal: ctrl.signal });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Chave salva', 'success');
+                document.getElementById(prefix + 'Key').value = '';
+                loadAdSpy(cap);
+            } else {
+                showToast(data.error || 'Erro ao salvar', 'error');
+            }
+        } catch (err) {
+            showToast(err.name === 'AbortError' ? 'Operação demorou demais — tente de novo' : 'Erro de conexão: ' + (err.message || 'desconhecido'), 'error');
+        } finally {
+            clearTimeout(timeout);
         }
     }
 
     async function testAdSpy(cap) {
         const prefix = cap === 'adspy_serpapi' ? 'serpapi' : 'meta';
         const el = document.getElementById(prefix + 'Result');
-        el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testando...';
+        el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testando (máx 40s)...';
 
         const body = new URLSearchParams({ action: 'test', capability: cap });
         // Testa a chave digitada no campo (nao exige salvar antes)
         const typedKey = (document.getElementById(prefix + 'Key').value || '').trim();
         if (typedKey) body.append('api_key', typedKey);
 
-        const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body });
-        const data = await resp.json();
-        el.innerHTML = data.ok
-            ? '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + esc(data.message) + '</div>'
-            : '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> ' + esc(data.error || 'Falha') + '</div>';
+        // Timeout do fetch: se a API externa (Meta/SerpApi) travar, o usuário não fica no limbo
+        const ctrl = new AbortController();
+        const timeout = setTimeout(() => ctrl.abort(), 40000);
+        try {
+            const resp = await fetch('/admin/api/ai-settings.php', { method: 'POST', body, signal: ctrl.signal });
+            const data = await resp.json();
+            el.innerHTML = data.ok
+                ? '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + esc(data.message) + '</div>'
+                : '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> ' + esc(data.error || 'Falha') + '</div>';
+        } catch (err) {
+            const msg = err.name === 'AbortError'
+                ? 'O provedor demorou demais para responder (timeout). Verifique a chave e tente de novo.'
+                : 'Erro de conexão: ' + (err.message || 'desconhecido');
+            el.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> ' + esc(msg) + '</div>';
+        } finally {
+            clearTimeout(timeout);
+        }
     }
 
     async function loadUsagePanel() {

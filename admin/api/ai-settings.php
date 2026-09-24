@@ -32,6 +32,10 @@ $capability = in_array($_POST['capability'] ?? $_GET['capability'] ?? '', ['chat
     ? ($_POST['capability'] ?? $_GET['capability'])
     : 'chat';
 
+// Libera o lock da sessao antes de testar chaves (chamadas externas podem demorar —
+// sem isso, o resto do painel do mesmo usuario fica bloqueado)
+session_write_close();
+
 switch ($action) {
     case 'get':
         $config = UserAiConfig::where('user_id', $userId)->where('capability', $capability)->first();
@@ -162,8 +166,11 @@ switch ($action) {
                 }
             } else {
                 $json = is_string($response) ? json_decode($response, true) : null;
-                $error = $json['error'] ?? ($json['error_message'] ?? ('HTTP ' . $status));
-                echo json_encode(['ok' => false, 'error' => ($capability === 'adspy_serpapi' ? 'SerpApi: ' : 'Meta: ') . $error]);
+                // Meta devolve {error:{message,type,...}} — extrai so o texto legivel
+                $errRaw = $json['error'] ?? ($json['error_message'] ?? ('HTTP ' . $status));
+                $error = is_array($errRaw) ? ($errRaw['message'] ?? json_encode($errRaw)) : (string)$errRaw;
+                $label = $capability === 'adspy_serpapi' ? 'SerpApi: ' : 'Meta: ';
+                echo json_encode(['ok' => false, 'error' => $label . $error], JSON_UNESCAPED_UNICODE);
             }
             break;
         }
