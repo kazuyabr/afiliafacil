@@ -18,8 +18,22 @@ class MetaAdLibraryProvider extends AdSpyProvider
         if ($token !== '') {
             $result = $this->searchOfficialApi($query, $options, $token);
             if ($result['error'] === null) return $result;
-            // Erro real da API oficial: NAO cai no scraping silencioso — o usuario
-            // precisa saber que a CHAVE DELE falhou (e por quê).
+
+            // Erro real da API oficial (token expirado, permissao, limite...): em vez de
+            // cair silencioso no scraping direto quebrado, tenta o Steel Browser.
+            if (SteelBrowser::isConfigured()) {
+                $publicUrl = 'https://www.facebook.com/ads/library/?' . http_build_query([
+                    'active_status' => 'active',
+                    'ad_type' => 'all',
+                    'country' => $options['countries'][0] ?? 'BR',
+                    'q' => $query,
+                ]);
+                $steel = SteelBrowser::fetch($publicUrl);
+                if ($steel['ok'] && trim($steel['html']) !== '') {
+                    $scraped = $this->parseHtmlAds($steel['html']);
+                    if ($scraped['total'] > 0) return $scraped;
+                }
+            }
             return $result;
         }
 
@@ -159,6 +173,49 @@ class MetaAdLibraryProvider extends AdSpyProvider
 
         if (empty($ads)) {
             return $this->emptyResult('Meta: nenhum anúncio retornado (a biblioteca pública pode exigir sessão de navegador). Configure META_AD_ACCESS_TOKEN ou STEEL_API_URL.');
+        }
+
+        return ['ads' => $ads, 'total' => count($ads), 'error' => null];
+    }
+
+    /**
+     * Parse de anúncios do HTML completo da biblioteca pública (via Steel Browser).
+     * Extrai item da tabela/card com seletores resistentes a mudancas de DOM.
+     */
+    private function parseHtmlAds(string $html): array
+    {
+        $ads = [];
+
+        // Estrategia 1: elementos com data-ad-archive-id (mais confiavel)
+        if (preg_match_all('/data-ad-archive-id=["\'](\d+)["\']/', $html, $m)) {
+            foreach (array_unique($m[1]) as $id) {
+                $ads[] = $this->normalizeAd([
+                    'id' => $id,
+                    'title' => '',
+                    'text' => '',
+                    'media_type' => 'image',
+                    'link' => 'https://www.facebook.com/ads/library/?id=' . $id,
+                ]);
+            }
+        }
+
+        // Estrategia 2: re coletar por <article> ou card se o primeiro falhar
+        if (empty($ads) && preg_match_all('/<article[^>]*class=["\'][^"\']*card[^"\']*["\'][^>]*>(.*?)<\/article>/is', $html, $m)) {
+            foreach ($m[1] as $cardHtml) {
+                $id = '';
+                $title = '';
+                if (preg_match('/data-ad-archive-id=["\'](\d+)["\']/', $cardHtml, $lm)) $id = $lm[1];
+                if (preg_match('/<h[1-6][^>]*>([^<]{2,80})<\/h1>/i', $cardHtml, $t)) $title = trim($t[1]);
+                $ads[] = $this->normalizeAd([
+                    'id' => $id !== '' ? $id : md5($cardHtml),
+                    'title' => $title,
+                    'link' => $id !== '' ? 'https://www.facebook.com/ads/library/?id=' . $id : '',
+                ]);
+            }
+        }
+
+        if (empty($ads)) {
+            return $this->emptyResult('Meta: a biblioteca pública via navegador retornou HTML sem ads reconhecíveis (mudança de layout). Tente a API Oficial (BYOK) ou revise o SteelBrowser.');
         }
 
         return ['ads' => $ads, 'total' => count($ads), 'error' => null];

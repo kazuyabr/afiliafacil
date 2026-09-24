@@ -65,11 +65,14 @@ class SteelBrowser
         $apiKey = self::apiKey();
         if ($apiKey !== '') $headers[] = 'Authorization: Bearer ' . $apiKey;
 
+        // Steel v1 precisa que o JSON chegue como string direta (sem re-encoding nem CR extra).
+        $jsonBody = json_encode(['url' => $url], JSON_UNESCAPED_UNICODE);
+
         $ch = curl_init();
         curl_setopt_array($ch, [
-            CURLOPT_URL => $base . '/scrape',
+            CURLOPT_URL => $base . '/v1/scrape',
             CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => json_encode(['url' => $url], JSON_UNESCAPED_UNICODE),
+            CURLOPT_POSTFIELDS => $jsonBody,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => $timeout,
             CURLOPT_CONNECTTIMEOUT => 10,
@@ -101,6 +104,10 @@ class SteelBrowser
 
         $json = json_decode($body, true);
         if (is_array($json)) {
+            // Steel v1: {"content":{"html":"..."}}
+            if (isset($json['content']['html']) && is_string($json['content']['html']) && trim($json['content']['html']) !== '') {
+                return $json['content']['html'];
+            }
             foreach (['html', 'content', 'data', 'text', 'markdown', 'result'] as $key) {
                 if (isset($json[$key]) && is_string($json[$key]) && trim($json[$key]) !== '') {
                     return $json[$key];
