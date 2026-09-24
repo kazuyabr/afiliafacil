@@ -314,11 +314,21 @@ if (Database::available()) {
                             </div>
 
                             <h4 style="margin:20px 0 10px;font-size:.95rem;"><i class="fas fa-globe" style="color:var(--accent);"></i> Scraping Ad Spy (Steel Browser — gratuito self-hosted)</h4>
+                            <div class="alert alert-info" style="margin-bottom:12px;">
+                                <i class="fas fa-info-circle"></i> <strong>Está na dúvida sobre qual é qual?</strong> São ferramentas diferentes:<br>
+                                • <strong>SearXNG</strong> (o que abriu no Pinokio) = <strong>buscador de texto</strong> — é o que o Sócio de IA usa para pesquisar na web.<br>
+                                • <strong>Steel Browser</strong> = <strong>navegador invisível</strong> (Chrome sem tela) — é o que usamos para <strong>Meta e TikTok</strong>, sites que bloqueiam crawling simples.
+                            </div>
                             <div class="grid-2">
                                 <div class="form-group">
-                                    <label>URL da API do Steel</label>
+                                    <label>URL da API do Steel Browser</label>
                                     <input type="url" name="steel_api_url" class="form-control" value="<?= htmlspecialchars($settings['steel_api_url'] ?? '') ?>" placeholder="http://host.docker.internal:3000">
-                                    <small style="color:var(--text-secondary);">Rode: <code>docker run -d -p 3000:3000 ghcr.io/steel-dev/steel-browser</code> e cole aqui a URL. Sem custo.</small>
+                                    <small style="color:var(--text-secondary);">
+                                        <strong>Passo a passo (1 minuto):</strong><br>
+                                        1. Abra o terminal e rode: <code>docker run -d --name steel-browser -p 3000:3000 ghcr.io/steel-dev/steel-browser</code><br>
+                                        2. Aguarde 30 segundos, depois toque em <strong>Testar conexão</strong> ao lado.<br>
+                                        3. Se aparecer verde, cole <code>http://host.docker.internal:3000</code> acima e salve.
+                                    </small>
                                 </div>
                                 <div class="form-group">
                                     <label>Chave (só se habilitar auth no server)</label>

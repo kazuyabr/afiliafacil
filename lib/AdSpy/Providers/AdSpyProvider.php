@@ -29,7 +29,9 @@ abstract class AdSpyProvider
         $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        if ($body === false || $status >= 400) return null;
+        // NAO devolvemos null quando o status e de erro: o provedor precisa LER o corpo
+        // de erro da API (a Meta sempre devolve 400 com JSON explicativo do que falhou).
+        if ($body === false) return null;
         return $body;
     }
 

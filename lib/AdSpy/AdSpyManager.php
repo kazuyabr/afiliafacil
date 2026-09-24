@@ -161,7 +161,7 @@ class AdSpyManager
                 'source' => $steel ? 'steel' : 'scraping',
                 'label' => $steel ? 'Navegador (Steel)' : 'Scraping direto',
                 'ok' => true,
-                'hint' => !$steel ? 'Pode exigir sessão e falhar. O admin pode ativar o Steel Browser (STEEL_API_URL).' : '',
+                'hint' => !$steel ? 'Scraping direto não funciona. Admin: Configurações → Steel Browser.' : '',
             ],
             'steel' => ['configured' => $steel],
         ];

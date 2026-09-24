@@ -141,7 +141,7 @@ class Agent
 
             $candidates = AiConfig::candidates($userId);
             if (empty($candidates)) {
-                $this->saveMessage($conversationId, 'agent', 'Não consigo pensar agora: a IA não está configurada. Peça ao administrador para configurar o Cloudflare Workers AI da plataforma (CF_AI_TOKEN) ou configure sua própria chave em Configurações → Avançado → IA (chaves próprias).');
+                $this->saveMessage($conversationId, 'agent', 'Não consigo pensar agora: a IA da plataforma está temporária (pode ser cota diária do dia). Espera até amanhã ou configure sua própria chave em Configurações → Avançado → IA (chaves próprias).');
                 AgentJobs::complete($jobId);
                 return ['success' => true];
             }

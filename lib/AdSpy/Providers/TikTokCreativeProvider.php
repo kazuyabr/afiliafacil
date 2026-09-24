@@ -43,7 +43,7 @@ class TikTokCreativeProvider extends AdSpyProvider
 
         $json = json_decode($body, true);
         if (!is_array($json) || (int)($json['code'] ?? -1) !== 0) {
-            return $this->emptyResult('TikTok: Creative Center exige sessão (a resposta mudou e pode estar bloqueando scraping). Quando o admin ativar o Steel Browser (STEEL_API_URL no sistema), a busca volta a funcionar via navegador.');
+            return $this->emptyResult('TikTok: o Creative Center está bloqueando o acesso direto. Solução: Admin → Configurações → "Steel Browser" → cole a URL lá (guarde o print se precisar de ajuda).');
         }
 
         $ads = [];

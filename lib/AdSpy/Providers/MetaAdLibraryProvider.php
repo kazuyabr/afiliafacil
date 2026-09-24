@@ -41,7 +41,7 @@ class MetaAdLibraryProvider extends AdSpyProvider
         if (!empty($options['started_after'])) $params['ad_delivery_date_min'] = $options['started_after'];
 
         $body = $this->httpGet('https://graph.facebook.com/v21.0/ads_archive?' . http_build_query($params));
-        if ($body === null) return $this->emptyResult('Meta API: sem resposta (timeout/bloqueio). Tente de novo em instantes.');
+        if ($body === null) return $this->emptyResult('Meta API: sem resposta do servidor da Meta (instável agora). Aguarde 1 minuto e toque em "Espionar" de novo — o sistema tentará novamente.');
 
         $json = json_decode($body, true);
         if (!is_array($json)) {
@@ -84,6 +84,9 @@ class MetaAdLibraryProvider extends AdSpyProvider
         $code = (int)($err['code'] ?? 0);
 
         if ($code === 190 || str_contains($msg, 'access token')) {
+            if (stripos($msg, 'expired') !== false) {
+                return 'Meta API: seu token expirou (expira sozinho em ~1-3 meses, não é bug). Gere um novo em developers.facebook.com (em 5 min) e cole em Configurações → Avançado → IA → Busca de Anúncios. Detalhe: ' . $msg;
+            }
             return 'Meta API: o token foi rejeitado (' . $msg . '). Gere um novo em developers.facebook.com e atualize em Configurações → Avançado → IA (Busca de Anúncios).';
         }
         if ($code === 200 || str_contains(mb_strtolower($msg), 'permission')) {

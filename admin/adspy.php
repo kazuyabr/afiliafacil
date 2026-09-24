@@ -203,10 +203,10 @@ if ($pageId > 0) {
     }
 
     function configLinkFor(msg) {
-        // Link "Configurar agora" so quando e problema DE CHAVE de usuario — nao em timeout genérico
-        if (/token foi rejeitado|access token|token.*inv[aá]lido|chave SerpApi rejeitada|SerpApi key/i.test(msg)) return '/admin/ai-settings.php#adspy';
-        // Steel Browser e configuracao de SISTEMA (admin) — link p/ Configuracoes
-        if (/STEEL_API_URL|Steel Browser|sess[aã]o.*scraper/i.test(msg) && IS_ADMIN) return '/admin/settings.php';
+        // Linka todo erro que tem um lugar acionável — nunca deixa o usuario sem direção
+        if (/token|Meta API|ads_read|biblioteca pública|validating access/i.test(msg)) return '/admin/ai-settings.php#adspy';
+        if (/Steel Browser|STEEL_API_URL|sess[aã]o|Creative Center/i.test(msg) && IS_ADMIN) return '/admin/settings.php';
+        if (/SerpApi|Google Ads|quota.*SerpApi/i.test(msg)) return '/admin/ai-settings.php#adspy';
         return null;
     }
 
