@@ -20,7 +20,31 @@ class SteelBrowser
 
     public static function baseUrl(): string
     {
+        // Painel (admin) tem prioridade; .env e o fallback
+        $panel = '';
+        try {
+            if (!class_exists('Settings', false)) {
+                require_once __DIR__ . '/../Settings.php';
+            }
+            $panel = trim((string)\Settings::get('steel_api_url', ''));
+        } catch (Throwable $e) {
+            $panel = '';
+        }
+        if ($panel !== '') return rtrim($panel, '/');
         return rtrim(trim((string)(getenv('STEEL_API_URL') ?: '')), '/');
+    }
+
+    public static function apiKey(): string
+    {
+        try {
+            if (!class_exists('Settings', false)) {
+                require_once __DIR__ . '/../Settings.php';
+            }
+            $panel = trim((string)\Settings::get('steel_api_key', ''));
+            if ($panel !== '') return $panel;
+        } catch (Throwable $e) {
+        }
+        return trim((string)(getenv('STEEL_API_KEY') ?: ''));
     }
 
     /**
@@ -38,7 +62,7 @@ class SteelBrowser
         }
 
         $headers = ['Content-Type: application/json'];
-        $apiKey = trim((string)(getenv('STEEL_API_KEY') ?: ''));
+        $apiKey = self::apiKey();
         if ($apiKey !== '') $headers[] = 'Authorization: Bearer ' . $apiKey;
 
         $ch = curl_init();

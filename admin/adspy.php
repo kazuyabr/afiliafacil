@@ -139,6 +139,7 @@ if ($pageId > 0) {
     <script src="/assets/js/app.js"></script>
     <script>
     const PAGE_ID = <?= $pageId ?>;
+    const IS_ADMIN = <?= Auth::isAdmin() ? 'true' : 'false' ?>;
     let currentAds = [];
 
     function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -204,6 +205,8 @@ if ($pageId > 0) {
     function configLinkFor(msg) {
         // Link "Configurar agora" so quando e problema DE CHAVE de usuario — nao em timeout genérico
         if (/token foi rejeitado|access token|token.*inv[aá]lido|chave SerpApi rejeitada|SerpApi key/i.test(msg)) return '/admin/ai-settings.php#adspy';
+        // Steel Browser e configuracao de SISTEMA (admin) — link p/ Configuracoes
+        if (/STEEL_API_URL|Steel Browser|sess[aã]o.*scraper/i.test(msg) && IS_ADMIN) return '/admin/settings.php';
         return null;
     }
 

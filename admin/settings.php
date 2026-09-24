@@ -29,6 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['company_email'])) Settings::set('company_email', trim($_POST['company_email']));
         if (isset($_POST['company_dpo_email'])) Settings::set('company_dpo_email', trim($_POST['company_dpo_email']));
         if (isset($_POST['company_address'])) Settings::set('company_address', trim($_POST['company_address']));
+        if (array_key_exists('steel_api_url', $_POST)) Settings::set('steel_api_url', trim($_POST['steel_api_url']));
+        if (array_key_exists('steel_api_key', $_POST)) Settings::set('steel_api_key', trim($_POST['steel_api_key']));
     }
 
     header('Location: /admin/settings.php?saved=1');
@@ -311,6 +313,24 @@ if (Database::available()) {
                                 <input type="text" name="company_address" class="form-control" value="<?= htmlspecialchars($settings['company_address'] ?? '') ?>" placeholder="Rua, número, cidade/UF">
                             </div>
 
+                            <h4 style="margin:20px 0 10px;font-size:.95rem;"><i class="fas fa-globe" style="color:var(--accent);"></i> Scraping Ad Spy (Steel Browser — gratuito self-hosted)</h4>
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>URL da API do Steel</label>
+                                    <input type="url" name="steel_api_url" class="form-control" value="<?= htmlspecialchars($settings['steel_api_url'] ?? '') ?>" placeholder="http://host.docker.internal:3000">
+                                    <small style="color:var(--text-secondary);">Rode: <code>docker run -d -p 3000:3000 ghcr.io/steel-dev/steel-browser</code> e cole aqui a URL. Sem custo.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Chave (só se habilitar auth no server)</label>
+                                    <input type="password" name="steel_api_key" class="form-control" value="" placeholder="deixe vazio se não usar auth">
+                                    <small style="color:var(--text-secondary);">Self-hosted padrão não pede chave. O Cloud (steel.dev) usa API key.</small>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+                                <button type="button" class="btn btn-outline btn-sm" onclick="testSteel()" id="steelTestBtn"><i class="fas fa-plug"></i> Testar conexão</button>
+                                <span id="steelTestResult" style="font-size:.8rem;"></span>
+                            </div>
+
                             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Salvar configurações do sistema</button>
                         </form>
                     </div>
@@ -385,6 +405,26 @@ if (Database::available()) {
         const data = await resp.json();
         if (data.success) { showToast('Novos códigos gerados!', 'success'); showRecoveryCodes(data.recovery_codes || []); }
         else showToast(data.error || 'Erro ao regerar', 'error');
+    }
+
+    // Teste de conexao do Steel Browser (self-hosted para o scraping de anuncios).
+    // Letmos a URL digitada, nao a salva — o usuario ve o resultado antes de continuar.
+    async function testSteel() {
+        const btn = document.getElementById('steelTestBtn');
+        const out = document.getElementById('steelTestResult');
+        const urlInput = document.querySelector('input[name="steel_api_url"]');
+        const url = urlInput ? urlInput.value.trim() : '';
+        if (!url) { out.textContent = 'Preencha a URL primeiro'; return; }
+        btn.disabled = true;
+        out.textContent = 'Testando...';
+        try {
+            const resp = await fetch('/admin/api/settings.php?action=steel-test&url=' + encodeURIComponent(url));
+            const data = await resp.json();
+            out.innerHTML = data.ok
+                ? '<span style="color:var(--success);">OK — ' + esc(data.message || 'conectado') + '</span>'
+                : '<span style="color:var(--danger);">' + esc(data.error || 'Falhou') + '</span>';
+        } catch (e) { out.textContent = 'Erro de conexão'; }
+        btn.disabled = false;
     }
 
     load2fa();

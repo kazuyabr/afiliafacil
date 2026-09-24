@@ -70,6 +70,7 @@ $routes = [
     '/admin/api/transcribe.php' => '/admin/api/transcribe.php',
     '/admin/api/tts.php' => '/admin/api/tts.php',
     '/admin/api/videos.php' => '/admin/api/videos.php',
+    '/admin/api/settings.php' => '/admin/api/settings.php',
     '/admin/api/agent.php' => '/admin/api/agent.php',
     '/admin/api/clone.php' => '/admin/api/clone.php',
     '/admin/api/pages.php' => '/admin/api/pages.php',
