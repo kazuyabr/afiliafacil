@@ -210,7 +210,7 @@ if ($pageId > 0) {
         return null;
     }
 
-    function renderResults(data) {
+    async function renderResults(data) {
         const errors = data.errors || {};
         if (errors.quota) {
             document.getElementById('errors').innerHTML = '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> ' + esc(errors.quota) + '</div>';
