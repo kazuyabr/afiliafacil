@@ -232,6 +232,9 @@ if ($pageId > 0) {
             document.getElementById('errors').innerHTML += '<div class="alert alert-info"><strong>' + esc(pid) + ':</strong> ' + esc(r.hint) + '</div>';
         });
 
+        // Pills atualizam com o resultado desta busca (era: so recarregava no load da pagina)
+        await loadProviderStatus();
+
         const results = data.results || {};
         currentAds = [];
         Object.values(results).forEach(r => { (r.ads || []).forEach(a => currentAds.push(a)); });

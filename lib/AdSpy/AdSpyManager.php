@@ -157,9 +157,14 @@ class AdSpyManager
         // error/empty/unknown sempre usam cores neutras/alerta.
         $health = function (string $pid) use ($userId): array {
             $h = AdSpyHealth::get($userId, $pid);
-            $ok = $h['status'] === 'ok';
-            $color = $h['status'] === 'ok' ? 'var(--success)'
-                : ($h['status'] === 'empty' ? 'var(--warning,#f59e0b)' : 'var(--danger)');
+            // Verde so quando: CHAVE configurada + ULTIMO RESULTADO ok (ou empty nao-quebrado).
+            // Se nao buscou ainda (unknown) ou teve erro, nunca verde.
+            $isConfigured = ($pid === 'meta' || $pid === 'google') ? ($pid === 'meta' ? self::isMetaAvailable($userId) : self::isGoogleAvailable($userId)) : true;
+            $ok = $isConfigured && $h['status'] === 'ok';
+            $color = 'var(--success)';
+            if (!$isConfigured || $h['status'] === 'error' || $h['status'] === 'empty' || $h['status'] === 'unknown') {
+                $color = 'var(--danger)';
+            }
             return ['ok' => $ok, 'color' => $color, 'status' => $h['status'], 'message' => $h['message'], 'at' => $h['at']];
         };
 
@@ -184,7 +189,7 @@ class AdSpyManager
                 'color' => $googleH['color'],
                 'last' => $googleH['message'],
                 'at' => $googleH['at'],
-                'hint' => $googleSource === 'none' ? 'Busca por domínio (grátis: 250 buscas/mês em serpapi.com). Configure em Configurações → Avançado → IA.' : ($googleH['status'] === 'error' ? $googleH['message'] : ''),
+                'hint' => $googleSource === 'none' ? 'Busca por domínio (grátis: 250 buscas/mês em serpapi.com). Configure em Configurações → Avançado → IA.' : '',
             ],
             'tiktok' => [
                 'source' => $steel ? 'steel' : 'scraping',
@@ -197,6 +202,22 @@ class AdSpyManager
             ],
             'steel' => ['configured' => $steel],
         ];
+    }
+
+    /** Google: configurado e ativo? */
+    private static function isGoogleAvailable(int $userId): bool
+    {
+        if ($userId <= 0) return false;
+        $key = AdSpyKeys::serpapi($userId);
+        return $key !== '';
+    }
+
+    /** Meta: configurado e ativo? (via BYOK) */
+    private static function isMetaAvailable(int $userId): bool
+    {
+        if ($userId <= 0) return false;
+        $key = AdSpyKeys::meta($userId);
+        return $key !== '';
     }
 
     public function dossier(array $page, int $userId, string $plan): array
