@@ -51,8 +51,20 @@ switch ($action) {
             echo json_encode(['ok' => false, 'error' => 'URL vazia']);
             break;
         }
+        // Em Docker, o "localhost" do cliente nao alcanca o host — traduz p/ host.docker.internal
+        if (getenv('DOCKER') && preg_match('#^https?://(localhost|127\.0\.0\.1)(:|$)#', $url)) {
+            $url = preg_replace('#^https?://(localhost|127\.0\.0\.1)#', 'http://host.docker.internal', $url);
+        }
 
         // Testa de verdade: POST /v1/scrape (nossa camada de browser) nao /health (pode nao existir).
+    // Limpa o estado de saúde dos providers pra proxima busca ser re-avaliada (o usuario configurou agora).
+    // Usa o user_id da sessao — iniciada acima por Auth::check().
+    $userId = (int)(Auth::user()['id'] ?? 0);
+    require_once __DIR__ . '/../../lib/AdSpy/AdSpyHealth.php';
+    foreach (['meta', 'tiktok'] as $pid) {
+        \Settings::set('adspy_health_' . $userId . '_' . $pid, '');
+    }
+
         $ch = curl_init($url . '/v1/scrape');
         curl_setopt_array($ch, [
             CURLOPT_POST => true,

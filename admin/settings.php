@@ -29,7 +29,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['company_email'])) Settings::set('company_email', trim($_POST['company_email']));
         if (isset($_POST['company_dpo_email'])) Settings::set('company_dpo_email', trim($_POST['company_dpo_email']));
         if (isset($_POST['company_address'])) Settings::set('company_address', trim($_POST['company_address']));
-        if (array_key_exists('steel_api_url', $_POST)) Settings::set('steel_api_url', trim($_POST['steel_api_url']));
+        if (array_key_exists('steel_api_url', $_POST)) {
+            $steelUrl = trim($_POST['steel_api_url']);
+            // Em Docker, o "localhost" do cliente nao alcanca o host — traduz p/ host.docker.internal
+            if (getenv('DOCKER') && preg_match('#^https?://(localhost|127\.0\.0\.1)(:|$)#', $steelUrl)) {
+                $steelUrl = preg_replace('#^https?://(localhost|127\.0\.0\.1)#', 'http://host.docker.internal', $steelUrl);
+            }
+            Settings::set('steel_api_url', $steelUrl);
+        }
         if (array_key_exists('steel_api_key', $_POST)) Settings::set('steel_api_key', trim($_POST['steel_api_key']));
     }
 
@@ -317,8 +324,10 @@ if (Database::available()) {
                             <div class="grid-2">
                                 <div class="form-group">
                                     <label>URL da API do Steel</label>
-                                    <input type="url" name="steel_api_url" class="form-control" value="<?= htmlspecialchars($settings['steel_api_url'] ?? '') ?>" placeholder="https://steel.seudominio.com ou http://localhost:19876">
-                                    <small style="color:var(--text-secondary);">Self-hosted local ou em servidor — cole a URL do seu servico.</small>
+                                    <input type="url" name="steel_api_url" class="form-control" value="<?= htmlspecialchars($settings['steel_api_url'] ?? '') ?>" placeholder="http://host.docker.internal:19876">
+                                    <small style="color:var(--text-secondary);">
+                                        <strong>Installed:</strong> cole exatamente o copiar rap<strong>http://host.docker.internal:19876</strong> (porta 19876, evita colisar com seus outros projetos na 3000). O painel traduz <code>localhost</code>/<code>127.0.0.1</code> sozinho quando precisar.
+                                    </small>
                                 </div>
                                 <div class="form-group">
                                     <label>Chave (só se habilitar auth no server)</label>

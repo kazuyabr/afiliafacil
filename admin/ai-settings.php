@@ -298,7 +298,7 @@ $theme = $_SESSION['theme'] ?? 'light';
                                 <div id="metaResult" style="margin-top:10px;"></div>
 
                                 <div class="alert alert-warning" style="margin-top:16px;margin-bottom:12px;">
-                                    <i class="fas fa-clock"></i> <strong>Tokens expiram em ~1 hora.</strong> Se o seu parar de funcionar, gere outro em <a href="https://developers.facebook.com" target="_blank">developers.facebook.com</a> e cole aqui.
+                                    <i class="fas fa-clock"></i> <strong>Atenção sobre expiração do token:</strong> tokens criados na web do Meta Developer Portal expiram em cerca de 1 hora. Para um token que <strong>nao expira</strong>, preencha o App ID + Secret abaixo e clique em "Trocar por longa duração" — essa versão dura ~60 dias. <strong>Para tokens permanentes</strong> (sem expiração at all): crie em <em>Facebook Business (business.facebook.com) → Usuários → System Users</em> — aqueles são tokens de aplicação válidos indefinidamente e o Mini escolhe esse tipo quando disponível.
                                 </div>
                                 <div style="border:1px dashed var(--border-color);border-radius:var(--radius);padding:12px;margin-top:8px;">
                                     <h4 style="margin:0 0 8px;font-size:.85rem;"><i class="fas fa-bolt"></i> Tornar token de longa duração (~2 meses)</h4>

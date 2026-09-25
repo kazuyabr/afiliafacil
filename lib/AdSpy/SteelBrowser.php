@@ -30,8 +30,23 @@ class SteelBrowser
         } catch (Throwable $e) {
             $panel = '';
         }
-        if ($panel !== '') return rtrim($panel, '/');
-        return rtrim(trim((string)(getenv('STEEL_API_URL') ?: '')), '/');
+        $raw = $panel !== '' ? $panel : (getenv('STEEL_API_URL') ?: '');
+        return self::normalizeUrl($raw);
+    }
+
+    /** Quando rodamos em Docker, localhost/127.0.0.1 do Host precisa ser host.docker.internal. */
+    private static function normalizeUrl(string $url): string
+    {
+        $url = rtrim(trim($url), '/');
+        if ($url === '') return '';
+        if (!getenv('DOCKER')) return $url;
+
+        // Dentro do container, "localhost/127.0.0.1" resolve para a propria maquina — traduz p/ o host.
+        return str_replace(
+            ['http://localhost:', 'http://127.0.0.1:', 'https://localhost:', 'https://127.0.0.1:'],
+            ['http://host.docker.internal:', 'http://host.docker.internal:', 'https://host.docker.internal:', 'https://host.docker.internal:'],
+            $url
+        );
     }
 
     public static function apiKey(): string
