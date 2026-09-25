@@ -46,7 +46,7 @@ if (!$isTest) {
 
 switch ($action) {
     case 'steel-test':
-        $url = rtrim(trim((string)($_GET['url'] ?? '')), '/');
+        $url = rtrim(trim((string)($_GET['url'] ?? $_POST['url'] ?? '')), '/');
         if ($url === '') {
             echo json_encode(['ok' => false, 'error' => 'URL vazia']);
             break;

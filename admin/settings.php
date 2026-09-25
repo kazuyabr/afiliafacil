@@ -418,12 +418,19 @@ if (Database::available()) {
         btn.disabled = true;
         out.textContent = 'Testando...';
         try {
-            const resp = await fetch('/admin/api/settings.php?action=steel-test&url=' + encodeURIComponent(url));
+            const resp = await fetch('/admin/api/settings.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=steel-test&url=' + encodeURIComponent(url)
+            });
             const data = await resp.json();
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             out.innerHTML = data.ok
                 ? '<span style="color:var(--success);">OK — ' + esc(data.message || 'conectado') + '</span>'
                 : '<span style="color:var(--danger);">' + esc(data.error || 'Falhou') + '</span>';
-        } catch (e) { out.textContent = 'Erro de conexão'; }
+        } catch (e) {
+            out.textContent = 'Erro de conexão (' + (e.message || e.name || 'desconhecido') + ')';
+        }
         btn.disabled = false;
     }
 
