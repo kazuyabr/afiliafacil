@@ -165,8 +165,8 @@ if ($pageId > 0) {
                 const p = providers[pid] || {};
                 const dot = '<span style="width:8px;height:8px;border-radius:50%;background:' + (p.ok !== false ? 'var(--success)' : 'var(--danger)') + ';display:inline-block;"></span>';
                 const needsConfig = p.ok === false || (p.hint && p.hint.includes('configure'));
-                const target = pid === 'tiktok' ? null : '/admin/ai-settings.php#adspy';
-                const click = needsConfig && target ? ' cursor:pointer;" onclick="location.href=\'' + target + '\'"' : '"';
+        const target = pid === 'meta' || pid === 'google' ? '/admin/ai-settings.php#adspy' : (pid === 'tiktok' ? '/admin/settings.php' : null);
+        const click = needsConfig && target ? ' cursor:pointer;" onclick="location.href=\'' + target + '\'"' : '"';
                 return '<span class="quota-pill" style="padding:6px 12px;font-size:.78rem;transition:all .12s ease' + click + ' title="' + esc(p.hint || p.label || '') + (target && needsConfig ? ' — clique para configurar' : '') + '">' +
                     dot + (icons[pid] || '') + ' <strong>' + esc(pid.toUpperCase()) + '</strong>&nbsp;' + esc(p.label || '') +
                     (needsConfig && target ? ' <i class="fas fa-cog" style="margin-left:4px;opacity:.7;"></i>' : '') + '</span>';
