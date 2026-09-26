@@ -17,27 +17,140 @@ class MetaAdLibraryProvider extends AdSpyProvider
         $token = AdSpyKeys::meta($userId) ?: (getenv('META_AD_ACCESS_TOKEN') ?: '');
         if ($token !== '') {
             $result = $this->searchOfficialApi($query, $options, $token);
-            if ($result['error'] === null) return $result;
-
-            // Erro real da API oficial (token expirado, permissao, limite...): em vez de
-            // cair silencioso no scraping direto quebrado, tenta o Steel Browser.
-            if (SteelBrowser::isConfigured()) {
-                $publicUrl = 'https://www.facebook.com/ads/library/?' . http_build_query([
-                    'active_status' => 'active',
-                    'ad_type' => 'all',
-                    'country' => $options['countries'][0] ?? 'BR',
-                    'q' => $query,
-                ]);
-                $steel = SteelBrowser::fetch($publicUrl);
-                if ($steel['ok'] && trim($steel['html']) !== '') {
-                    $scraped = $this->parseHtmlAds($steel['html']);
-                    if ($scraped['total'] > 0) return $scraped;
-                }
+            // Qualquer resposta "sem dados" da API oficial (erro de permissao OU lista
+            // vazia por app sem Advanced Access) ganha segunda chance na pagina publica
+            // da biblioteca via navegador — espionagem nao depende de App Review.
+            if ($result['error'] !== null || !empty($result['empty'])) {
+                $public = $this->searchPublicPage($query, $options);
+                if ($public !== null) return $public;
             }
             return $result;
         }
 
         return $this->searchPublicLibrary($query, $options);
+    }
+
+    /**
+     * Pagina PUBLICA da biblioteca (a mesma do facebook.com/ads/library), ordenada por
+     * mais impressoes — e o que o navegador renderiza quando alguem pesquisa na mao.
+     */
+    private function publicPageUrl(string $query, array $options): string
+    {
+        return 'https://www.facebook.com/ads/library/?' . http_build_query([
+            'active_status' => 'active',
+            'ad_type' => 'all',
+            'country' => $options['countries'][0] ?? 'BR',
+            'is_targeted_country' => 'false',
+            'media_type' => 'all',
+            'q' => $query,
+            'search_type' => 'keyword_unordered',
+            'sort_data' => ['direction' => 'desc', 'mode' => 'total_impressions'],
+        ]);
+    }
+
+    /**
+     * Busca na pagina publica via Steel Browser e extrai o JSON Relay embutido.
+     * Retorna null quando a pagina nao abriu (bloqueio/mudanca) — preserva o erro original.
+     */
+    private function searchPublicPage(string $query, array $options): ?array
+    {
+        if (!SteelBrowser::isConfigured()) return null;
+
+        $steel = SteelBrowser::fetch($this->publicPageUrl($query, $options));
+        if (!$steel['ok'] || trim($steel['html']) === '') return null;
+
+        $parsed = $this->parseRelayAds($steel['html']);
+        if ($parsed !== null) {
+            if ($parsed['total'] === 0) {
+                // Pagina respondeu com 0 anuncios de verdade (count=0 no JSON) — nao é erro.
+                return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
+                    'hint' => 'Meta: nenhum anúncio ativo para este termo na biblioteca pública'];
+            }
+            return $parsed;
+        }
+
+        $legacy = $this->parseHtmlAds($steel['html']);
+        return $legacy['total'] > 0 ? $legacy : null;
+    }
+
+    /**
+     * Extrai os anuncios do JSON Relay embutido em <script data-sjs> da pagina publica
+     * (estrutura: ad_library_main -> search_results_connection -> edges -> collated_results).
+     * Retorna null quando NEM o marcador da conexao aparece (pagina bloqueada/renderizada).
+     */
+    private function parseRelayAds(string $html): ?array
+    {
+        if (!preg_match_all('#<script[^>]*data-sjs[^>]*>(.*?)</script>#is', $html, $m)) {
+            return null;
+        }
+
+        $found = false;
+        $ads = [];
+        $seen = [];
+
+        foreach ($m[1] as $raw) {
+            $json = json_decode($raw, true);
+            if (!is_array($json)) continue;
+
+            $stack = [$json];
+            $guard = 0;
+            while (!empty($stack) && $guard++ < 4000) {
+                $cur = array_pop($stack);
+                if (!is_array($cur)) continue;
+
+                if (isset($cur['search_results_connection']) && is_array($cur['search_results_connection'])) {
+                    $found = true;
+                    foreach ((array)($cur['search_results_connection']['edges'] ?? []) as $edge) {
+                        $node = $edge['node'] ?? [];
+                        if (!is_array($node)) continue;
+                        foreach ((array)($node['collated_results'] ?? []) as $collected) {
+                            if (!is_array($collected)) continue;
+                            $ad = $this->normalizeRelayAd($collected);
+                            if ($ad !== null && !isset($seen[$ad['id']])) {
+                                $seen[$ad['id']] = true;
+                                $ads[] = $ad;
+                            }
+                        }
+                    }
+                    continue;
+                }
+                foreach ($cur as $v) {
+                    if (is_array($v)) $stack[] = $v;
+                }
+            }
+        }
+
+        if (!$found) return null;
+        return ['ads' => $ads, 'total' => count($ads), 'error' => null];
+    }
+
+    private function normalizeRelayAd(array $collected): ?array
+    {
+        $snap = (array)($collected['snapshot'] ?? []);
+        $id = (string)($collected['ad_archive_id'] ?? '');
+        if ($id === '') return null;
+
+        $images = (array)($snap['images'] ?? []);
+        $videos = (array)($snap['videos'] ?? []);
+        $isVideo = !empty($videos) || strtolower((string)($snap['display_format'] ?? '')) === 'video';
+        $imageUrl = (string)($images[0]['original_image_url'] ?? $images[0]['resized_image_url'] ?? '');
+
+        return $this->normalizeAd([
+            'id' => $id,
+            'advertiser' => (string)($snap['page_name'] ?? ''),
+            'title' => (string)($snap['link_title'] ?? $snap['link_description'] ?? $snap['caption'] ?? ''),
+            'text' => (string)($snap['body']['text'] ?? $snap['caption'] ?? ''),
+            'cta' => (string)($snap['cta_text'] ?? ''),
+            'media_type' => $isVideo ? 'video' : 'image',
+            'media_url' => (string)($videos[0]['video_preview_image_url'] ?? $imageUrl),
+            'thumbnail' => (string)($snap['page_profile_picture_url'] ?? $imageUrl),
+            'landing_page' => (string)($snap['link_url'] ?? ''),
+            'platforms' => (array)($collected['publisher_platform'] ?? []),
+            'started_at' => !empty($collected['start_date']) ? date('Y-m-d', (int)$collected['start_date']) : null,
+            'ended_at' => !empty($collected['end_date']) ? date('Y-m-d', (int)$collected['end_date']) : null,
+            'status' => empty($collected['end_date']) ? 'active' : 'inactive',
+            'link' => 'https://www.facebook.com/ads/library/?id=' . $id,
+        ]);
     }
 
     private function searchOfficialApi(string $query, array $options, string $token): array
@@ -135,14 +248,11 @@ class MetaAdLibraryProvider extends AdSpyProvider
             ['Referer: https://www.facebook.com/ads/library/']
         );
 
-        // Scraping direto bloqueado (403/sessao)? Tenta via Steel Browser (JS rendering).
-        if ($body === null && SteelBrowser::isConfigured()) {
-            $steel = SteelBrowser::fetch('https://www.facebook.com/ads/library/async/search_ads/?' . http_build_query($params));
-            if ($steel['ok']) $body = $steel['html'];
-        }
-
+        // Scraping direto bloqueado (403/sessao)? Pagina publica via Steel Browser.
         if ($body === null) {
-            return $this->emptyResult('Meta: biblioteca pública indisponível (bloqueio ou mudança de layout). Configure META_AD_ACCESS_TOKEN para a API oficial ou STEEL_API_URL para scraping com navegador.');
+            $public = $this->searchPublicPage($query, $options);
+            if ($public !== null) return $public;
+            return $this->emptyResult('Meta: biblioteca pública indisponível (bloqueio ou mudança de layout). Configure STEEL_API_URL (navegador) ou META_AD_ACCESS_TOKEN (API oficial).');
         }
 
         $json = json_decode($body, true);

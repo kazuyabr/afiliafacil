@@ -2,9 +2,12 @@
 
 require_once __DIR__ . '/AdSpyProvider.php';
 require_once __DIR__ . '/../AdSpyKeys.php';
+require_once __DIR__ . '/../../Web/WebSearch.php';
 
 class GoogleTransparencyProvider extends AdSpyProvider
 {
+    /** Dominios que nunca sao anunciantes de oferta (evita desperdicio de credito). */
+    private const NON_ADVERTISERS = ['google.', 'facebook.', 'instagram.', 'youtube.', 'tiktok.', 'twitter.', 'x.com', 'pinterest.', 'wikipedia.', 'gov.br'];
     public function id(): string
     {
         return 'google';
@@ -32,12 +35,30 @@ class GoogleTransparencyProvider extends AdSpyProvider
 
         // A engine do Google Ads Transparency busca por DOMINIO (ex: "hotmart.com").
         // Se o termo nao parece dominio e nao retornou nada, tenta "<termo>.com" uma vez.
-        if ($json === null || (empty($json['ad_creatives']) && $this->looksLikeWord($query))) {
+        if (($json === null || empty($json['ad_creatives'])) && $this->looksLikeWord($query)) {
             $candidate = $this->domainCandidate($query);
             if ($candidate !== null) {
                 $retry = $this->request($apiKey, $candidate, $options);
                 if (!empty($retry['ad_creatives'])) {
                     $json = $retry;
+                }
+            }
+        }
+
+        // Ainda vazio e o termo eh solto (sem advertiser_id fixo)? Resolve dominios
+        // candidatos via busca web (ex.: "achadinhos" -> achadinhosdahora.com.br) e
+        // tenta no max. 2 — cada retry consome 1 credito SerpApi, por isso so em vazio.
+        // ("hasn't returned any results" vem como error do SerpApi, mas eh vazio honesto.)
+        $usedDomain = null;
+        $serpEmpty = $json !== null && empty($json['ad_creatives'])
+            && (empty($json['error']) || str_contains((string)$json['error'], "hasn't returned"));
+        if ($serpEmpty && $this->looksLikeWord($query) && empty($options['advertiser_id'])) {
+            foreach (array_slice($this->resolveDomainsViaWeb($query, $userId), 0, 2) as $dom) {
+                $retry = $this->request($apiKey, $dom, $options);
+                if (!empty($retry['ad_creatives'])) {
+                    $json = $retry;
+                    $usedDomain = $dom;
+                    break;
                 }
             }
         }
@@ -48,7 +69,7 @@ class GoogleTransparencyProvider extends AdSpyProvider
             // SerpApi usa a mesma string para "sem nada pra mostrar"
             if (str_contains($msg, "hasn't returned any results")) {
                 return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
-                    'hint' => 'Google: nenhum anúncio para este domínio/termo'];
+                    'hint' => 'Google: nenhum anúncio aqui. A fonte do Google busca por domínio do anunciante — prefira "loja.com.br" a termos soltos.'];
             }
             if (str_contains($msg, 'Invalid API key')) {
                 return $this->emptyResult('Google: chave SerpApi rejeitada — confira em Configurações → Avançado → IA (Busca de Anúncios).');
@@ -82,10 +103,14 @@ class GoogleTransparencyProvider extends AdSpyProvider
             // Zero resultados no Google = na maioria das vezes é "sem anuncios para esse dominio",
             // nao erro de API. Informar como info (nao como falha).
             return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
-                'hint' => 'Google: nenhum anúncio para este domínio/termo'];
+                'hint' => 'Google: nenhum anúncio aqui. A fonte do Google busca por domínio do anunciante — prefira "loja.com.br" a termos soltos.'];
         }
 
-        return ['ads' => $ads, 'total' => count($ads), 'error' => null];
+        $result = ['ads' => $ads, 'total' => count($ads), 'error' => null];
+        if ($usedDomain !== null) {
+            $result['hint'] = "Google: anúncios encontrados no domínio {$usedDomain} (a fonte do Google só busca por domínio do anunciante).";
+        }
+        return $result;
     }
 
     /**
@@ -97,6 +122,8 @@ class GoogleTransparencyProvider extends AdSpyProvider
             'engine' => 'google_ads_transparency_center',
             'api_key' => $apiKey,
             'num' => 40,
+            // Sem "region": o SerpApi so aceita esse parametro junto com political_ads
+            // (testado — qualquer outro uso retorna "Unsupported region parameter").
         ];
 
         if (!empty($options['advertiser_id'])) {
@@ -143,5 +170,33 @@ class GoogleTransparencyProvider extends AdSpyProvider
         $slug = preg_replace('/[^a-z0-9-]/', '', strtolower(trim($query))) ?? '';
         if ($slug === '') return null;
         return $slug . '.com';
+    }
+
+    /**
+     * Descobre dominios candidatos para um termo solto usando a busca web (SearXNG/BYOK).
+     * Retorna ate 6 dominios unicos de resultados organicos, pulando plataformas que
+     * nunca sao anunciantes de oferta (google/facebook/...).
+     */
+    private function resolveDomainsViaWeb(string $query, int $userId): array
+    {
+        try {
+            $search = WebSearch::search($userId, $query, 8);
+        } catch (Throwable $e) {
+            return [];
+        }
+        if (empty($search['results'])) return [];
+
+        $out = [];
+        foreach ($search['results'] as $item) {
+            $host = parse_url((string)($item['url'] ?? ''), PHP_URL_HOST);
+            if (!is_string($host) || !str_contains($host, '.')) continue;
+            $host = preg_replace('/^www\./i', '', strtolower((string)$host) ?? '') ?? '';
+            if ($host === '') continue;
+            foreach (self::NON_ADVERTISERS as $blocked) {
+                if (str_contains($host, $blocked)) continue 2;
+            }
+            if (!isset($out[$host])) $out[$host] = true;
+        }
+        return array_keys($out);
     }
 }
