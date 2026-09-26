@@ -124,9 +124,9 @@ switch ($action) {
 
         Audit::log('ai_config_saved', 'user', (string)$userId, ['capability' => $capability, 'provider' => $data['provider'], 'model' => $data['model']]);
 
-        // Chave nova/salva invalida o estado antigo (ex.: "token expirado") — a proxima busca re-avalia
-        if ($capability === 'adspy_serpapi') AdSpyHealth::clear($userId, 'google');
-        if ($capability === 'adspy_meta') AdSpyHealth::clear($userId, 'meta');
+        // Chave nova/salva: apaga SÓ erro antigo (ex.: "token expirado") — um estado OK bom não se perde
+        if ($capability === 'adspy_serpapi' && AdSpyHealth::get($userId, 'google')['status'] === 'error') AdSpyHealth::clear($userId, 'google');
+        if ($capability === 'adspy_meta' && AdSpyHealth::get($userId, 'meta')['status'] === 'error') AdSpyHealth::clear($userId, 'meta');
 
         echo json_encode(['success' => true]);
         break;
@@ -193,7 +193,7 @@ switch ($action) {
         }
 
         Audit::log('ai_config_saved', 'user', (string)$userId, ['capability' => 'adspy_meta', 'provider' => 'meta', 'action' => 'token_exchange']);
-        AdSpyHealth::clear($userId, 'meta');
+        AdSpyHealth::record($userId, 'meta', 'ok', 'Token longo (~60 dias) trocado e salvo — chave validada agora.');
         echo json_encode(['ok' => true, 'message' => 'Token de longa duração salvo (~60 dias).', 'token' => $longToken]);
         break;
     }
@@ -288,9 +288,9 @@ switch ($action) {
             curl_close($ch);
 
             if ($response !== false && $status < 400) {
-                // Teste passou = a chave funciona agora — apaga o erro antigo das pills
-                if ($capability === 'adspy_serpapi') AdSpyHealth::clear($userId, 'google');
-                if ($capability === 'adspy_meta') AdSpyHealth::clear($userId, 'meta');
+                // Teste passou = a chave funciona AGORA — pill verde com essa prova (apaga erro antigo)
+                if ($capability === 'adspy_serpapi') AdSpyHealth::record($userId, 'google', 'ok', 'Chave SerpApi testada com sucesso agora.');
+                if ($capability === 'adspy_meta') AdSpyHealth::record($userId, 'meta', 'ok', 'Token Meta testado com sucesso agora (conectou na API).');
                 $json = json_decode($response, true);
                 if ($capability === 'adspy_serpapi') {
                     $plan = $json['plan_name'] ?? 'ok';

@@ -161,22 +161,22 @@ class AdSpyManager
         $googleSource = $serpByok ? 'byok' : ($serpPlatform ? 'platform' : 'none');
 
         // A pill retrata o ESTADO REAL — nunca mente:
-        //   ok/empty = o provider RESpondeu (chave/conexao funcionando; vazio nao e falha)
-        //   error    = falhou de verdade e VOCÊ pode resolver (chave/token) → vermelho
-        //   warn     = falta configurar OU limitacao da propria fonte (TikTok sem sessao) → amarelo
-        //   unknown  = ainda nao buscou (cinza — "pronto para usar")
+        //   configurado sem erro (buscou OK, buscou vazio ou ainda nao buscou) → verde = pronto
+        //   erro de chave/token (Meta expirado) → vermelho = voce resolve
+        //   falta configurar OU limitacao da propria fonte (TikTok sem sessao) → amarelo
         $levelFor = function (string $pid, bool $configured, string $status): string {
-            if ($status === 'error') return $pid === 'tiktok' ? 'warn' : 'error';
             if (!$configured) return 'warn';
-            if ($status === 'ok' || $status === 'empty') return 'ok';
-            return 'idle';
+            if ($status === 'error') return $pid === 'tiktok' ? 'warn' : 'error';
+            return 'ok';
         };
         $stateText = function (array $h, string $level, string $configuredText): string {
-            if ($level === 'idle') return 'Pronto — ainda não buscou. Faça uma busca para ver o estado real.';
+            if ($level === 'ok' && $h['status'] === 'unknown') {
+                return 'Configurado e pronto — ainda não buscou. Faça uma busca para confirmar.';
+            }
             if ($level === 'ok') {
                 return $h['status'] === 'empty'
                     ? ($h['message'] !== '' ? $h['message'] : 'Conectou e respondeu — nenhum anúncio para este termo.')
-                    : (($h['message'] !== '' ? $h['message'] : 'Última busca OK') . '.');
+                    : rtrim($h['message'] !== '' ? $h['message'] : 'Última busca OK', '.') . '.';
             }
             // error ou warn com tentativa registrada → conta o que aconteceu de verdade
             if ($h['status'] === 'error') return $h['message'] !== '' ? $h['message'] : 'Falhou na última busca.';
@@ -215,7 +215,7 @@ class AdSpyManager
                 'level' => $metaLevel,
                 'state' => $stateText($metaH, $metaLevel, 'Fonte pública ativa.'),
                 'action' => $metaAction,
-                'hint' => $metaLevel === 'error' ? 'Token expirado ou sem permissão — renove em Configurações.' : ($metaLevel === 'idle' ? 'Nunca buscou.' : ''),
+                'hint' => $metaLevel === 'error' ? 'Token expirado ou sem permissão — renove em Configurações.' : '',
                 'at' => $metaH['at'],
             ],
             'google' => [
