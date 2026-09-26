@@ -161,15 +161,18 @@ if ($pageId > 0) {
             const data = await resp.json();
             const providers = data.providers || {};
             const icons = { meta: '<i class="fab fa-facebook" style="color:#1877f2;"></i>', google: '<i class="fab fa-google" style="color:#4285f4;"></i>', tiktok: '<i class="fab fa-tiktok"></i>' };
+            // Cores = estado REAL: verde funcionou · amarelo falta configurar · vermelho erro de verdade · cinza nunca buscou
+            const colors = { ok: 'var(--success)', warn: 'var(--warning)', error: 'var(--danger)', idle: 'var(--text-secondary)' };
             document.getElementById('providerStatus').innerHTML = ['meta', 'google', 'tiktok'].map(pid => {
                 const p = providers[pid] || {};
-                const dot = '<span style="width:8px;height:8px;border-radius:50%;background:' + (p.ok !== false ? 'var(--success)' : 'var(--danger)') + ';display:inline-block;"></span>';
-                const needsConfig = p.ok === false || (p.hint && p.hint.includes('configure'));
-        const target = pid === 'meta' || pid === 'google' ? '/admin/ai-settings.php#adspy' : (pid === 'tiktok' ? '/admin/settings.php' : null);
-        const click = needsConfig && target ? ' cursor:pointer;" onclick="location.href=\'' + target + '\'"' : '"';
-                return '<span class="quota-pill" style="padding:6px 12px;font-size:.78rem;transition:all .12s ease' + click + ' title="' + esc(p.hint || p.label || '') + (target && needsConfig ? ' — clique para configurar' : '') + '">' +
+                const level = p.level || 'idle';
+                const dot = '<span style="width:8px;height:8px;border-radius:50%;background:' + (colors[level] || colors.idle) + ';display:inline-block;flex-shrink:0;"></span>';
+                const target = p.action || null;
+                const title = esc([p.state, p.hint].filter(Boolean).join(' — ')) + (target ? ' — clique para resolver' : '');
+                const click = target ? ' cursor:pointer;" onclick="location.href=\'' + target + '\'"' : '"';
+                return '<span class="quota-pill" style="padding:6px 12px;font-size:.78rem;transition:all .12s ease' + click + ' title="' + title + '">' +
                     dot + (icons[pid] || '') + ' <strong>' + esc(pid.toUpperCase()) + '</strong>&nbsp;' + esc(p.label || '') +
-                    (needsConfig && target ? ' <i class="fas fa-cog" style="margin-left:4px;opacity:.7;"></i>' : '') + '</span>';
+                    (target ? ' <i class="fas fa-cog" style="margin-left:4px;opacity:.7;"></i>' : '') + '</span>';
             }).join('');
         } catch (e) {}
     }
@@ -203,9 +206,9 @@ if ($pageId > 0) {
     }
 
     function configLinkFor(msg) {
-        // Linka todo erro que tem um lugar acionável — nunca deixa o usuario sem direção
+        // Linka so quando o erro pede CONFIGURACAO (chave/Steel) — bloqueio de fonte nao se resolve em config
         if (/token|Meta API|ads_read|biblioteca pública|validating access/i.test(msg)) return '/admin/ai-settings.php#adspy';
-        if (/Steel Browser|STEEL_API_URL|sess[aã]o|Creative Center/i.test(msg) && IS_ADMIN) return '/admin/settings.php';
+        if (/Steel Browser|STEEL_API_URL/i.test(msg) && IS_ADMIN) return '/admin/settings.php';
         if (/SerpApi|Google Ads|quota.*SerpApi/i.test(msg)) return '/admin/ai-settings.php#adspy';
         return null;
     }

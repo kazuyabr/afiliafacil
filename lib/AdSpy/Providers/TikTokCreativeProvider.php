@@ -38,12 +38,16 @@ class TikTokCreativeProvider extends AdSpyProvider
         }
 
         if ($body === null) {
-            return $this->emptyResult('TikTok: Creative Center indisponível (bloqueio ou mudança de API). Configure STEEL_API_URL para scraping com navegador.');
+            return $this->emptyResult(SteelBrowser::isConfigured()
+                ? 'TikTok: o Creative Center bloqueou mesmo com o navegador (Steel) — o acesso público exige sessão logada. Enquanto isso, use Meta/Google.'
+                : 'TikTok: Creative Center indisponível (bloqueio ou mudança de API). Configure STEEL_API_URL para scraping com navegador.');
         }
 
         $json = json_decode($body, true);
         if (!is_array($json) || (int)($json['code'] ?? -1) !== 0) {
-            return $this->emptyResult('TikTok: o Creative Center está bloqueando o acesso direto. Solução: Admin → Configurações → "Steel Browser" → cole a URL lá (guarde o print se precisar de ajuda).');
+            return $this->emptyResult(SteelBrowser::isConfigured()
+                ? 'TikTok: resposta do Creative Center veio bloqueada (página de desafio, sem sessão logada) — limitação da fonte pública, não é configuração sua. Tente mais tarde ou busque em Meta/Google.'
+                : 'TikTok: o Creative Center está bloqueando o acesso direto. Solução: Admin → Configurações → "Steel Browser" → cole a URL lá.');
         }
 
         $ads = [];

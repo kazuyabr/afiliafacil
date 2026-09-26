@@ -57,14 +57,6 @@ switch ($action) {
         }
 
         // Testa de verdade: POST /v1/scrape (nossa camada de browser) nao /health (pode nao existir).
-    // Limpa o estado de saúde dos providers pra proxima busca ser re-avaliada (o usuario configurou agora).
-    // Usa o user_id da sessao — iniciada acima por Auth::check().
-    $userId = (int)(Auth::user()['id'] ?? 0);
-    require_once __DIR__ . '/../../lib/AdSpy/AdSpyHealth.php';
-    foreach (['meta', 'tiktok'] as $pid) {
-        \Settings::set('adspy_health_' . $userId . '_' . $pid, '');
-    }
-
         $ch = curl_init($url . '/v1/scrape');
         curl_setopt_array($ch, [
             CURLOPT_POST => true,
@@ -92,6 +84,11 @@ switch ($action) {
         }
 
         if ($status < 400 && $htmlLen > 0) {
+            // Steel ok = erro antigo (bloqueio/scraping) nao representa mais a realidade — reseta p/ proxima busca
+            $userId = (int)(Auth::user()['id'] ?? 0);
+            require_once __DIR__ . '/../../lib/AdSpy/AdSpyHealth.php';
+            \AdSpyHealth::clear($userId, 'meta');
+            \AdSpyHealth::clear($userId, 'tiktok');
             echo json_encode(['ok' => true, 'message' => 'Steel respondeu (página extraiu ' . $htmlLen . ' caracteres)']);
         } elseif ($status >= 400) {
             echo json_encode(['ok' => false, 'error' => 'HTTP ' . $status . ' — ' . ($data['message'] ?? $data['error'] ?? 'erro desconhecido')]);

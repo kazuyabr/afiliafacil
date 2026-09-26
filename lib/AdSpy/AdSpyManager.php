@@ -58,6 +58,13 @@ class AdSpyManager
             $cached = $this->getCache($cacheKey);
             if ($cached !== null) {
                 $results[$pid] = $cached;
+                // Cache tambem e um resultado REAL (a busca foi ok) — senao a pill fica "nunca buscou"
+                AdSpyHealth::record(
+                    $userId,
+                    $pid,
+                    empty($cached['ads']) ? 'empty' : 'ok',
+                    empty($cached['ads']) ? 'Conectou e respondeu — nenhum anúncio para este termo' : (string)(count($cached['ads']) . ' anúncios (cache 24h)')
+                );
                 AdSpyQuota::consume($userId, AdSpyQuota::KIND_SEARCH, $query, $pid, count($cached['ads'] ?? []), true);
                 continue;
             }
@@ -82,7 +89,7 @@ class AdSpyManager
                     $userId,
                     $pid,
                     empty($r['ads']) ? 'empty' : 'ok',
-                    empty($r['ads']) ? 'Sem resultados na busca' : (string)(count($r['ads']) . ' anúncios')
+                    empty($r['ads']) ? 'Conectou e respondeu — nenhum anúncio para este termo' : (string)(count($r['ads']) . ' anúncios')
                 );
                 // So cachea quando ha resultado: "vazio" precisa ser re-verificado
                 // (usuario pode ter configurado a chave depois)
@@ -153,52 +160,81 @@ class AdSpyManager
         $metaSource = $metaByok ? 'byok' : ($metaPlatform ? 'platform' : 'public');
         $googleSource = $serpByok ? 'byok' : ($serpPlatform ? 'platform' : 'none');
 
-        // A pill so fica verde quando o ultimo resultado (real) foi ok —
-        // error/empty/unknown sempre usam cores neutras/alerta.
-        $health = function (string $pid) use ($userId): array {
-            $h = AdSpyHealth::get($userId, $pid);
-            // Verde so quando: CHAVE configurada + ULTIMO RESULTADO ok (ou empty nao-quebrado).
-            // Se nao buscou ainda (unknown) ou teve erro, nunca verde.
-            $isConfigured = ($pid === 'meta' || $pid === 'google') ? ($pid === 'meta' ? self::isMetaAvailable($userId) : self::isGoogleAvailable($userId)) : true;
-            $ok = $isConfigured && $h['status'] === 'ok';
-            $color = 'var(--success)';
-            if (!$isConfigured || $h['status'] === 'error' || $h['status'] === 'empty' || $h['status'] === 'unknown') {
-                $color = 'var(--danger)';
-            }
-            return ['ok' => $ok, 'color' => $color, 'status' => $h['status'], 'message' => $h['message'], 'at' => $h['at']];
+        // A pill retrata o ESTADO REAL — nunca mente:
+        //   ok/empty = o provider RESpondeu (chave/conexao funcionando; vazio nao e falha)
+        //   error    = falhou de verdade e VOCÊ pode resolver (chave/token) → vermelho
+        //   warn     = falta configurar OU limitacao da propria fonte (TikTok sem sessao) → amarelo
+        //   unknown  = ainda nao buscou (cinza — "pronto para usar")
+        $levelFor = function (string $pid, bool $configured, string $status): string {
+            if ($status === 'error') return $pid === 'tiktok' ? 'warn' : 'error';
+            if (!$configured) return 'warn';
+            if ($status === 'ok' || $status === 'empty') return 'ok';
+            return 'idle';
         };
+        $stateText = function (array $h, string $level, string $configuredText): string {
+            if ($level === 'idle') return 'Pronto — ainda não buscou. Faça uma busca para ver o estado real.';
+            if ($level === 'ok') {
+                return $h['status'] === 'empty'
+                    ? ($h['message'] !== '' ? $h['message'] : 'Conectou e respondeu — nenhum anúncio para este termo.')
+                    : (($h['message'] !== '' ? $h['message'] : 'Última busca OK') . '.');
+            }
+            // error ou warn com tentativa registrada → conta o que aconteceu de verdade
+            if ($h['status'] === 'error') return $h['message'] !== '' ? $h['message'] : 'Falhou na última busca.';
+            return $configuredText; // warn sem tentativa = falta configurar
+        };
+        $canAdmin = class_exists('Auth') && \Auth::isAdmin();
 
-        $metaH = $health('meta');
-        $googleH = $health('google');
-        $tiktokH = $health('tiktok');
+        $metaCfg = $metaSource !== 'none';   // Meta sempre tem fallback público (nunca "sem fonte")
+        $googleCfg = $googleSource !== 'none';
+        $tiktokCfg = $steel;                 // sem Steel, o scraping direto do TikTok é bloqueado
+
+        $metaH = AdSpyHealth::get($userId, 'meta');
+        $googleH = AdSpyHealth::get($userId, 'google');
+        $tiktokH = AdSpyHealth::get($userId, 'tiktok');
+
+        $metaLevel = $levelFor('meta', $metaCfg, $metaH['status']);
+        $googleLevel = $levelFor('google', $googleCfg, $googleH['status']);
+        $tiktokLevel = $levelFor('tiktok', $tiktokCfg, $tiktokH['status']);
+
+        // Erro antigo que mandava "configure o Steel" fica obsoleto assim que o Steel existe —
+        // nao pode continuar culpando a config quando a limitacao real e a sessao do Creative Center.
+        if ($tiktokH['status'] === 'error' && $steel && preg_match('/Steel|STEEL/i', $tiktokH['message'])) {
+            $tiktokH['message'] = 'TikTok: o Creative Center bloqueia acesso sem sessão logada (limitação da fonte pública — não é configuração sua). Tente mais tarde ou busque em Meta/Google.';
+        }
+
+        // Cada pill acionavel leva o usuario direto para resolver o problema
+        $metaAction = $metaLevel === 'error' ? '/admin/ai-settings.php#adspy' : null;
+        $googleAction = (!$googleCfg || $googleLevel === 'error') ? '/admin/ai-settings.php#adspy' : null;
+        // Só aponta pra Configurações se AINDA falta configurar o Steel (bloqueio da fonte não se resolve lá)
+        $tiktokAction = (!$steel && $canAdmin) ? '/admin/settings.php' : null;
 
         return [
             'meta' => [
                 'source' => $metaSource,
                 'label' => $metaByok ? 'API oficial (sua chave)' : ($metaPlatform ? 'API oficial (plataforma)' : 'Biblioteca pública'),
-                'ok' => $metaH['ok'],
-                'color' => $metaH['color'],
-                'last' => $metaH['message'],
+                'level' => $metaLevel,
+                'state' => $stateText($metaH, $metaLevel, 'Fonte pública ativa.'),
+                'action' => $metaAction,
+                'hint' => $metaLevel === 'error' ? 'Token expirado ou sem permissão — renove em Configurações.' : ($metaLevel === 'idle' ? 'Nunca buscou.' : ''),
                 'at' => $metaH['at'],
-                'hint' => $metaH['status'] === 'error' ? $metaH['message'] : ($metaH['status'] === 'empty' ? 'A chave falhou na ultima busca. Verifique o token.' : ''),
             ],
             'google' => [
                 'source' => $googleSource,
                 'label' => $serpByok ? 'SerpApi (sua chave)' : ($serpPlatform ? 'SerpApi (plataforma)' : 'Sem chave'),
-                'ok' => $googleH['ok'] && $googleSource !== 'none',
-                'color' => $googleH['color'],
-                'last' => $googleH['message'],
+                'level' => $googleLevel,
+                'state' => $stateText($googleH, $googleLevel, 'Busca por domínio: crie uma chave grátis em serpapi.com (250 buscas/mês) e configure aqui.'),
+                'action' => $googleAction,
+                'hint' => !$googleCfg ? 'Configure sua chave SerpApi (grátis) para liberar as buscas.' : ($googleLevel === 'error' ? $googleH['message'] : ($googleLevel === 'ok' && $googleH['status'] === 'empty' ? 'Dica: busque pelo domínio do anunciante (ex.: loja.com.br) — termos soltos costumam voltar vazio.' : '')),
                 'at' => $googleH['at'],
-                'hint' => $googleSource === 'none' ? 'Busca por domínio (grátis: 250 buscas/mês em serpapi.com). Configure em Configurações → Avançado → IA.' : '',
             ],
             'tiktok' => [
                 'source' => $steel ? 'steel' : 'scraping',
                 'label' => $steel ? 'Navegador (Steel)' : 'Scraping direto',
-                'ok' => $tiktokH['ok'],
-                'color' => $tiktokH['color'],
-                'last' => $tiktokH['message'],
+                'level' => $tiktokLevel,
+                'state' => $stateText($tiktokH, $tiktokLevel, 'Navegador (Steel) não configurado — o acesso direto ao Creative Center é bloqueado.'),
+                'action' => $tiktokAction,
+                'hint' => !$steel ? 'Admin: configure o Steel Browser em Configurações para liberar o TikTok.' : ($tiktokH['status'] === 'error' ? 'O Creative Center continua bloqueado sem sessão logada no navegador.' : ''),
                 'at' => $tiktokH['at'],
-                'hint' => !$steel ? 'Scraping direto não funciona. Admin: Configurações → Steel Browser.' : ($tiktokH['status'] === 'error' ? $tiktokH['message'] : ''),
             ],
             'steel' => ['configured' => $steel],
         ];

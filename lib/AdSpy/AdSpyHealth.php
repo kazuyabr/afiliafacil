@@ -23,6 +23,18 @@ class AdSpyHealth
         }
     }
 
+    /**
+     * Limpa o estado registrado (chave nova/testada com sucesso, Steel ok...).
+     * A proxima busca re-avalia do zero — erro antigo nunca sobrevive a uma correcao.
+     */
+    public static function clear(int $userId, string $provider): void
+    {
+        try {
+            Settings::set(self::key($userId, $provider), '');
+        } catch (Throwable $e) {
+        }
+    }
+
     /** @return array{status:string,message:string,at:string} */
     public static function get(int $userId, string $provider): array
     {
