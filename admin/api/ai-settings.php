@@ -278,7 +278,7 @@ switch ($action) {
             $url = $capability === 'adspy_serpapi'
                 ? 'https://serpapi.com/account?api_key=' . urlencode($key)
                 : ($capability === 'adspy_apify'
-                    ? 'https://api.apify.com/v2/user/me?token=' . urlencode($key)
+                    ? 'https://api.apify.com/v2/users/me?token=' . urlencode($key)
                     : 'https://graph.facebook.com/v21.0/me?access_token=' . urlencode($key));
 
             $ch = curl_init();
@@ -303,7 +303,8 @@ switch ($action) {
                     $left = $json['total_searches_left'] ?? null;
                     echo json_encode(['ok' => true, 'message' => 'SerpApi conectada (' . $plan . ($left !== null ? ' — ' . $left . ' buscas restantes' : '') . ')']);
                 } elseif ($capability === 'adspy_apify') {
-                    $email = $json['email'] ?? $json['username'] ?? 'ok';
+                    // Apify devolve {data:{email,username,...}}
+                    $email = $json['data']['email'] ?? $json['data']['username'] ?? $json['email'] ?? $json['username'] ?? 'ok';
                     echo json_encode(['ok' => true, 'message' => 'Apify conectada (' . $email . ')']);
                 } else {
                     $name = $json['name'] ?? 'ok';
@@ -314,7 +315,9 @@ switch ($action) {
                 // Meta devolve {error:{message,type,...}} — extrai so o texto legivel
                 $errRaw = $json['error'] ?? ($json['error_message'] ?? ('HTTP ' . $status));
                 $error = is_array($errRaw) ? ($errRaw['message'] ?? json_encode($errRaw)) : (string)$errRaw;
-                $label = $capability === 'adspy_serpapi' ? 'SerpApi: ' : 'Meta: ';
+                $label = $capability === 'adspy_serpapi'
+                    ? 'SerpApi: '
+                    : ($capability === 'adspy_apify' ? 'Apify: ' : 'Meta: ');
                 echo json_encode(['ok' => false, 'error' => $label . $error], JSON_UNESCAPED_UNICODE);
             }
             break;
