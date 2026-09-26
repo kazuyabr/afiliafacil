@@ -13,7 +13,8 @@ class TikTokApifyProvider extends AdSpyProvider
     public function search(string $query, array $options = []): array
     {
         $userId = (int)($options['user_id'] ?? 0);
-        $apifyToken = AdSpyKeys::apify($userId);
+        // Aceita token via options (para testar sem salvar) ou do banco
+        $apifyToken = $options['apify_token'] ?? AdSpyKeys::apify($userId);
         if ($apifyToken === '') {
             return $this->emptyResult('TikTok: configure seu token Apify em IA → Busca de Anúncios (conta grátis em apify.com, $5 de crédito/mês).');
         }
@@ -42,7 +43,7 @@ class TikTokApifyProvider extends AdSpyProvider
             return $this->emptyResult('TikTok (Apify): resposta inválida da API Apify. Verifique seu token em IA → Busca de Anúncios.', 'TikTok Creative Center via Apify');
         }
 
-        // Apify retorna array de itens ou {error:...}
+        // Apify retorna array de itens (pode ser vazio []) ou {error:...}
         if (isset($json['error'])) {
             $err = (string)$json['error'];
             if (stripos($err, 'auth') !== false || stripos($err, 'token') !== false || stripos($err, 'unauthorized') !== false || stripos($err, '401') !== false) {
@@ -51,13 +52,14 @@ class TikTokApifyProvider extends AdSpyProvider
             return $this->emptyResult('TikTok (Apify): ' . $err, 'TikTok Creative Center via Apify');
         }
 
-        if (!isset($json[0]) || !is_array($json)) {
-            // Pode retornar {data: [...]} ou array direto
-            if (isset($json['data']) && is_array($json['data'])) {
-                $json = $json['data'];
-            } else {
-                return $this->emptyResult('TikTok (Apify): formato de resposta inesperado. Verifique se o actor fetch_cat/tiktok-ads-library-scraper está acessível.', 'TikTok Creative Center via Apify');
-            }
+        // Se retornou {data: [...]}, usa o data
+        if (isset($json['data']) && is_array($json['data'])) {
+            $json = $json['data'];
+        }
+
+        // Array vazio [] = sucesso sem resultados (não é erro)
+        if (!is_array($json)) {
+            return $this->emptyResult('TikTok (Apify): formato de resposta inesperado. Verifique se o actor fetch_cat/tiktok-ads-library-scraper está acessível.', 'TikTok Creative Center via Apify');
         }
 
         $ads = [];
