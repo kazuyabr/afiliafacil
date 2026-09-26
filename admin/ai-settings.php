@@ -298,60 +298,61 @@ $theme = $_SESSION['theme'] ?? 'light';
                                 <div id="metaResult" style="margin-top:10px;"></div>
 
 <div class="alert alert-warning" style="margin-top:16px;margin-bottom:12px;">
-                                     <i class="fas fa-clock"></i> <strong>Atenção sobre expiração do token:</strong> tokens criados na web do Meta Developer Portal expiram em cerca de 1 hora. Para um token que <strong>nao expira</strong>, preencha o App ID + Secret abaixo e clique em "Trocar por longa duração" — essa versão dura ~60 dias. <strong>Para tokens permanentes</strong> (sem expiração at all): crie em <em>Facebook Business (business.facebook.com) → Usuários → System Users</em> — aqueles são tokens de aplicação válidos indefinidamente e o Mini escolhe esse tipo quando disponível.
-                                 </div>
-                                 <div style="border:1px dashed var(--border-color);border-radius:var(--radius);padding:12px;margin-top:8px;">
-                                     <h4 style="margin:0 0 8px;font-size:.85rem;"><i class="fas fa-bolt"></i> Tornar token de longa duração (~2 meses)</h4>
-                                     <p style="font-size:.75rem;color:var(--text-secondary);margin:0 0 8px;">
-                                         Com o <strong>App ID</strong> e <strong>App Secret</strong> do seu aplicativo, trocamos o token curto por um de longa duração — sem precisar renovar toda hora.
-                                     </p>
-                                     <div class="grid-2">
-                                         <div class="form-group" style="margin:0;">
-                                             <label>App ID</label>
-                                             <input type="text" id="metaAppId" class="form-control" placeholder="ex: 1234567890123456">
-                                         </div>
-                                         <div class="form-group" style="margin:0;">
-                                             <label>App Secret</label>
-                                             <input type="password" id="metaAppSecret" class="form-control" placeholder="cole o App Secret">
-                                         </div>
-                                     </div>
-                                     <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="exchangeMetaToken()"><i class="fas fa-arrow-rotate-right"></i> Trocar por longa duração</button>
-                                 </div>
-                             </div>
-                         </div>
-                     </div>
-                 </div>
+                                      <i class="fas fa-clock"></i> <strong>Atenção sobre expiração do token:</strong> tokens criados na web do Meta Developer Portal expiram em cerca de 1 hora. Para um token que <strong>nao expira</strong>, preencha o App ID + Secret abaixo e clique em "Trocar por longa duração" — essa versão dura ~60 dias. <strong>Para tokens permanentes</strong> (sem expiração at all): crie em <em>Facebook Business (business.facebook.com) → Usuários → System Users</em> — aqueles são tokens de aplicação válidos indefinidamente e o Mini escolhe esse tipo quando disponível.
+                                  </div>
+                                  <div style="border:1px dashed var(--border-color);border-radius:var(--radius);padding:12px;margin-top:8px;">
+                                      <h4 style="margin:0 0 8px;font-size:.85rem;"><i class="fas fa-bolt"></i> Tornar token de longa duração (~2 meses) <span style="font-weight:400;color:var(--text-secondary);font-size:.75rem;">(opcional — só se você tem token curto + App ID/Secret)</span></h4>
+                                      <p style="font-size:.75rem;color:var(--text-secondary);margin:0 0 8px;">
+                                          Se você já tem um token de <strong>System User</strong> (Business Manager → Usuários → System Users), <strong>não precisa disto</strong> — cole direto no campo "Meta Token" acima.
+                                          <br>Isto só serve para trocar um <strong>token curto</strong> (do developers.facebook.com) por um de ~60 dias usando seu App ID + App Secret.
+                                      </p>
+                                      <div class="grid-2">
+                                          <div class="form-group" style="margin:0;">
+                                              <label>App ID <small style="color:var(--text-secondary);">(opcional)</small></label>
+                                              <input type="text" id="metaAppId" class="form-control" placeholder="ex: 1234567890123456">
+                                          </div>
+                                          <div class="form-group" style="margin:0;">
+                                              <label>App Secret <small style="color:var(--text-secondary);">(opcional)</small></label>
+                                              <input type="password" id="metaAppSecret" class="form-control" placeholder="cole o App Secret">
+                                          </div>
+                                      </div>
+                                      <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="exchangeMetaToken()"><i class="fas fa-arrow-rotate-right"></i> Trocar por longa duração</button>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
 
-                 <div class="card" style="margin-bottom:24px;">
-                     <div class="card-header"><h3><i class="fab fa-tiktok"></i> TikTok Creative Center (via Apify)</h3></div>
-                     <div class="card-body">
-                         <div class="alert alert-info">
-                             <i class="fas fa-key"></i> Busca real por palavra-chave no TikTok Creative Center usando o actor <code>fetch_cat/tiktok-ads-library-scraper</code> do Apify.
-                             <br><strong>Como usar:</strong> crie conta grátis em <a href="https://apify.com" target="_blank">apify.com</a> (dá $5 de crédito/mês), gere um token em <a href="https://console.apify.com/account/integrations" target="_blank">Integrações</a> e cole abaixo.
-                         </div>
+<div class="card" style="margin-bottom:24px;">
+                      <div class="card-header"><h3><i class="fab fa-tiktok"></i> TikTok Creative Center (via Apify)</h3></div>
+                      <div class="card-body">
+                          <div class="alert alert-info">
+                              <i class="fas fa-key"></i> Busca real por palavra-chave no TikTok Creative Center usando o actor <code>fetch_cat/tiktok-ads-library-scraper</code> do Apify.
+                              <br><strong>Como usar:</strong> crie conta grátis em <a href="https://apify.com" target="_blank">apify.com</a> (dá $5 de crédito/mês), vá em <a href="https://console.apify.com/account/integrations" target="_blank">Console → Integrações</a>, copie o <strong>API Token</strong> (começa com <code>apify_api_...</code>) e cole abaixo. <strong>Não é</strong> o Actor ID nem Task ID.
+                          </div>
 
-                         <div style="border:1px solid var(--border-color);border-radius:var(--radius);padding:16px;">
-                             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-                                 <strong><i class="fab fa-tiktok"></i> TikTok Creative Center (Apify)</strong>
-                                 <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:400;cursor:pointer;">
-                                     <input type="checkbox" id="apifyEnabled"> Ativo
-                                 </label>
-                             </div>
-                             <p style="font-size:.8rem;color:var(--text-secondary);margin:8px 0;">
-                                 O vídeo direto expira em ~horas; o card mostra a imagem de capa (cover) e link para o detalhe no Creative Center.
-                             </p>
-                             <div class="form-group">
-                                 <label>Apify Token <small id="apifyKeyHint" style="color:var(--text-secondary);"></small></label>
-                                 <input type="password" id="apifyKey" class="form-control" placeholder="deixe vazio para manter">
-                             </div>
-                             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                                 <button class="btn btn-primary btn-sm" onclick="saveAdSpy('adspy_apify')"><i class="fas fa-save"></i> Salvar</button>
-                                 <button class="btn btn-outline btn-sm" onclick="testAdSpy('adspy_apify')"><i class="fas fa-plug"></i> Testar</button>
-                             </div>
-                             <div id="apifyResult" style="margin-top:10px;"></div>
-                         </div>
-                     </div>
-                 </div>
+                          <div style="border:1px solid var(--border-color);border-radius:var(--radius);padding:16px;">
+                              <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                                  <strong><i class="fab fa-tiktok"></i> TikTok Creative Center (Apify)</strong>
+                                  <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:400;cursor:pointer;">
+                                      <input type="checkbox" id="apifyEnabled"> Ativo
+                                  </label>
+                              </div>
+                              <p style="font-size:.8rem;color:var(--text-secondary);margin:8px 0;">
+                                  O vídeo direto expira em ~horas; o card mostra a imagem de capa (cover) e link para o detalhe no Creative Center.
+                              </p>
+                              <div class="form-group">
+                                  <label>Apify Token (API Token) <small id="apifyKeyHint" style="color:var(--text-secondary);"></small></label>
+                                  <input type="password" id="apifyKey" class="form-control" placeholder="apify_api_... (deixe vazio para manter)">
+                              </div>
+                              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                  <button class="btn btn-primary btn-sm" onclick="saveAdSpy('adspy_apify')"><i class="fas fa-save"></i> Salvar</button>
+                                  <button class="btn btn-outline btn-sm" onclick="testAdSpy('adspy_apify')"><i class="fas fa-plug"></i> Testar</button>
+                              </div>
+                              <div id="apifyResult" style="margin-top:10px;"></div>
+                          </div>
+                      </div>
+                  </div>
 
                 <div class="modal-overlay" id="metaTokenModal">
                     <div class="modal">

@@ -34,17 +34,21 @@ class TikTokApifyProvider extends AdSpyProvider
         );
 
         if ($body === null) {
-            return $this->emptyResult('TikTok (Apify): falha na chamada à API Apify.', 'TikTok Creative Center via Apify');
+            return $this->emptyResult('TikTok (Apify): falha na chamada à API Apify. Verifique seu token em IA → Busca de Anúncios.', 'TikTok Creative Center via Apify');
         }
 
         $json = json_decode($body, true);
         if (!is_array($json)) {
-            return $this->emptyResult('TikTok (Apify): resposta inválida da API Apify.', 'TikTok Creative Center via Apify');
+            return $this->emptyResult('TikTok (Apify): resposta inválida da API Apify. Verifique seu token em IA → Busca de Anúncios.', 'TikTok Creative Center via Apify');
         }
 
         // Apify retorna array de itens ou {error:...}
         if (isset($json['error'])) {
-            return $this->emptyResult('TikTok (Apify): ' . $json['error'], 'TikTok Creative Center via Apify');
+            $err = (string)$json['error'];
+            if (stripos($err, 'auth') !== false || stripos($err, 'token') !== false || stripos($err, 'unauthorized') !== false || stripos($err, '401') !== false) {
+                return $this->emptyResult('TikTok (Apify): token inválido ou sem permissão. Gere um novo em console.apify.com/account/integrations e configure em IA → Busca de Anúncios.', 'TikTok Creative Center via Apify');
+            }
+            return $this->emptyResult('TikTok (Apify): ' . $err, 'TikTok Creative Center via Apify');
         }
 
         if (!isset($json[0]) || !is_array($json)) {
@@ -52,7 +56,7 @@ class TikTokApifyProvider extends AdSpyProvider
             if (isset($json['data']) && is_array($json['data'])) {
                 $json = $json['data'];
             } else {
-                return $this->emptyResult('TikTok (Apify): formato de resposta inesperado.', 'TikTok Creative Center via Apify');
+                return $this->emptyResult('TikTok (Apify): formato de resposta inesperado. Verifique se o actor fetch_cat/tiktok-ads-library-scraper está acessível.', 'TikTok Creative Center via Apify');
             }
         }
 
