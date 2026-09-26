@@ -15,15 +15,21 @@ class MetaAdLibraryProvider extends AdSpyProvider
     {
         $userId = (int)($options['user_id'] ?? 0);
         $token = AdSpyKeys::meta($userId) ?: (getenv('META_AD_ACCESS_TOKEN') ?: '');
+        $sourceLabel = 'Biblioteca pública da Meta';
         if ($token !== '') {
             $result = $this->searchOfficialApi($query, $options, $token);
+            $sourceLabel = 'API oficial da Meta';
             // Qualquer resposta "sem dados" da API oficial (erro de permissao OU lista
             // vazia por app sem Advanced Access) ganha segunda chance na pagina publica
             // da biblioteca via navegador — espionagem nao depende de App Review.
             if ($result['error'] !== null || !empty($result['empty'])) {
                 $public = $this->searchPublicPage($query, $options);
-                if ($public !== null) return $public;
+                if ($public !== null) {
+                    $public['source_label'] = 'Biblioteca de Anúncios da Meta (pública)';
+                    return $public;
+                }
             }
+            $result['source_label'] = $sourceLabel;
             return $result;
         }
 
@@ -63,14 +69,19 @@ class MetaAdLibraryProvider extends AdSpyProvider
         if ($parsed !== null) {
             if ($parsed['total'] === 0) {
                 // Pagina respondeu com 0 anuncios de verdade (count=0 no JSON) — nao é erro.
-                return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
+                return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true, 'source_label' => 'Biblioteca de Anúncios da Meta (pública)',
                     'hint' => 'Meta: nenhum anúncio ativo para este termo na biblioteca pública'];
             }
+            $parsed['source_label'] = 'Biblioteca de Anúncios da Meta (pública)';
             return $parsed;
         }
 
         $legacy = $this->parseHtmlAds($steel['html']);
-        return $legacy['total'] > 0 ? $legacy : null;
+        if ($legacy['total'] > 0) {
+            $legacy['source_label'] = 'Biblioteca de Anúncios da Meta (pública)';
+            return $legacy;
+        }
+        return null;
     }
 
     /**
@@ -135,15 +146,35 @@ class MetaAdLibraryProvider extends AdSpyProvider
         $isVideo = !empty($videos) || strtolower((string)($snap['display_format'] ?? '')) === 'video';
         $imageUrl = (string)($images[0]['original_image_url'] ?? $images[0]['resized_image_url'] ?? '');
 
+        // DCO (Dynamic Creative Optimization): mídia está em snapshot.cards[]
+        if ($snap['display_format'] === 'DCO' && empty($images) && !empty($snap['cards'])) {
+            $firstCard = $snap['cards'][0] ?? [];
+            $imageUrl = (string)($firstCard['original_image_url'] ?? $firstCard['resized_image_url'] ?? '');
+            $videoHd = (string)($firstCard['video_hd_url'] ?? '');
+            $videoPreview = (string)($firstCard['video_preview_image_url'] ?? '');
+            if ($videoHd || $videoPreview) {
+                $isVideo = true;
+                $imageUrl = $videoHd ?: $videoPreview;
+            }
+        }
+
+        // Sanitizar placeholders de template (ex.: {{product.description}})
+        $text = (string)($snap['body']['text'] ?? $snap['caption'] ?? '');
+        $title = (string)($snap['link_title'] ?? $snap['link_description'] ?? $snap['caption'] ?? '');
+        $text = $this->sanitizeTemplatePlaceholders($text);
+        $title = $this->sanitizeTemplatePlaceholders($title);
+        // Fallback de texto vazio
+        if ($text === '' && isset($snap['caption'])) $text = $this->sanitizeTemplatePlaceholders((string)$snap['caption']);
+
         return $this->normalizeAd([
             'id' => $id,
             'advertiser' => (string)($snap['page_name'] ?? ''),
-            'title' => (string)($snap['link_title'] ?? $snap['link_description'] ?? $snap['caption'] ?? ''),
-            'text' => (string)($snap['body']['text'] ?? $snap['caption'] ?? ''),
+            'title' => $title,
+            'text' => $text,
             'cta' => (string)($snap['cta_text'] ?? ''),
             'media_type' => $isVideo ? 'video' : 'image',
             'media_url' => (string)($videos[0]['video_preview_image_url'] ?? $imageUrl),
-            'thumbnail' => (string)($snap['page_profile_picture_url'] ?? $imageUrl),
+            'thumbnail' => (string)($imageUrl), // thumb = imagem do anúncio (não avatar)
             'landing_page' => (string)($snap['link_url'] ?? ''),
             'platforms' => (array)($collected['publisher_platform'] ?? []),
             'started_at' => !empty($collected['start_date']) ? date('Y-m-d', (int)$collected['start_date']) : null,
@@ -151,6 +182,13 @@ class MetaAdLibraryProvider extends AdSpyProvider
             'status' => empty($collected['end_date']) ? 'active' : 'inactive',
             'link' => 'https://www.facebook.com/ads/library/?id=' . $id,
         ]);
+    }
+
+    private function sanitizeTemplatePlaceholders(string $text): string
+    {
+        // Remove {{product.*}} e templates similares
+        $text = preg_replace('/\{\{[^}]+\}\}/', '', $text);
+        return trim($text);
     }
 
     private function searchOfficialApi(string $query, array $options, string $token): array
@@ -197,11 +235,11 @@ class MetaAdLibraryProvider extends AdSpyProvider
         if (empty($ads)) {
             // Token valido + zero resultados = o app Meta sofre a restricao "somente
             // anuncios politicos/sociais" sem aprovacao. Aviso honesto, sem falsar erro.
-            return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
+            return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true, 'source_label' => 'API oficial da Meta',
                 'hint' => 'Meta: 0 anúncios com sua chave. Se o termo tem anúncios, seu aplicativo Meta provavelmente ainda nao foi aprovado para a biblioteca completa'];
         }
 
-        return ['ads' => $ads, 'total' => count($ads), 'error' => null];
+        return ['ads' => $ads, 'total' => count($ads), 'error' => null, 'source_label' => 'API oficial da Meta'];
     }
 
     /** Traduz o cru JSON de erro da Meta em orientacao pratica. */
@@ -282,10 +320,10 @@ class MetaAdLibraryProvider extends AdSpyProvider
         }
 
         if (empty($ads)) {
-            return $this->emptyResult('Meta: nenhum anúncio retornado (a biblioteca pública pode exigir sessão de navegador). Configure META_AD_ACCESS_TOKEN ou STEEL_API_URL.');
+            return $this->emptyResult('Meta: nenhum anúncio retornado (a biblioteca pública pode exigir sessão de navegador). Configure META_AD_ACCESS_TOKEN ou STEEL_API_URL.', 'Biblioteca de Anúncios da Meta (pública)');
         }
 
-        return ['ads' => $ads, 'total' => count($ads), 'error' => null];
+        return ['ads' => $ads, 'total' => count($ads), 'error' => null, 'source_label' => 'Biblioteca de Anúncios da Meta (pública)'];
     }
 
     /**

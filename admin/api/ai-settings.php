@@ -29,7 +29,7 @@ if (!Database::available()) {
 
 $userId = (int)Auth::user()['id'];
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
-$capability = in_array($_POST['capability'] ?? $_GET['capability'] ?? '', ['chat', 'stt', 'tts', 'adspy_serpapi', 'adspy_meta'], true)
+$capability = in_array($_POST['capability'] ?? $_GET['capability'] ?? '', ['chat', 'stt', 'tts', 'adspy_serpapi', 'adspy_meta', 'adspy_apify'], true)
     ? ($_POST['capability'] ?? $_GET['capability'])
     : 'chat';
 
@@ -80,6 +80,8 @@ switch ($action) {
         }
         if ($capability === 'adspy_serpapi') {
             $provider = 'serpapi';
+        } elseif ($capability === 'adspy_apify') {
+            $provider = 'apify';
         } elseif ($capability === 'adspy_meta') {
             $provider = 'meta';
         }
@@ -127,6 +129,7 @@ switch ($action) {
         // Chave nova/salva: apaga SÓ erro antigo (ex.: "token expirado") — um estado OK bom não se perde
         if ($capability === 'adspy_serpapi' && AdSpyHealth::get($userId, 'google')['status'] === 'error') AdSpyHealth::clear($userId, 'google');
         if ($capability === 'adspy_meta' && AdSpyHealth::get($userId, 'meta')['status'] === 'error') AdSpyHealth::clear($userId, 'meta');
+        if ($capability === 'adspy_apify' && AdSpyHealth::get($userId, 'tiktok')['status'] === 'error') AdSpyHealth::clear($userId, 'tiktok');
 
         echo json_encode(['success' => true]);
         break;
@@ -257,10 +260,10 @@ switch ($action) {
         break;
 
     case 'test':
-        if ($capability === 'adspy_serpapi' || $capability === 'adspy_meta') {
+        if ($capability === 'adspy_serpapi' || $capability === 'adspy_meta' || $capability === 'adspy_apify') {
             // Aceita a chave DIGITADA no campo (testa sem precisar salvar antes)
             $typedKey = trim((string)($_POST['api_key'] ?? ''));
-            $savedKey = $capability === 'adspy_serpapi' ? AdSpyKeys::serpapi($userId) : AdSpyKeys::meta($userId);
+            $savedKey = $capability === 'adspy_serpapi' ? AdSpyKeys::serpapi($userId) : ($capability === 'adspy_apify' ? AdSpyKeys::apify($userId) : AdSpyKeys::meta($userId));
             $key = $typedKey !== '' ? $typedKey : $savedKey;
 
             if ($key === '') {
@@ -274,7 +277,9 @@ switch ($action) {
 
             $url = $capability === 'adspy_serpapi'
                 ? 'https://serpapi.com/account?api_key=' . urlencode($key)
-                : 'https://graph.facebook.com/v21.0/me?access_token=' . urlencode($key);
+                : ($capability === 'adspy_apify'
+                    ? 'https://api.apify.com/v2/user/me?token=' . urlencode($key)
+                    : 'https://graph.facebook.com/v21.0/me?access_token=' . urlencode($key));
 
             $ch = curl_init();
             curl_setopt_array($ch, [
@@ -291,11 +296,15 @@ switch ($action) {
                 // Teste passou = a chave funciona AGORA — pill verde com essa prova (apaga erro antigo)
                 if ($capability === 'adspy_serpapi') AdSpyHealth::record($userId, 'google', 'ok', 'Chave SerpApi testada com sucesso agora.');
                 if ($capability === 'adspy_meta') AdSpyHealth::record($userId, 'meta', 'ok', 'Token Meta testado com sucesso agora (conectou na API).');
+                if ($capability === 'adspy_apify') AdSpyHealth::record($userId, 'tiktok', 'ok', 'Token Apify testado com sucesso agora.');
                 $json = json_decode($response, true);
                 if ($capability === 'adspy_serpapi') {
                     $plan = $json['plan_name'] ?? 'ok';
                     $left = $json['total_searches_left'] ?? null;
                     echo json_encode(['ok' => true, 'message' => 'SerpApi conectada (' . $plan . ($left !== null ? ' — ' . $left . ' buscas restantes' : '') . ')']);
+                } elseif ($capability === 'adspy_apify') {
+                    $email = $json['email'] ?? $json['username'] ?? 'ok';
+                    echo json_encode(['ok' => true, 'message' => 'Apify conectada (' . $email . ')']);
                 } else {
                     $name = $json['name'] ?? 'ok';
                     echo json_encode(['ok' => true, 'message' => 'Meta conectada (' . $name . ')']);

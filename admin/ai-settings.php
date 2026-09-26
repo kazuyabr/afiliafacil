@@ -297,30 +297,61 @@ $theme = $_SESSION['theme'] ?? 'light';
                                 </div>
                                 <div id="metaResult" style="margin-top:10px;"></div>
 
-                                <div class="alert alert-warning" style="margin-top:16px;margin-bottom:12px;">
-                                    <i class="fas fa-clock"></i> <strong>Atenção sobre expiração do token:</strong> tokens criados na web do Meta Developer Portal expiram em cerca de 1 hora. Para um token que <strong>nao expira</strong>, preencha o App ID + Secret abaixo e clique em "Trocar por longa duração" — essa versão dura ~60 dias. <strong>Para tokens permanentes</strong> (sem expiração at all): crie em <em>Facebook Business (business.facebook.com) → Usuários → System Users</em> — aqueles são tokens de aplicação válidos indefinidamente e o Mini escolhe esse tipo quando disponível.
-                                </div>
-                                <div style="border:1px dashed var(--border-color);border-radius:var(--radius);padding:12px;margin-top:8px;">
-                                    <h4 style="margin:0 0 8px;font-size:.85rem;"><i class="fas fa-bolt"></i> Tornar token de longa duração (~2 meses)</h4>
-                                    <p style="font-size:.75rem;color:var(--text-secondary);margin:0 0 8px;">
-                                        Com o <strong>App ID</strong> e <strong>App Secret</strong> do seu aplicativo, trocamos o token curto por um de longa duração — sem precisar renovar toda hora.
-                                    </p>
-                                    <div class="grid-2">
-                                        <div class="form-group" style="margin:0;">
-                                            <label>App ID</label>
-                                            <input type="text" id="metaAppId" class="form-control" placeholder="ex: 1234567890123456">
-                                        </div>
-                                        <div class="form-group" style="margin:0;">
-                                            <label>App Secret</label>
-                                            <input type="password" id="metaAppSecret" class="form-control" placeholder="cole o App Secret">
-                                        </div>
-                                    </div>
-                                    <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="exchangeMetaToken()"><i class="fas fa-arrow-rotate-right"></i> Trocar por longa duração</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<div class="alert alert-warning" style="margin-top:16px;margin-bottom:12px;">
+                                     <i class="fas fa-clock"></i> <strong>Atenção sobre expiração do token:</strong> tokens criados na web do Meta Developer Portal expiram em cerca de 1 hora. Para um token que <strong>nao expira</strong>, preencha o App ID + Secret abaixo e clique em "Trocar por longa duração" — essa versão dura ~60 dias. <strong>Para tokens permanentes</strong> (sem expiração at all): crie em <em>Facebook Business (business.facebook.com) → Usuários → System Users</em> — aqueles são tokens de aplicação válidos indefinidamente e o Mini escolhe esse tipo quando disponível.
+                                 </div>
+                                 <div style="border:1px dashed var(--border-color);border-radius:var(--radius);padding:12px;margin-top:8px;">
+                                     <h4 style="margin:0 0 8px;font-size:.85rem;"><i class="fas fa-bolt"></i> Tornar token de longa duração (~2 meses)</h4>
+                                     <p style="font-size:.75rem;color:var(--text-secondary);margin:0 0 8px;">
+                                         Com o <strong>App ID</strong> e <strong>App Secret</strong> do seu aplicativo, trocamos o token curto por um de longa duração — sem precisar renovar toda hora.
+                                     </p>
+                                     <div class="grid-2">
+                                         <div class="form-group" style="margin:0;">
+                                             <label>App ID</label>
+                                             <input type="text" id="metaAppId" class="form-control" placeholder="ex: 1234567890123456">
+                                         </div>
+                                         <div class="form-group" style="margin:0;">
+                                             <label>App Secret</label>
+                                             <input type="password" id="metaAppSecret" class="form-control" placeholder="cole o App Secret">
+                                         </div>
+                                     </div>
+                                     <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="exchangeMetaToken()"><i class="fas fa-arrow-rotate-right"></i> Trocar por longa duração</button>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+
+                 <div class="card" style="margin-bottom:24px;">
+                     <div class="card-header"><h3><i class="fab fa-tiktok"></i> TikTok Creative Center (via Apify)</h3></div>
+                     <div class="card-body">
+                         <div class="alert alert-info">
+                             <i class="fas fa-key"></i> Busca real por palavra-chave no TikTok Creative Center usando o actor <code>fetch_cat/tiktok-ads-library-scraper</code> do Apify.
+                             <br><strong>Como usar:</strong> crie conta grátis em <a href="https://apify.com" target="_blank">apify.com</a> (dá $5 de crédito/mês), gere um token em <a href="https://console.apify.com/account/integrations" target="_blank">Integrações</a> e cole abaixo.
+                         </div>
+
+                         <div style="border:1px solid var(--border-color);border-radius:var(--radius);padding:16px;">
+                             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                                 <strong><i class="fab fa-tiktok"></i> TikTok Creative Center (Apify)</strong>
+                                 <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:400;cursor:pointer;">
+                                     <input type="checkbox" id="apifyEnabled"> Ativo
+                                 </label>
+                             </div>
+                             <p style="font-size:.8rem;color:var(--text-secondary);margin:8px 0;">
+                                 O vídeo direto expira em ~horas; o card mostra a imagem de capa (cover) e link para o detalhe no Creative Center.
+                             </p>
+                             <div class="form-group">
+                                 <label>Apify Token <small id="apifyKeyHint" style="color:var(--text-secondary);"></small></label>
+                                 <input type="password" id="apifyKey" class="form-control" placeholder="deixe vazio para manter">
+                             </div>
+                             <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                 <button class="btn btn-primary btn-sm" onclick="saveAdSpy('adspy_apify')"><i class="fas fa-save"></i> Salvar</button>
+                                 <button class="btn btn-outline btn-sm" onclick="testAdSpy('adspy_apify')"><i class="fas fa-plug"></i> Testar</button>
+                             </div>
+                             <div id="apifyResult" style="margin-top:10px;"></div>
+                         </div>
+                     </div>
+                 </div>
 
                 <div class="modal-overlay" id="metaTokenModal">
                     <div class="modal">
@@ -771,8 +802,8 @@ $theme = $_SESSION['theme'] ?? 'light';
     updateSttModels();
     updateTtsModels();
 
-    async function loadAdSpy(cap) {
-        const prefix = cap === 'adspy_serpapi' ? 'serpapi' : 'meta';
+async function loadAdSpy(cap) {
+        const prefix = cap === 'adspy_serpapi' ? 'serpapi' : (cap === 'adspy_apify' ? 'apify' : 'meta');
         const resp = await fetch('/admin/api/ai-settings.php?action=get&capability=' + cap);
         const data = await resp.json();
         if (!data.success) return;
@@ -781,11 +812,12 @@ $theme = $_SESSION['theme'] ?? 'light';
     }
 
     async function saveAdSpy(cap) {
-        const prefix = cap === 'adspy_serpapi' ? 'serpapi' : 'meta';
+        const prefix = cap === 'adspy_serpapi' ? 'serpapi' : (cap === 'adspy_apify' ? 'apify' : 'meta');
+        const providerMap = { 'adspy_serpapi': 'serpapi', 'adspy_apify': 'apify', 'adspy_meta': 'meta' };
         const body = new URLSearchParams();
         body.append('action', 'save');
         body.append('capability', cap);
-        body.append('provider', cap === 'adspy_serpapi' ? 'serpapi' : 'meta');
+        body.append('provider', providerMap[cap] ?? 'meta');
         body.append('api_key', document.getElementById(prefix + 'Key').value);
         body.append('enabled', document.getElementById(prefix + 'Enabled').checked ? '1' : '0');
         if (cap === 'adspy_meta') {
@@ -841,8 +873,8 @@ $theme = $_SESSION['theme'] ?? 'light';
         }
     }
 
-    async function testAdSpy(cap) {
-        const prefix = cap === 'adspy_serpapi' ? 'serpapi' : 'meta';
+async function testAdSpy(cap) {
+        const prefix = cap === 'adspy_serpapi' ? 'serpapi' : (cap === 'adspy_apify' ? 'apify' : 'meta');
         const el = document.getElementById(prefix + 'Result');
         el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testando (máx 40s)...';
 
@@ -900,12 +932,13 @@ $theme = $_SESSION['theme'] ?? 'light';
         } catch (e) {}
     }
 
-    loadCatalog().then(() => {
+loadCatalog().then(() => {
         loadConfig('chat');
         loadConfig('stt');
         loadConfig('tts');
         loadAdSpy('adspy_serpapi');
         loadAdSpy('adspy_meta');
+        loadAdSpy('adspy_apify');
         loadUsagePanel();
         // Hash deep-link: #adspy, #stt, #tts, #chat abrem a aba direto
         const h = (location.hash || '').replace('#', '');

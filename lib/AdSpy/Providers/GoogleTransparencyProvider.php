@@ -63,21 +63,21 @@ class GoogleTransparencyProvider extends AdSpyProvider
             }
         }
 
-        if ($json === null) return $this->emptyResult('Google: falha na requisição ao SerpApi');
+        if ($json === null) return $this->emptyResult('Google: falha na requisição ao SerpApi', 'Google Ads Transparency Center via SerpApi');
         if (isset($json['error'])) {
             $msg = (string)$json['error'];
             // SerpApi usa a mesma string para "sem nada pra mostrar"
             if (str_contains($msg, "hasn't returned any results")) {
-                return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
+                return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true, 'source_label' => 'Google Ads Transparency Center via SerpApi',
                     'hint' => 'Google: nenhum anúncio aqui. A fonte do Google busca por domínio do anunciante — prefira "loja.com.br" a termos soltos.'];
             }
             if (str_contains($msg, 'Invalid API key')) {
-                return $this->emptyResult('Google: chave SerpApi rejeitada — confira em Configurações → Avançado → IA (Busca de Anúncios).');
+                return $this->emptyResult('Google: chave SerpApi rejeitada — confira em Configurações → Avançado → IA (Busca de Anúncios).', 'Google Ads Transparency Center via SerpApi');
             }
             if (str_contains($msg, 'limit')) {
-                return $this->emptyResult('Google: limite da conta SerpApi atingido (free = 250/mês).');
+                return $this->emptyResult('Google: limite da conta SerpApi atingido (free = 250/mês).', 'Google Ads Transparency Center via SerpApi');
             }
-            return $this->emptyResult('Google: ' . $msg);
+            return $this->emptyResult('Google: ' . $msg, 'Google Ads Transparency Center via SerpApi');
         }
 
         $ads = [];
@@ -102,11 +102,11 @@ class GoogleTransparencyProvider extends AdSpyProvider
         if (empty($ads)) {
             // Zero resultados no Google = na maioria das vezes é "sem anuncios para esse dominio",
             // nao erro de API. Informar como info (nao como falha).
-            return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
+            return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true, 'source_label' => 'Google Ads Transparency Center via SerpApi',
                 'hint' => 'Google: nenhum anúncio aqui. A fonte do Google busca por domínio do anunciante — prefira "loja.com.br" a termos soltos.'];
         }
 
-        $result = ['ads' => $ads, 'total' => count($ads), 'error' => null];
+        $result = ['ads' => $ads, 'total' => count($ads), 'error' => null, 'source_label' => 'Google Ads Transparency Center via SerpApi'];
         if ($usedDomain !== null) {
             $result['hint'] = "Google: anúncios encontrados no domínio {$usedDomain} (a fonte do Google só busca por domínio do anunciante).";
         }
@@ -125,6 +125,10 @@ class GoogleTransparencyProvider extends AdSpyProvider
             // Sem "region": o SerpApi so aceita esse parametro junto com political_ads
             // (testado — qualquer outro uso retorna "Unsupported region parameter").
         ];
+
+        if (!empty($options['platform'])) {
+            $params['platform'] = $options['platform'];
+        }
 
         if (!empty($options['advertiser_id'])) {
             $params['advertiser_id'] = $options['advertiser_id'];

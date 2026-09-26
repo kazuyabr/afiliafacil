@@ -7,7 +7,7 @@ require_once __DIR__ . '/SteelBrowser.php';
 require_once __DIR__ . '/AdSpyHealth.php';
 require_once __DIR__ . '/Providers/MetaAdLibraryProvider.php';
 require_once __DIR__ . '/Providers/GoogleTransparencyProvider.php';
-require_once __DIR__ . '/Providers/TikTokCreativeProvider.php';
+require_once __DIR__ . '/Providers/TikTokApifyProvider.php';
 
 class AdSpyManager
 {
@@ -21,7 +21,7 @@ class AdSpyManager
         $this->providers = [
             'meta' => new MetaAdLibraryProvider(),
             'google' => new GoogleTransparencyProvider(),
-            'tiktok' => new TikTokCreativeProvider(),
+            'tiktok' => new TikTokApifyProvider(),
         ];
     }
 
@@ -156,14 +156,16 @@ class AdSpyManager
         // A chave SerpApi da plataforma serve SOMENTE ao sistema/cron (user 0).
         $serpPlatform = $userId === 0 && trim((string)(getenv('SERPAPI_KEY') ?: '')) !== '';
         $steel = SteelBrowser::isConfigured();
+        $apifyByok = AdSpyKeys::apify($userId) !== '';
 
         $metaSource = $metaByok ? 'byok' : ($metaPlatform ? 'platform' : 'public');
         $googleSource = $serpByok ? 'byok' : ($serpPlatform ? 'platform' : 'none');
+        $tiktokSource = $apifyByok ? 'byok' : 'none';
 
         // A pill retrata o ESTADO REAL — nunca mente:
         //   configurado sem erro (buscou OK, buscou vazio ou ainda nao buscou) → verde = pronto
         //   erro de chave/token (Meta expirado) → vermelho = voce resolve
-        //   falta configurar OU limitacao da propria fonte (TikTok sem sessao) → amarelo
+        //   falta configurar OU limitacao da propria fonte → amarelo
         $levelFor = function (string $pid, bool $configured, string $status): string {
             if (!$configured) return 'warn';
             if ($status === 'error') return $pid === 'tiktok' ? 'warn' : 'error';
@@ -184,9 +186,9 @@ class AdSpyManager
         };
         $canAdmin = class_exists('Auth') && \Auth::isAdmin();
 
-        $metaCfg = $metaSource !== 'none';   // Meta sempre tem fallback público (nunca "sem fonte")
+        $metaCfg = $metaSource !== 'none';
         $googleCfg = $googleSource !== 'none';
-        $tiktokCfg = $steel;                 // sem Steel, o scraping direto do TikTok é bloqueado
+        $tiktokCfg = $apifyByok; // TikTok agora via Apify BYOK
 
         $metaH = AdSpyHealth::get($userId, 'meta');
         $googleH = AdSpyHealth::get($userId, 'google');
@@ -196,17 +198,10 @@ class AdSpyManager
         $googleLevel = $levelFor('google', $googleCfg, $googleH['status']);
         $tiktokLevel = $levelFor('tiktok', $tiktokCfg, $tiktokH['status']);
 
-        // Erro antigo que mandava "configure o Steel" fica obsoleto assim que o Steel existe —
-        // nao pode continuar culpando a config quando a limitacao real e a sessao do Creative Center.
-        if ($tiktokH['status'] === 'error' && $steel && preg_match('/Steel|STEEL/i', $tiktokH['message'])) {
-            $tiktokH['message'] = 'TikTok: o Creative Center bloqueia acesso sem sessão logada (limitação da fonte pública — não é configuração sua). Tente mais tarde ou busque em Meta/Google.';
-        }
-
         // Cada pill acionavel leva o usuario direto para resolver o problema
         $metaAction = $metaLevel === 'error' ? '/admin/ai-settings.php#adspy' : null;
         $googleAction = (!$googleCfg || $googleLevel === 'error') ? '/admin/ai-settings.php#adspy' : null;
-        // Só aponta pra Configurações se AINDA falta configurar o Steel (bloqueio da fonte não se resolve lá)
-        $tiktokAction = (!$steel && $canAdmin) ? '/admin/settings.php' : null;
+        $tiktokAction = (!$apifyByok && $canAdmin) ? '/admin/ai-settings.php#adspy' : null;
 
         return [
             'meta' => [
@@ -228,12 +223,12 @@ class AdSpyManager
                 'at' => $googleH['at'],
             ],
             'tiktok' => [
-                'source' => $steel ? 'steel' : 'scraping',
-                'label' => $steel ? 'Navegador (Steel)' : 'Scraping direto',
+                'source' => $tiktokSource,
+                'label' => $apifyByok ? 'TikTok Creative Center via Apify' : 'Sem token Apify',
                 'level' => $tiktokLevel,
-                'state' => $stateText($tiktokH, $tiktokLevel, 'Navegador (Steel) não configurado — o acesso direto ao Creative Center é bloqueado.'),
+                'state' => $stateText($tiktokH, $tiktokLevel, $apifyByok ? 'Configurado — busca real por palavra-chave.' : 'Configure seu token Apify (conta grátis em apify.com, $5 de crédito/mês) para liberar o TikTok.'),
                 'action' => $tiktokAction,
-                'hint' => !$steel ? 'Admin: configure o Steel Browser em Configurações para liberar o TikTok.' : ($tiktokH['status'] === 'error' ? 'O Creative Center continua bloqueado sem sessão logada no navegador.' : ''),
+                'hint' => !$apifyByok ? 'Configure seu token Apify em IA → Busca de Anúncios.' : ($tiktokH['status'] === 'error' ? $tiktokH['message'] : ''),
                 'at' => $tiktokH['at'],
             ],
             'steel' => ['configured' => $steel],

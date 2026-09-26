@@ -35,9 +35,13 @@ abstract class AdSpyProvider
         return $body;
     }
 
-    protected function emptyResult(string $error = null): array
+    protected function emptyResult(string $error = null, string $sourceLabel = null): array
     {
-        return ['ads' => [], 'total' => 0, 'error' => $error];
+        $result = ['ads' => [], 'total' => 0, 'error' => $error];
+        if ($sourceLabel !== null) {
+            $result['source_label'] = $sourceLabel;
+        }
+        return $result;
     }
 
     protected function normalizeAd(array $ad): array

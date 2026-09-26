@@ -98,17 +98,25 @@ if ($pageId > 0) {
                             </div>
                         </div>
 
-                        <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
-                            <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" class="provider-check" value="meta" checked> <i class="fab fa-facebook" style="color:#1877f2;"></i> Meta</label>
-                            <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" class="provider-check" value="google" checked> <i class="fab fa-google" style="color:#4285f4;"></i> Google</label>
-                            <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" class="provider-check" value="tiktok" checked> <i class="fab fa-tiktok"></i> TikTok</label>
-                            <select id="adspyCountry" class="form-control" style="width:auto;">
-                                <option value="BR" selected>Brasil</option>
-                                <option value="US">Estados Unidos</option>
-                                <option value="PT">Portugal</option>
-                                <option value="ALL">Todos</option>
-                            </select>
-                        </div>
+<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
+                             <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" class="provider-check" value="meta" checked> <i class="fab fa-facebook" style="color:#1877f2;"></i> Meta</label>
+                             <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" class="provider-check" value="google" checked> <i class="fab fa-google" style="color:#4285f4;"></i> Google</label>
+                             <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" class="provider-check" value="tiktok" checked> <i class="fab fa-tiktok"></i> TikTok</label>
+                             <select id="adspyCountry" class="form-control" style="width:auto;">
+                                 <option value="BR" selected>Brasil</option>
+                                 <option value="US">Estados Unidos</option>
+                                 <option value="PT">Portugal</option>
+                                 <option value="ALL">Todos</option>
+                             </select>
+                             <select id="adspyGooglePlatform" class="form-control" style="width:auto;" title="Filtro de posicionamento do Google (SerpApi)">
+                                 <option value="">Google: Todos os posicionamentos</option>
+                                 <option value="SEARCH">Pesquisa</option>
+                                 <option value="YOUTUBE">YouTube</option>
+                                 <option value="DISPLAY">Display</option>
+                                 <option value="SHOPPING">Shopping</option>
+                                 <option value="MAPS">Maps</option>
+                             </select>
+                         </div>
                     </div>
                 </div>
 
@@ -177,7 +185,7 @@ if ($pageId > 0) {
         } catch (e) {}
     }
 
-    async function runSearch() {
+async function runSearch() {
         const query = document.getElementById('adspyQuery').value.trim();
         if (!query) { showToast('Informe um termo, domínio ou anunciante', 'warning'); return; }
 
@@ -194,6 +202,8 @@ if ($pageId > 0) {
             body.append('query', query);
             providers.forEach(p => body.append('providers[]', p));
             body.append('country', document.getElementById('adspyCountry').value);
+            const googlePlatform = document.getElementById('adspyGooglePlatform').value;
+            if (googlePlatform) body.append('platform', googlePlatform);
 
             const resp = await fetch('/admin/api/adspy.php', { method: 'POST', body });
             const data = await resp.json();
@@ -213,7 +223,7 @@ if ($pageId > 0) {
         return null;
     }
 
-    async function renderResults(data) {
+async function renderResults(data) {
         const errors = data.errors || {};
         if (errors.quota) {
             document.getElementById('errors').innerHTML = '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> ' + esc(errors.quota) + '</div>';
@@ -235,10 +245,22 @@ if ($pageId > 0) {
             document.getElementById('errors').innerHTML += '<div class="alert alert-info"><strong>' + esc(pid) + ':</strong> ' + esc(r.hint) + '</div>';
         });
 
+        // Mostrar fonte dos resultados (source_label) acima das abas
+        const results = data.results || {};
+        let sourceHtml = '';
+        Object.entries(results).forEach(([pid, r]) => {
+            if (!r || r.error || !r.source_label) return;
+            sourceHtml += '<span class="quota-pill" style="font-size:.75rem;padding:4px 10px;background:var(--bg-secondary);">' +
+                (pid === 'meta' ? '<i class="fab fa-facebook" style="color:#1877f2;"></i>' : (pid === 'google' ? '<i class="fab fa-google" style="color:#4285f4;"></i>' : '<i class="fab fa-tiktok"></i>')) +
+                ' ' + esc(r.source_label) + '</span>';
+        });
+        if (sourceHtml) {
+            document.getElementById('errors').innerHTML = '<div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;">' + sourceHtml + '</div>' + document.getElementById('errors').innerHTML;
+        }
+
         // Pills atualizam com o resultado desta busca (era: so recarregava no load da pagina)
         await loadProviderStatus();
 
-        const results = data.results || {};
         currentAds = [];
         Object.values(results).forEach(r => { (r.ads || []).forEach(a => currentAds.push(a)); });
 
@@ -255,7 +277,7 @@ if ($pageId > 0) {
         renderAds('all');
     }
 
-    function renderAds(provider) {
+function renderAds(provider) {
         const grid = document.getElementById('adsGrid');
         const ads = provider === 'all' ? currentAds : currentAds.filter(a => a.provider === provider);
         if (!ads.length) {
@@ -263,7 +285,32 @@ if ($pageId > 0) {
             return;
         }
         grid.innerHTML = ads.map(ad => {
-            const media = ad.thumbnail || ad.media_url;
+            // media_url PRIMEIRO (imagem do anúncio), thumbnail como fallback
+            const media = ad.media_url || ad.thumbnail;
+            // Badges de plataforma por anúncio
+            const platformBadges = (ad.platforms || []).map(p => {
+                const icons = {
+                    facebook: '<i class="fab fa-facebook-f" style="color:#1877f2;"></i>',
+                    instagram: '<i class="fab fa-instagram" style="color:#e1306c;"></i>',
+                    messenger: '<i class="fab fa-facebook-messenger" style="color:#0084ff;"></i>',
+                    audience_network: '<i class="fas fa-globe" style="color:#6c757d;"></i>',
+                    whatsapp: '<i class="fab fa-whatsapp" style="color:#25d366;"></i>',
+                    youtube: '<i class="fab fa-youtube" style="color:#ff0000;"></i>',
+                    search: '<i class="fas fa-search" style="color:#4285f4;"></i>',
+                    display: '<i class="fas fa-image" style="color:#34a853;"></i>',
+                    shopping: '<i class="fas fa-shopping-bag" style="color:#ea4335;"></i>',
+                    maps: '<i class="fas fa-map-marker-alt" style="color:#34a853;"></i>',
+                    tiktok: '<i class="fab fa-tiktok" style="color:#000;"></i>',
+                };
+                const labels = {
+                    facebook: 'Facebook', instagram: 'Instagram', messenger: 'Messenger',
+                    audience_network: 'Audience', whatsapp: 'WhatsApp',
+                    youtube: 'YouTube', search: 'Pesquisa', display: 'Display',
+                    shopping: 'Shopping', maps: 'Maps', tiktok: 'TikTok',
+                };
+                return '<span class="badge badge-sm" style="background:var(--bg-secondary);border:1px solid var(--border-color);padding:2px 8px;border-radius:10px;font-size:.65rem;display:inline-flex;align-items:center;gap:4px;">' +
+                    (icons[p] || '<i class="fas fa-circle"></i>') + ' ' + esc(labels[p] || p) + '</span>';
+            }).join(' ');
             return '<div class="ad-card">' +
                 '<div class="ad-media">' + (media ? '<img src="' + esc(media) + '" loading="lazy" onerror="this.style.display=\'none\'">' : '<i class="fas fa-image no-media"></i>') + '</div>' +
                 '<div class="ad-body">' +
@@ -271,7 +318,8 @@ if ($pageId > 0) {
                 (ad.title ? '<div style="font-size:.8rem;font-weight:500;">' + esc(ad.title) + '</div>' : '') +
                 (ad.text ? '<div class="ad-text">' + esc(ad.text) + '</div>' : '') +
                 '<div class="ad-meta"><span>' + esc(ad.provider) + (ad.started_at ? ' · ' + esc(daysRunning(ad.started_at)) : '') + '</span>' +
-                '<span style="display:flex;gap:6px;">' +
+                '<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
+                (platformBadges ? '<span style="display:flex;gap:4px;margin-right:8px;">' + platformBadges + '</span>' : '') +
                 (ad.landing_page ? '<a href="/admin/clone.php?url=' + encodeURIComponent(ad.landing_page) + '" target="_blank" class="btn btn-sm btn-outline" title="Clonar esta página"><i class="fas fa-clone"></i></a>' : '') +
                 (ad.link ? '<a href="' + esc(ad.link) + '" target="_blank" class="btn btn-sm btn-outline" title="Ver anúncio original"><i class="fas fa-external-link-alt"></i></a>' : '') +
                 '</span></div></div></div>';

@@ -40,14 +40,14 @@ class TikTokCreativeProvider extends AdSpyProvider
         if ($body === null) {
             return $this->emptyResult(SteelBrowser::isConfigured()
                 ? 'TikTok: o Creative Center bloqueou mesmo com o navegador (Steel) — o acesso público exige sessão logada. Enquanto isso, use Meta/Google.'
-                : 'TikTok: Creative Center indisponível (bloqueio ou mudança de API). Configure STEEL_API_URL para scraping com navegador.');
+                : 'TikTok: Creative Center indisponível (bloqueio ou mudança de API). Configure STEEL_API_URL para scraping com navegador.', 'TikTok Creative Center (scraping direto)');
         }
 
         $json = json_decode($body, true);
         if (!is_array($json) || (int)($json['code'] ?? -1) !== 0) {
             return $this->emptyResult(SteelBrowser::isConfigured()
                 ? 'TikTok: resposta do Creative Center veio bloqueada (página de desafio, sem sessão logada) — limitação da fonte pública, não é configuração sua. Tente mais tarde ou busque em Meta/Google.'
-                : 'TikTok: o Creative Center está bloqueando o acesso direto. Solução: Admin → Configurações → "Steel Browser" → cole a URL lá.');
+                : 'TikTok: o Creative Center está bloqueando o acesso direto. Solução: Admin → Configurações → "Steel Browser" → cole a URL lá.', 'TikTok Creative Center (scraping direto)');
         }
 
         $ads = [];
@@ -71,10 +71,10 @@ class TikTokCreativeProvider extends AdSpyProvider
         }
 
         if (empty($ads)) {
-            return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
+            return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true, 'source_label' => 'TikTok Creative Center (scraping direto)',
                 'hint' => 'TikTok: nenhum anúncio para este termo no Creative Center'];
         }
 
-        return ['ads' => $ads, 'total' => count($ads), 'error' => null];
+        return ['ads' => $ads, 'total' => count($ads), 'error' => null, 'source_label' => 'TikTok Creative Center (scraping direto)'];
     }
 }
