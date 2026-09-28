@@ -64,9 +64,10 @@ class SteelBrowser
 
     /**
      * Busca conteudo renderizado de uma URL via Steel Browser.
+     * @param array $extra campos extras do payload (ex.: waitForTimeout p/ SPA renderizar JS)
      * @return array{ok:bool, html:string, error?:string}
      */
-    public static function fetch(string $url, int $timeout = 60): array
+    public static function fetch(string $url, int $timeout = 60, array $extra = []): array
     {
         $base = self::baseUrl();
         if ($base === '') {
@@ -81,7 +82,7 @@ class SteelBrowser
         if ($apiKey !== '') $headers[] = 'Authorization: Bearer ' . $apiKey;
 
         // Steel v1 precisa que o JSON chegue como string direta (sem re-encoding nem CR extra).
-        $jsonBody = json_encode(['url' => $url], JSON_UNESCAPED_UNICODE);
+        $jsonBody = json_encode(array_merge(['url' => $url], $extra), JSON_UNESCAPED_UNICODE);
 
         $ch = curl_init();
         curl_setopt_array($ch, [

@@ -42,15 +42,23 @@ if ($pageId > 0) {
     <link rel="stylesheet" href="/assets/css/theme-light.css">
     <link rel="stylesheet" href="/assets/css/theme-dark.css">
     <link rel="stylesheet" href="/assets/css/app.css">
-    <style>
+<style>
         .ad-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column; }
         .ad-card .ad-media { height: 180px; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; overflow: hidden; }
         .ad-card .ad-media img { width: 100%; height: 100%; object-fit: cover; }
         .ad-card .ad-media .no-media { color: var(--text-secondary); font-size: 2rem; }
-        .ad-card .ad-body { padding: 12px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+        .ad-card .ad-body { padding: 12px; flex: 1; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: hidden; }
         .ad-card .ad-advertiser { font-size: .8rem; font-weight: 600; color: var(--accent); }
-        .ad-card .ad-text { font-size: .8rem; color: var(--text-primary); line-height: 1.4; max-height: 80px; overflow: hidden; }
-        .ad-card .ad-meta { font-size: .7rem; color: var(--text-secondary); margin-top: auto; display: flex; justify-content: space-between; align-items: center; }
+        .ad-card .ad-text { font-size: .8rem; color: var(--text-primary); line-height: 1.4; max-height: 80px; overflow: hidden; word-break: break-word; overflow-wrap: anywhere; }
+        .ad-card .ad-meta { font-size: .7rem; color: var(--text-secondary); margin-top: auto; display: flex; justify-content: space-between; align-items: center; min-width: 0; gap: 8px; }
+        .ad-meta-info { white-space: nowrap; flex-shrink: 0; }
+        .ad-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: .65rem; background: var(--bg-secondary); border: 1px solid var(--border-color); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+        .ad-badges { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; scrollbar-color: var(--border-color) transparent; flex: 1 1 0; min-width: 0; flex-wrap: nowrap; }
+        .ad-badges::-webkit-scrollbar { height: 4px; }
+        .ad-badges::-webkit-scrollbar-track { background: transparent; }
+        .ad-badges::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
+        .ad-badges::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+        .ad-actions { display: flex; gap: 6px; flex-shrink: 0; }
         .provider-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
         .provider-tab { padding: 8px 16px; border: 1px solid var(--border-color); border-radius: var(--radius); background: var(--bg-card); cursor: pointer; font-size: .85rem; display: flex; align-items: center; gap: 8px; }
         .provider-tab.active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); font-weight: 500; }
@@ -90,18 +98,26 @@ if ($pageId > 0) {
                         </div>
                         <?php endif; ?>
 
+                        <div class="mode-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+                            <button class="provider-tab mode-tab active" data-mode="search" onclick="setMode('search')"><i class="fas fa-search"></i> Busca por termo</button>
+                            <button class="provider-tab mode-tab" data-mode="trends" onclick="setMode('trends')"><i class="fas fa-hashtag"></i> Trends &amp; Hashtags</button>
+                            <button class="provider-tab mode-tab" data-mode="topads" onclick="setMode('topads')"><i class="fas fa-star"></i> Top Ads</button>
+                        </div>
+
                         <div class="form-group">
-                            <label>Termo, domínio ou anunciante</label>
+                            <label id="modeQueryLabel">Termo, domínio ou anunciante</label>
                             <div class="input-group">
                                 <input type="text" id="adspyQuery" class="form-control" placeholder="ex: preguicaartificial.com.br, https://loja.com/produto, nome do produto, marca..." value="<?= htmlspecialchars($_GET['query'] ?? '') ?>">
-                                <button class="btn btn-primary" onclick="runSearch()" id="searchBtn"><i class="fas fa-search"></i> Espionar</button>
+                                <button class="btn btn-primary" onclick="runAction()" id="searchBtn"><i class="fas fa-search" id="searchBtnIcon"></i> <span id="searchBtnText">Espionar</span></button>
                             </div>
                         </div>
 
 <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
-                             <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" class="provider-check" value="meta" checked> <i class="fab fa-facebook" style="color:#1877f2;"></i> Meta</label>
-                             <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" class="provider-check" value="google" checked> <i class="fab fa-google" style="color:#4285f4;"></i> Google</label>
-                             <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" class="provider-check" value="tiktok" checked> <i class="fab fa-tiktok"></i> TikTok</label>
+                             <div id="modeProviders" style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
+                                 <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" class="provider-check" value="meta" checked> <i class="fab fa-facebook" style="color:#1877f2;"></i> Meta</label>
+                                 <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" class="provider-check" value="google" checked> <i class="fab fa-google" style="color:#4285f4;"></i> Google</label>
+                                 <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" class="provider-check" value="tiktok" checked> <i class="fab fa-tiktok"></i> TikTok</label>
+                             </div>
                              <select id="adspyCountry" class="form-control" style="width:auto;">
                                  <option value="BR" selected>Brasil</option>
                                  <option value="US">Estados Unidos</option>
@@ -116,7 +132,20 @@ if ($pageId > 0) {
                                  <option value="SHOPPING">Shopping</option>
                                  <option value="MAPS">Maps</option>
                              </select>
+                             <div id="modeDiscoverFields" style="display:none;gap:12px;align-items:center;">
+                                  <select id="adspyPeriod" class="form-control" style="width:auto;" title="Período da descoberta">
+                                      <option value="7">Últimos 7 dias</option>
+                                      <option value="30">Últimos 30 dias</option>
+                                  </select>
+                                  <select id="adspyOrderBy" class="form-control" style="width:auto;" title="Ordenação dos Top Ads">
+                                      <option value="ctr">Ordenar: CTR</option>
+                                      <option value="like">Ordenar: Curtidas</option>
+                                      <option value="cost">Ordenar: Custo</option>
+                                      <option value="for_you">Ordenar: Relevância</option>
+                                  </select>
+                             </div>
                          </div>
+                         <div id="modeDiscoverHint" style="display:none;margin-top:10px;font-size:.8rem;color:var(--text-secondary);"></div>
                     </div>
                 </div>
 
@@ -161,6 +190,69 @@ if ($pageId > 0) {
         if (isNaN(d.getTime())) return String(startedAt).substring(0, 10);
         const days = Math.max(1, Math.round((Date.now() - d.getTime()) / 86400000));
         return 'há ' + days + (days === 1 ? ' dia' : ' dias');
+    }
+
+    // ── Modos de descoberta (Busca / Trends & Hashtags / Top Ads) ───────
+    let currentMode = 'search';
+    const MODE_HINTS = {
+        trends: 'Hashtags em alta no TikTok Creative Center (por país e período). O acesso anônimo mostra só as primeiras hashtags — faça login no TikTok em ads.tiktok.com para ver a lista completa. Não é necessário informar termo.',
+        topads: 'Melhores anúncios do TikTok (Top Ads) por desempenho. Sem token Apify a fonte pública responde com aviso de sessão — configure em IA → Busca de Anúncios. O termo (opcional) filtra por palavra-chave.',
+    };
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+        const isSearch = mode === 'search';
+        const label = document.getElementById('modeQueryLabel');
+        const input = document.getElementById('adspyQuery');
+        document.getElementById('modeProviders').style.display = isSearch ? 'flex' : 'none';
+        document.getElementById('adspyGooglePlatform').style.display = isSearch ? '' : 'none';
+        document.getElementById('modeDiscoverFields').style.display = isSearch ? 'none' : 'flex';
+        document.getElementById('adspyOrderBy').style.display = mode === 'topads' ? '' : 'none';
+        const hint = document.getElementById('modeDiscoverHint');
+        hint.style.display = isSearch ? 'none' : 'block';
+        hint.textContent = isSearch ? '' : MODE_HINTS[mode] || '';
+        document.getElementById('searchBtnText').textContent = isSearch ? 'Espionar' : 'Descobrir';
+        document.getElementById('searchBtnIcon').className = isSearch ? 'fas fa-search' : 'fas fa-compass';
+        if (isSearch) {
+            label.textContent = 'Termo, domínio ou anunciante';
+            input.placeholder = 'ex: preguicaartificial.com.br, https://loja.com/produto, nome do produto, marca...';
+        } else {
+            label.textContent = mode === 'topads' ? 'Palavra-chave (opcional — filtra os Top Ads)' : 'Sem termo necessário — a lista sai em alta';
+            input.placeholder = mode === 'topads' ? 'ex: fogão, roupas... (ou deixe em branco)' : 'Deixe em branco e clique em Descobrir';
+            if (mode !== 'topads') input.value = '';
+        }
+    }
+
+    function runAction() {
+        if (currentMode === 'search') runSearch();
+        else runDiscover();
+    }
+
+    async function runDiscover() {
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('results').innerHTML = '';
+        document.getElementById('errors').innerHTML = '';
+        try {
+            const body = new URLSearchParams();
+            body.append('action', 'discover');
+            body.append('mode', currentMode);
+            body.append('country', document.getElementById('adspyCountry').value);
+            body.append('period', document.getElementById('adspyPeriod').value);
+            if (currentMode === 'topads') {
+                body.append('order_by', document.getElementById('adspyOrderBy').value);
+                const q = document.getElementById('adspyQuery').value.trim();
+                if (q) body.append('query', q); // palavra-chave opcional filtra os Top Ads
+            }
+
+            const resp = await fetch('/admin/api/adspy.php', { method: 'POST', body });
+            const data = await resp.json();
+            renderResults(data);
+        } catch (err) {
+            document.getElementById('errors').innerHTML = '<div class="alert alert-danger">Erro de conexão: ' + esc(err.message) + '</div>';
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
     }
 
     async function loadProviderStatus() {
@@ -237,11 +329,10 @@ async function renderResults(data) {
             document.getElementById('errors').innerHTML += '<div class="alert alert-warning" style="cursor:' + (link ? 'pointer' : 'default') + '"' + (link ? ' onclick="location.href=\'' + link + '\'"' : '') + '>' + inner + '</div>';
         });
 
-        // Resultados vazios (nao sao erros): info separada, sem "ar" de falha
+        // Dicas do provider (vazio OU sucesso — ex.: "só as primeiras hashtags aparecem")
         const resultsForHints = data.results || {};
         Object.entries(resultsForHints).forEach(([pid, r]) => {
-            if (!r || r.error) return;
-            if (!r.empty || !r.hint) return;
+            if (!r || r.error || !r.hint) return;
             document.getElementById('errors').innerHTML += '<div class="alert alert-info"><strong>' + esc(pid) + ':</strong> ' + esc(r.hint) + '</div>';
         });
 
@@ -284,6 +375,11 @@ function renderAds(provider) {
             grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-search-minus"></i><h3>Nenhum anúncio encontrado</h3><p>Tente outro termo ou plataforma.</p></div>';
             return;
         }
+        // Helper: remove placeholders {{...}} e limpa vazio
+        const clean = (s) => {
+            if (!s) return '';
+            return s.replace(/\{\{[^}]+\}\}/g, '').trim();
+        };
         grid.innerHTML = ads.map(ad => {
             // media_url PRIMEIRO (imagem do anúncio), thumbnail como fallback
             const media = ad.media_url || ad.thumbnail;
@@ -308,26 +404,30 @@ function renderAds(provider) {
                     youtube: 'YouTube', search: 'Pesquisa', display: 'Display',
                     shopping: 'Shopping', maps: 'Maps', tiktok: 'TikTok',
                 };
-                return '<span class="badge badge-sm" style="background:var(--bg-secondary);border:1px solid var(--border-color);padding:2px 8px;border-radius:10px;font-size:.65rem;display:inline-flex;align-items:center;gap:4px;">' +
-                    (icons[p] || '<i class="fas fa-circle"></i>') + ' ' + esc(labels[p] || p) + '</span>';
+                return '<span class="ad-badge">' + (icons[p] || '<i class="fas fa-circle"></i>') + ' ' + esc(labels[p] || p) + '</span>';
             }).join(' ');
+            // Limpar placeholders no frontend (defesa extra para cache antigo)
+            const adv = clean(ad.advertiser || 'Anunciante desconhecido');
+            const title = clean(ad.title);
+            const text = clean(ad.text);
             return '<div class="ad-card">' +
                 '<div class="ad-media">' + (media ? '<img src="' + esc(media) + '" loading="lazy" onerror="this.style.display=\'none\'">' : '<i class="fas fa-image no-media"></i>') + '</div>' +
                 '<div class="ad-body">' +
-                '<div class="ad-advertiser">' + esc(ad.advertiser || 'Anunciante desconhecido') + '</div>' +
-                (ad.title ? '<div style="font-size:.8rem;font-weight:500;">' + esc(ad.title) + '</div>' : '') +
-                (ad.text ? '<div class="ad-text">' + esc(ad.text) + '</div>' : '') +
-                '<div class="ad-meta"><span>' + esc(ad.provider) + (ad.started_at ? ' · ' + esc(daysRunning(ad.started_at)) : '') + '</span>' +
-                '<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
-                (platformBadges ? '<span style="display:flex;gap:4px;margin-right:8px;">' + platformBadges + '</span>' : '') +
+                '<div class="ad-advertiser">' + esc(adv) + '</div>' +
+                (title ? '<div style="font-size:.8rem;font-weight:500;">' + esc(title) + '</div>' : '') +
+                (text ? '<div class="ad-text">' + esc(text) + '</div>' : '') +
+                '<div class="ad-meta">' +
+                '<span class="ad-meta-info">' + esc(ad.provider) + (ad.started_at ? ' · ' + esc(daysRunning(ad.started_at)) : '') + '</span>' +
+                (platformBadges ? '<div class="ad-badges">' + platformBadges + '</div>' : '') +
+                '<div class="ad-actions">' +
                 (ad.landing_page ? '<a href="/admin/clone.php?url=' + encodeURIComponent(ad.landing_page) + '" target="_blank" class="btn btn-sm btn-outline" title="Clonar esta página"><i class="fas fa-clone"></i></a>' : '') +
                 (ad.link ? '<a href="' + esc(ad.link) + '" target="_blank" class="btn btn-sm btn-outline" title="Ver anúncio original"><i class="fas fa-external-link-alt"></i></a>' : '') +
-                '</span></div></div></div>';
+                '</div></div></div></div>';
         }).join('');
     }
 
     function filterProvider(provider) {
-        document.querySelectorAll('.provider-tab').forEach(t => t.classList.toggle('active', t.dataset.provider === provider));
+        document.querySelectorAll('.provider-tab:not(.mode-tab)').forEach(t => t.classList.toggle('active', t.dataset.provider === provider));
         renderAds(provider);
     }
 

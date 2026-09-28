@@ -146,7 +146,9 @@ class MetaAdLibraryProvider extends AdSpyProvider
         $isVideo = !empty($videos) || strtolower((string)($snap['display_format'] ?? '')) === 'video';
         $imageUrl = (string)($images[0]['original_image_url'] ?? $images[0]['resized_image_url'] ?? '');
 
-        // DCO (Dynamic Creative Optimization): mídia está em snapshot.cards[]
+        // DCO (Dynamic Creative Optimization): mídia e textos podem estar em snapshot.cards[]
+        $cardText = '';
+        $cardTitle = '';
         if ($snap['display_format'] === 'DCO' && empty($images) && !empty($snap['cards'])) {
             $firstCard = $snap['cards'][0] ?? [];
             $imageUrl = (string)($firstCard['original_image_url'] ?? $firstCard['resized_image_url'] ?? '');
@@ -156,15 +158,21 @@ class MetaAdLibraryProvider extends AdSpyProvider
                 $isVideo = true;
                 $imageUrl = $videoHd ?: $videoPreview;
             }
+            // Textos do card DCO
+            $cardText = (string)($firstCard['body']['text'] ?? '');
+            $cardTitle = (string)($firstCard['link_title'] ?? $firstCard['link_description'] ?? '');
         }
 
         // Sanitizar placeholders de template (ex.: {{product.description}})
         $text = (string)($snap['body']['text'] ?? $snap['caption'] ?? '');
         $title = (string)($snap['link_title'] ?? $snap['link_description'] ?? $snap['caption'] ?? '');
-        $text = $this->sanitizeTemplatePlaceholders($text);
-        $title = $this->sanitizeTemplatePlaceholders($title);
+        // Se vazio, tenta DCO
+        if ($text === '') $text = $cardText;
+        if ($title === '') $title = $cardTitle;
+        $text = $this->sanitizeText($text);
+        $title = $this->sanitizeText($title);
         // Fallback de texto vazio
-        if ($text === '' && isset($snap['caption'])) $text = $this->sanitizeTemplatePlaceholders((string)$snap['caption']);
+        if ($text === '' && isset($snap['caption'])) $text = $this->sanitizeText((string)$snap['caption']);
 
         return $this->normalizeAd([
             'id' => $id,
@@ -182,13 +190,6 @@ class MetaAdLibraryProvider extends AdSpyProvider
             'status' => empty($collected['end_date']) ? 'active' : 'inactive',
             'link' => 'https://www.facebook.com/ads/library/?id=' . $id,
         ]);
-    }
-
-    private function sanitizeTemplatePlaceholders(string $text): string
-    {
-        // Remove {{product.*}} e templates similares
-        $text = preg_replace('/\{\{[^}]+\}\}/', '', $text);
-        return trim($text);
     }
 
     private function searchOfficialApi(string $query, array $options, string $token): array

@@ -8,10 +8,12 @@ require_once __DIR__ . '/AdSpyHealth.php';
 require_once __DIR__ . '/Providers/MetaAdLibraryProvider.php';
 require_once __DIR__ . '/Providers/GoogleTransparencyProvider.php';
 require_once __DIR__ . '/Providers/TikTokApifyProvider.php';
+require_once __DIR__ . '/Providers/TikTokCreativeProvider.php';
 
 class AdSpyManager
 {
     public const PROVIDERS = ['meta', 'google', 'tiktok'];
+    public const DISCOVER_MODES = ['trends', 'topads'];
     private const CACHE_TTL_HOURS = 24;
 
     private array $providers = [];
@@ -142,6 +144,50 @@ class AdSpyManager
         }
 
         return ['results' => $results, 'errors' => $errors];
+    }
+
+    /**
+     * Descoberta passiva do TikTok Creative Center:
+     *  - trends: hashtags em alta (pagina publica via Steel — as top N anonimas)
+     *  - topads: Top Ads sem keyword — rota para o Apify quando o usuario tem token
+     * NÃO consome quota de busca — é exploração, não busca ativa por termo.
+     * Não grava health (AdSpyHealth) — o estado de trends/topads não deve
+     * sobrescrever o estado da busca por keyword do provider tiktok.
+     */
+    public function discover(int $userId, string $plan, string $mode, array $options = []): array
+    {
+        if ($mode === 'hashtags') $mode = 'trends'; // alias: fonte unica (hashtags em alta)
+        $mode = in_array($mode, self::DISCOVER_MODES, true) ? $mode : 'trends';
+
+        $options['user_id'] = $userId;
+        $cacheKey = $this->cacheKey('tiktok', 'discover:' . $mode, $options);
+        $cached = $this->getCache($cacheKey);
+        if ($cached !== null) {
+            return ['results' => ['tiktok' => $cached], 'errors' => [], 'mode' => $mode, 'cached' => true];
+        }
+
+        try {
+            if ($mode === 'topads' && AdSpyKeys::apify($userId) !== '') {
+                // Descoberta de Top Ads com token Apify (keyword opcional via options['query'])
+                $apify = new TikTokApifyProvider();
+                $r = $apify->search((string)($options['query'] ?? ''), $options);
+                if (!empty($r['source_label'])) $r['source_label'] .= ' (descoberta)';
+            } else {
+                $creative = new TikTokCreativeProvider();
+                $r = $creative->discover($mode, $options);
+            }
+        } catch (Throwable $e) {
+            $r = ['ads' => [], 'total' => 0, 'error' => 'Erro inesperado: ' . $e->getMessage()];
+        }
+
+        $errors = [];
+        if (!empty($r['error'])) {
+            $errors['tiktok'] = $r['error'];
+        } else {
+            if (!empty($r['ads'])) $this->setCache($cacheKey, 'tiktok', $r);
+        }
+
+        return ['results' => ['tiktok' => $r], 'errors' => $errors, 'mode' => $mode, 'cached' => false];
     }
 
     /**
@@ -310,7 +356,7 @@ class AdSpyManager
     private function cacheKey(string $provider, string $query, array $options): string
     {
         ksort($options);
-        return hash('sha256', $provider . '|' . mb_strtolower(trim($query)) . '|' . json_encode($options));
+        return hash('sha256', 'v2|' . $provider . '|' . mb_strtolower(trim($query)) . '|' . json_encode($options));
     }
 
     private function getCache(string $cacheKey): ?array

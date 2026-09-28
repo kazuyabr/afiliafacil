@@ -64,6 +64,24 @@ switch ($action) {
         echo json_encode($result);
         break;
 
+    case 'discover':
+        $mode = $_POST['mode'] ?? 'trends';
+        $country = strtoupper($_POST['country'] ?? 'BR');
+        if ($country === 'ALL') $country = 'BR'; // Creative Center exige país específico
+        $options = [
+            'country' => $country,
+            'period' => (int)($_POST['period'] ?? 7),
+            'order_by' => $_POST['order_by'] ?? 'ctr',
+            'limit' => min(50, max(5, (int)($_POST['limit'] ?? 30))),
+            'query' => trim((string)($_POST['query'] ?? '')), // keyword opcional (Top Ads via Apify)
+        ];
+
+        $manager = new AdSpyManager();
+        $result = $manager->discover($userId, $plan, $mode, $options);
+        $result['success'] = empty($result['errors']);
+        echo json_encode($result);
+        break;
+
     case 'dossier':
         $pageId = (int)($_POST['id'] ?? 0);
         $pm = new PageManager();

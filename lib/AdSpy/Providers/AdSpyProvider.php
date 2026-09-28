@@ -72,6 +72,16 @@ abstract class AdSpyProvider
         return $result;
     }
 
+    /**
+     * Remove placeholders tipo {{product.*}} e templates similares do texto.
+     * Pode ser sobrescrito por providers com necessidades específicas.
+     */
+    protected function sanitizeText(string $text): string
+    {
+        $text = preg_replace('/\{\{[^}]+\}\}/', '', $text);
+        return trim($text);
+    }
+
     protected function normalizeAd(array $ad): array
     {
         return array_merge([
