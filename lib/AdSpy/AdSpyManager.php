@@ -3,13 +3,11 @@
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Moderation/ContentModerator.php';
 require_once __DIR__ . '/AdSpyQuota.php';
-require_once __DIR__ . '/SteelBrowser.php';
 require_once __DIR__ . '/AdSpyHealth.php';
 require_once __DIR__ . '/Providers/MetaAdLibraryProvider.php';
 require_once __DIR__ . '/Providers/GoogleTransparencyProvider.php';
 require_once __DIR__ . '/Providers/TikTokApifyProvider.php';
 require_once __DIR__ . '/Providers/TikTokCreativeProvider.php';
-require_once __DIR__ . '/TikTokSession.php';
 
 class AdSpyManager
 {
@@ -148,8 +146,9 @@ class AdSpyManager
     }
 
     /**
-     * Descoberta passiva do TikTok Creative Center:
-     *  - trends: hashtags em alta (pagina publica via Steel — as top N anonimas)
+     * Descoberta do TikTok (sem a busca por keyword do modo 'search'):
+     *  - trends: com termo → ator powerai (busca de hashtag); sem termo →
+     *    ator anyx (lista publica em alta — ~3 linhas sem login)
      *  - topads: Top Ads sem keyword — rota para o Apify quando o usuario tem token
      * NÃO consome quota de busca — é exploração, não busca ativa por termo.
      * Não grava health (AdSpyHealth) — o estado de trends/topads não deve
@@ -161,10 +160,11 @@ class AdSpyManager
         $mode = in_array($mode, self::DISCOVER_MODES, true) ? $mode : 'trends';
 
         $options['user_id'] = $userId;
-        // Sessao conectada muda a fonte (lista completa via Apify vs top-3 anonima)
-        // → entra na cache key para nao servir resultado antigo apos conectar/desconectar.
-        $ttConnected = TikTokSession::status($userId)['connected'];
-        $options['tt_session'] = $ttConnected ? 1 : 0;
+        // Trends sem termo trocou de Steel (top-3 anônimo) p/ anyx público —
+        // prefixo muda a cache key e invalida resultados antigos já em cache.
+        if ($mode === 'trends' && trim((string)($options['query'] ?? '')) === '') {
+            $options['_src'] = 'anyx';
+        }
         $cacheKey = $this->cacheKey('tiktok', 'discover:' . $mode, $options);
         $cached = $this->getCache($cacheKey);
         if ($cached !== null) {
@@ -184,13 +184,13 @@ class AdSpyManager
                 $apify = new TikTokApifyProvider();
                 $r = $apify->hashtagSearch($query, $options);
                 if (!empty($r['source_label'])) $r['source_label'] .= ' (descoberta)';
-            } elseif ($mode === 'trends' && $ttConnected && AdSpyKeys::apify($userId) !== '') {
-                // TikTok conectado: lista completa de trends com os cookies do usuario
-                // (ator anyx — o Creative Center anonimo so serve 3 linhas).
+            } elseif ($mode === 'trends') {
+                // Lista em alta sem termo: ator anyx (publico, ~3 linhas sem login) via Apify.
                 $apify = new TikTokApifyProvider();
                 $r = $apify->trendingHashtags($options);
                 if (!empty($r['source_label'])) $r['source_label'] .= ' (descoberta)';
             } else {
+                // topads sem token: fonte direta do TikTok (resposta 40101 + dica do Apify)
                 $creative = new TikTokCreativeProvider();
                 $r = $creative->discover($mode, $options);
             }
@@ -219,7 +219,6 @@ class AdSpyManager
         $serpByok = AdSpyKeys::serpapi($userId) !== '';
         // A chave SerpApi da plataforma serve SOMENTE ao sistema/cron (user 0).
         $serpPlatform = $userId === 0 && trim((string)(getenv('SERPAPI_KEY') ?: '')) !== '';
-        $steel = SteelBrowser::isConfigured();
         $apifyByok = AdSpyKeys::apify($userId) !== '';
 
         $metaSource = $metaByok ? 'byok' : ($metaPlatform ? 'platform' : 'public');
@@ -295,7 +294,6 @@ class AdSpyManager
                 'hint' => !$apifyByok ? 'Configure seu token Apify em IA → Busca de Anúncios.' : ($tiktokH['status'] === 'error' ? $tiktokH['message'] : ''),
                 'at' => $tiktokH['at'],
             ],
-            'steel' => ['configured' => $steel],
         ];
     }
 

@@ -88,7 +88,6 @@ switch ($action) {
             $userId = (int)(Auth::user()['id'] ?? 0);
             require_once __DIR__ . '/../../lib/AdSpy/AdSpyHealth.php';
             \AdSpyHealth::clear($userId, 'meta');
-            \AdSpyHealth::clear($userId, 'tiktok');
             echo json_encode(['ok' => true, 'message' => 'Steel respondeu (página extraiu ' . $htmlLen . ' caracteres)']);
         } elseif ($status >= 400) {
             echo json_encode(['ok' => false, 'error' => 'HTTP ' . $status . ' — ' . ($data['message'] ?? $data['error'] ?? 'erro desconhecido')]);

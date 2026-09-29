@@ -296,7 +296,11 @@ class MetaAdLibraryProvider extends AdSpyProvider
 
         $json = json_decode($body, true);
         if (!is_array($json)) {
-            return $this->emptyResult('Meta: resposta inesperada da biblioteca pública (layout pode ter mudado).');
+            // Bloqueio devolve HTML com 403 (body nao-null) — o fallback Steel acima
+            // so cobria curl failure. Sem JSON = pagina bloqueada, tenta via navegador.
+            $public = $this->searchPublicPage($query, $options);
+            if ($public !== null) return $public;
+            return $this->emptyResult('Meta: biblioteca pública bloqueada (sem Steel configurado?) ou layout mudou. Configure STEEL_API_URL (navegador) ou META_AD_ACCESS_TOKEN (API oficial).');
         }
 
         $ads = [];

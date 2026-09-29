@@ -2,7 +2,6 @@
 
 require_once __DIR__ . '/AdSpyProvider.php';
 require_once __DIR__ . '/../AdSpyKeys.php';
-require_once __DIR__ . '/../TikTokSession.php';
 
 class TikTokApifyProvider extends AdSpyProvider
 {
@@ -138,7 +137,7 @@ class TikTokApifyProvider extends AdSpyProvider
         }
 
         if (empty($ads)) {
-            // Fallback: Apify vazio → tenta o Creative Center direto (API JSON + Steel)
+            // Fallback: Apify vazio → tenta a API direta do Creative Center (40101 sem sessão)
             $fallback = $this->creativeFallback($query, $options);
             if (!empty($fallback['ads'])) {
                 return [
@@ -261,9 +260,9 @@ class TikTokApifyProvider extends AdSpyProvider
     }
 
     /**
-     * Lista completa de trends com os cookies do TikTok conectado.
-     * O Creative Center anonimo so serve 3 linhas — com sessao logada o ator
-     * anyxsolutions/tiktok-trending-hashtags-scraper devolve ate 100.
+     * Trends em alta sem termo (ator anyx) via Apify — lista PUBLICA.
+     * O Creative Center anonimo so serve ~3 linhas; login no painel foi
+     * descontinuado, entao a rota padrão é o ator anyx sem cookies.
      * Periodo do ator: 7 | 30 | 120.
      */
     public function trendingHashtags(array $options = []): array
@@ -271,11 +270,7 @@ class TikTokApifyProvider extends AdSpyProvider
         $userId = (int)($options['user_id'] ?? 0);
         $apifyToken = $options['apify_token'] ?? AdSpyKeys::apify($userId);
         if ($apifyToken === '') {
-            return $this->emptyResult('TikTok Trends: configure seu token Apify em IA → Busca de Anúncios para liberar a lista completa.');
-        }
-        $cookies = TikTokSession::cookies($userId);
-        if (empty($cookies)) {
-            return $this->emptyResult('TikTok Trends: conecte seu TikTok (botão Conectar TikTok) para liberar a lista completa.');
+            return $this->emptyResult('TikTok Trends: falta seu token Apify — configure em IA → Busca de Anúncios para ver as hashtags em alta.', 'TikTok Trends via Apify');
         }
 
         $country = strtoupper((string)($options['country'] ?? 'BR'));
@@ -287,7 +282,6 @@ class TikTokApifyProvider extends AdSpyProvider
             'countryCode' => $country,
             'period' => $period,
             'maxItems' => $maxItems,
-            'cookies' => $cookies,
         ];
 
         $prevTimeout = $this->timeout;
@@ -304,12 +298,12 @@ class TikTokApifyProvider extends AdSpyProvider
         $this->timeout = $prevTimeout;
 
         if ($body === null) {
-            return $this->emptyResult('TikTok Trends (Apify): falha na chamada à API Apify. Verifique seu token em IA → Busca de Anúncios.', 'TikTok Trends (lista completa) via Apify');
+            return $this->emptyResult('TikTok Trends (Apify): falha na chamada à API Apify. Verifique seu token em IA → Busca de Anúncios.', 'TikTok Trends via Apify');
         }
 
         $json = json_decode($body, true);
         if (!is_array($json)) {
-            return $this->emptyResult('TikTok Trends (Apify): resposta inválida da API Apify.', 'TikTok Trends (lista completa) via Apify');
+            return $this->emptyResult('TikTok Trends (Apify): resposta inválida da API Apify.', 'TikTok Trends via Apify');
         }
         if (isset($json['error'])) {
             $err = $json['error'];
@@ -319,15 +313,15 @@ class TikTokApifyProvider extends AdSpyProvider
                 $err = (string)$err;
             }
             if (stripos($err, 'auth') !== false || stripos($err, 'token') !== false || stripos($err, 'unauthorized') !== false || stripos($err, '401') !== false) {
-                return $this->emptyResult('TikTok Trends (Apify): token inválido ou sem permissão. Gere um novo em console.apify.com/account/integrations e configure em IA → Busca de Anúncios.', 'TikTok Trends (lista completa) via Apify');
+                return $this->emptyResult('TikTok Trends (Apify): token inválido ou sem permissão. Gere um novo em console.apify.com/account/integrations e configure em IA → Busca de Anúncios.', 'TikTok Trends via Apify');
             }
-            return $this->emptyResult('TikTok Trends (Apify): ' . $err, 'TikTok Trends (lista completa) via Apify');
+            return $this->emptyResult('TikTok Trends (Apify): ' . $err, 'TikTok Trends via Apify');
         }
         if (isset($json['data']) && is_array($json['data'])) {
             $json = $json['data'];
         }
         if (!is_array($json)) {
-            return $this->emptyResult('TikTok Trends (Apify): formato de resposta inesperado.', 'TikTok Trends (lista completa) via Apify');
+            return $this->emptyResult('TikTok Trends (Apify): formato de resposta inesperado.', 'TikTok Trends via Apify');
         }
 
         $ads = [];
@@ -373,15 +367,15 @@ class TikTokApifyProvider extends AdSpyProvider
 
         if (empty($ads)) {
             return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
-                'source_label' => 'TikTok Trends (lista completa) via Apify',
-                'hint' => 'TikTok: a lista completa não voltou — sua sessão pode ter expirado. Clique em "Conectar TikTok" para reconectar.'];
+                'source_label' => 'TikTok Trends via Apify',
+                'hint' => 'TikTok: a lista não voltou — tente de novo em instantes.'];
         }
 
         $result = ['ads' => $ads, 'total' => count($ads), 'error' => null,
-            'source_label' => 'TikTok Trends (lista completa) via Apify'];
-        // Com cookies validos o ator devolve dezenas de linhas; 3 ou menos = sessao expirada
+            'source_label' => 'TikTok Trends via Apify'];
+        // Sem login a lista pública do Creative Center traz só as primeiras (~3)
         if (count($ads) <= 3) {
-            $result['hint'] = 'TikTok: voltaram só ' . count($ads) . ' hashtags — sua sessão provavelmente expirou. Clique em "Conectar TikTok" para reconectar.';
+            $result['hint'] = 'TikTok: sem login a lista pública traz só as primeiras hashtags (' . count($ads) . ' resultados).';
         }
         return $result;
     }
