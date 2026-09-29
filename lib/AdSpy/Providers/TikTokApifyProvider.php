@@ -156,6 +156,117 @@ class TikTokApifyProvider extends AdSpyProvider
         return ['ads' => $ads, 'total' => count($ads), 'error' => null, 'source_label' => 'TikTok Creative Center via Apify'];
     }
 
+    /**
+     * Busca de hashtags por termo (modo Trends com query).
+     * O Creative Center NAO tem busca por hashtag nem logado — o ator
+     * powerai/tiktok-hashtag-search-scraper resolve (keywords + maxResults).
+     */
+    public function hashtagSearch(string $query, array $options = []): array
+    {
+        $userId = (int)($options['user_id'] ?? 0);
+        $apifyToken = $options['apify_token'] ?? AdSpyKeys::apify($userId);
+        if ($apifyToken === '') {
+            return $this->emptyResult('TikTok Hashtags: configure seu token Apify em IA → Busca de Anúncios para buscar hashtags por termo (conta grátis em apify.com, $5 de crédito/mês).');
+        }
+        $query = trim($query);
+        if ($query === '') {
+            return $this->emptyResult('TikTok Hashtags: informe um termo para buscar hashtags.');
+        }
+
+        // Actor valida maxResults >= 30 (default dele) — acima de 30 nao ha ganho real
+        $maxResults = min(100, max(30, (int)($options['limit'] ?? 30)));
+        $payload = ['keywords' => $query, 'maxResults' => $maxResults];
+
+        // run-sync espera o run terminar — timeout maior que o normal
+        $prevTimeout = $this->timeout;
+        $this->timeout = 90;
+        $body = null;
+        for ($try = 0; $try < 2; $try++) {
+            if ($try > 0) sleep(2);
+            $body = $this->httpPost(
+                'https://api.apify.com/v2/acts/powerai~tiktok-hashtag-search-scraper/run-sync-get-dataset-items?token=' . urlencode($apifyToken),
+                $payload
+            );
+            if ($body !== null) break;
+        }
+        $this->timeout = $prevTimeout;
+
+        if ($body === null) {
+            return $this->emptyResult('TikTok Hashtags (Apify): falha na chamada à API Apify. Verifique seu token em IA → Busca de Anúncios.', 'TikTok Hashtags via Apify');
+        }
+
+        $json = json_decode($body, true);
+        if (!is_array($json)) {
+            return $this->emptyResult('TikTok Hashtags (Apify): resposta inválida da API Apify. Verifique seu token em IA → Busca de Anúncios.', 'TikTok Hashtags via Apify');
+        }
+
+        if (isset($json['error'])) {
+            $err = $json['error'];
+            if (is_array($err)) {
+                $err = (string)($err['message'] ?? $err['msg'] ?? json_encode($err, JSON_UNESCAPED_UNICODE));
+            } else {
+                $err = (string)$err;
+            }
+            if (stripos($err, 'auth') !== false || stripos($err, 'token') !== false || stripos($err, 'unauthorized') !== false || stripos($err, '401') !== false) {
+                return $this->emptyResult('TikTok Hashtags (Apify): token inválido ou sem permissão. Gere um novo em console.apify.com/account/integrations e configure em IA → Busca de Anúncios.', 'TikTok Hashtags via Apify');
+            }
+            return $this->emptyResult('TikTok Hashtags (Apify): ' . $err, 'TikTok Hashtags via Apify');
+        }
+
+        if (isset($json['data']) && is_array($json['data'])) {
+            $json = $json['data'];
+        }
+        if (!is_array($json)) {
+            return $this->emptyResult('TikTok Hashtags (Apify): formato de resposta inesperado.', 'TikTok Hashtags via Apify');
+        }
+
+        $ads = [];
+        foreach ($json as $item) {
+            if (!is_array($item)) continue;
+            $name = ltrim(trim((string)($item['cha_name'] ?? $item['hashtag_name'] ?? $item['name'] ?? '')), '#');
+            if ($name === '') continue;
+
+            $posts = is_numeric($item['user_count'] ?? null) ? (float)$item['user_count'] : null;
+            $views = is_numeric($item['view_count'] ?? null) ? (float)$item['view_count'] : null;
+            $stats = [];
+            if ($posts !== null && $posts > 0) $stats[] = $this->bigNumber($posts) . ' posts';
+            if ($views !== null && $views > 0) $stats[] = $this->bigNumber($views) . ' views';
+
+            $desc = $this->sanitizeText((string)($item['desc'] ?? ''));
+            $text = trim($desc . ($stats ? ($desc ? ' · ' : '') . implode(' · ', $stats) : ''));
+            if ($text === '') $text = 'Hashtag encontrada no TikTok';
+
+            $cover = (string)($item['cover'] ?? '');
+            $ads[] = $this->normalizeAd([
+                'id' => (string)($item['id'] ?? sha1($name)),
+                'advertiser' => '#' . $name,
+                'title' => 'Hashtag · ' . ($stats[0] ?? 'em alta'),
+                'text' => $text,
+                'media_type' => $cover !== '' ? 'image' : 'text',
+                'media_url' => $cover,
+                'thumbnail' => $cover,
+                'platforms' => ['tiktok'],
+                'link' => 'https://www.tiktok.com/tag/' . rawurlencode($name),
+            ]);
+        }
+
+        if (empty($ads)) {
+            return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
+                'source_label' => 'TikTok Hashtags via Apify',
+                'hint' => 'TikTok: nenhuma hashtag encontrada para "' . $query . '". Tente termos mais curtos ou em inglês (ex.: "meme").'];
+        }
+
+        return ['ads' => $ads, 'total' => count($ads), 'error' => null, 'source_label' => 'TikTok Hashtags via Apify'];
+    }
+
+    /** 582501992 → "582,5M" | 24896 → "24.896" */
+    private function bigNumber(float $n): string
+    {
+        if ($n >= 1e9) return rtrim(rtrim(number_format($n / 1e9, 1, ',', '.'), '0'), ',') . 'B';
+        if ($n >= 1e6) return rtrim(rtrim(number_format($n / 1e6, 1, ',', '.'), '0'), ',') . 'M';
+        return number_format($n, 0, ',', '.');
+    }
+
     /** Busca direta no Creative Center quando o Apify não achou nada. */
     private function creativeFallback(string $query, array $options): array
     {

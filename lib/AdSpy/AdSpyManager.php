@@ -167,10 +167,17 @@ class AdSpyManager
         }
 
         try {
+            $query = trim((string)($options['query'] ?? ''));
             if ($mode === 'topads' && AdSpyKeys::apify($userId) !== '') {
                 // Descoberta de Top Ads com token Apify (keyword opcional via options['query'])
                 $apify = new TikTokApifyProvider();
-                $r = $apify->search((string)($options['query'] ?? ''), $options);
+                $r = $apify->search($query, $options);
+                if (!empty($r['source_label'])) $r['source_label'] .= ' (descoberta)';
+            } elseif ($mode === 'trends' && $query !== '') {
+                // Busca por termo no modo trends: o Creative Center nao tem busca de
+                // hashtag (nem logado) — resolve o ator powerai via Apify (BYOK).
+                $apify = new TikTokApifyProvider();
+                $r = $apify->hashtagSearch($query, $options);
                 if (!empty($r['source_label'])) $r['source_label'] .= ' (descoberta)';
             } else {
                 $creative = new TikTokCreativeProvider();

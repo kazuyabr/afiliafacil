@@ -195,7 +195,7 @@ if ($pageId > 0) {
     // ── Modos de descoberta (Busca / Trends & Hashtags / Top Ads) ───────
     let currentMode = 'search';
     const MODE_HINTS = {
-        trends: 'Hashtags em alta no TikTok Creative Center (por país e período). O acesso anônimo mostra só as primeiras hashtags — faça login no TikTok em ads.tiktok.com para ver a lista completa. Não é necessário informar termo.',
+        trends: 'Hashtags em alta no TikTok Creative Center (por país e período). Digite um termo (ex.: meme) para buscar hashtags pelo texto — usa seu token Apify. Em branco, mostra a lista em alta (o acesso anônimo mostra só as primeiras hashtags).',
         topads: 'Melhores anúncios do TikTok (Top Ads) por desempenho. Sem token Apify a fonte pública responde com aviso de sessão — configure em IA → Busca de Anúncios. O termo (opcional) filtra por palavra-chave.',
     };
 
@@ -217,10 +217,12 @@ if ($pageId > 0) {
         if (isSearch) {
             label.textContent = 'Termo, domínio ou anunciante';
             input.placeholder = 'ex: preguicaartificial.com.br, https://loja.com/produto, nome do produto, marca...';
+        } else if (mode === 'topads') {
+            label.textContent = 'Palavra-chave (opcional — filtra os Top Ads)';
+            input.placeholder = 'ex: fogão, roupas... (ou deixe em branco)';
         } else {
-            label.textContent = mode === 'topads' ? 'Palavra-chave (opcional — filtra os Top Ads)' : 'Sem termo necessário — a lista sai em alta';
-            input.placeholder = mode === 'topads' ? 'ex: fogão, roupas... (ou deixe em branco)' : 'Deixe em branco e clique em Descobrir';
-            if (mode !== 'topads') input.value = '';
+            label.textContent = 'Hashtag ou termo (opcional)';
+            input.placeholder = 'ex.: meme, fitness, maquiagem... (ou deixe em branco para as em alta)';
         }
     }
 
@@ -239,11 +241,9 @@ if ($pageId > 0) {
             body.append('mode', currentMode);
             body.append('country', document.getElementById('adspyCountry').value);
             body.append('period', document.getElementById('adspyPeriod').value);
-            if (currentMode === 'topads') {
-                body.append('order_by', document.getElementById('adspyOrderBy').value);
-                const q = document.getElementById('adspyQuery').value.trim();
-                if (q) body.append('query', q); // palavra-chave opcional filtra os Top Ads
-            }
+            if (currentMode === 'topads') body.append('order_by', document.getElementById('adspyOrderBy').value);
+            const q = document.getElementById('adspyQuery').value.trim();
+            if (q) body.append('query', q); // trends: busca hashtag por termo; topads: filtra por palavra-chave
 
             const resp = await fetch('/admin/api/adspy.php', { method: 'POST', body });
             const data = await resp.json();
