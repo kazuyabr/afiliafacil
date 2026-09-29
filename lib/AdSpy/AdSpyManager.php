@@ -9,6 +9,7 @@ require_once __DIR__ . '/Providers/MetaAdLibraryProvider.php';
 require_once __DIR__ . '/Providers/GoogleTransparencyProvider.php';
 require_once __DIR__ . '/Providers/TikTokApifyProvider.php';
 require_once __DIR__ . '/Providers/TikTokCreativeProvider.php';
+require_once __DIR__ . '/TikTokSession.php';
 
 class AdSpyManager
 {
@@ -160,6 +161,10 @@ class AdSpyManager
         $mode = in_array($mode, self::DISCOVER_MODES, true) ? $mode : 'trends';
 
         $options['user_id'] = $userId;
+        // Sessao conectada muda a fonte (lista completa via Apify vs top-3 anonima)
+        // → entra na cache key para nao servir resultado antigo apos conectar/desconectar.
+        $ttConnected = TikTokSession::status($userId)['connected'];
+        $options['tt_session'] = $ttConnected ? 1 : 0;
         $cacheKey = $this->cacheKey('tiktok', 'discover:' . $mode, $options);
         $cached = $this->getCache($cacheKey);
         if ($cached !== null) {
@@ -178,6 +183,12 @@ class AdSpyManager
                 // hashtag (nem logado) — resolve o ator powerai via Apify (BYOK).
                 $apify = new TikTokApifyProvider();
                 $r = $apify->hashtagSearch($query, $options);
+                if (!empty($r['source_label'])) $r['source_label'] .= ' (descoberta)';
+            } elseif ($mode === 'trends' && $ttConnected && AdSpyKeys::apify($userId) !== '') {
+                // TikTok conectado: lista completa de trends com os cookies do usuario
+                // (ator anyx — o Creative Center anonimo so serve 3 linhas).
+                $apify = new TikTokApifyProvider();
+                $r = $apify->trendingHashtags($options);
                 if (!empty($r['source_label'])) $r['source_label'] .= ' (descoberta)';
             } else {
                 $creative = new TikTokCreativeProvider();

@@ -137,13 +137,22 @@ if ($pageId > 0) {
                                       <option value="7">Últimos 7 dias</option>
                                       <option value="30">Últimos 30 dias</option>
                                   </select>
-                                  <select id="adspyOrderBy" class="form-control" style="width:auto;" title="Ordenação dos Top Ads">
-                                      <option value="ctr">Ordenar: CTR</option>
-                                      <option value="like">Ordenar: Curtidas</option>
-                                      <option value="cost">Ordenar: Custo</option>
-                                      <option value="for_you">Ordenar: Relevância</option>
-                                  </select>
-                             </div>
+                                   <select id="adspyOrderBy" class="form-control" style="width:auto;" title="Ordenação dos Top Ads">
+                                       <option value="ctr">Ordenar: CTR</option>
+                                       <option value="like">Ordenar: Curtidas</option>
+                                       <option value="cost">Ordenar: Custo</option>
+                                       <option value="for_you">Ordenar: Relevância</option>
+                                   </select>
+                                   <div id="ttConnect" style="display:none;gap:8px;align-items:center;">
+                                       <button type="button" class="btn btn-primary" id="ttConnectBtn" style="padding:6px 12px;font-size:.8rem;" onclick="ttConnect()"><i class="fab fa-tiktok"></i> Conectar TikTok</button>
+                                       <span id="ttPending" style="display:none;gap:6px;align-items:center;font-size:.78rem;color:var(--text-secondary);">
+                                           Janela aberta — faça login no TikTok e clique:
+                                           <button type="button" class="btn btn-primary" style="padding:4px 10px;font-size:.75rem;" onclick="ttContext()">Já fiz login — concluir</button>
+                                           <button type="button" class="btn" style="padding:4px 8px;font-size:.75rem;" onclick="ttCancel()">Cancelar</button>
+                                       </span>
+                                       <span id="ttPill" class="quota-pill" style="display:none;padding:6px 12px;font-size:.78rem;"></span>
+                                   </div>
+                              </div>
                          </div>
                          <div id="modeDiscoverHint" style="display:none;margin-top:10px;font-size:.8rem;color:var(--text-secondary);"></div>
                     </div>
@@ -195,7 +204,7 @@ if ($pageId > 0) {
     // ── Modos de descoberta (Busca / Trends & Hashtags / Top Ads) ───────
     let currentMode = 'search';
     const MODE_HINTS = {
-        trends: 'Hashtags em alta no TikTok Creative Center (por país e período). Digite um termo (ex.: meme) para buscar hashtags pelo texto — usa seu token Apify. Em branco, mostra a lista em alta (o acesso anônimo mostra só as primeiras hashtags).',
+        trends: 'Hashtags em alta no TikTok Creative Center (por país e período). Digite um termo (ex.: meme) para buscar hashtags pelo texto (usa seu token Apify). Em branco: conecte seu TikTok (botão ao lado) para a lista completa, ou veja as primeiras em alta sem login.',
         topads: 'Melhores anúncios do TikTok (Top Ads) por desempenho. Sem token Apify a fonte pública responde com aviso de sessão — configure em IA → Busca de Anúncios. O termo (opcional) filtra por palavra-chave.',
     };
 
@@ -209,6 +218,9 @@ if ($pageId > 0) {
         document.getElementById('adspyGooglePlatform').style.display = isSearch ? '' : 'none';
         document.getElementById('modeDiscoverFields').style.display = isSearch ? 'none' : 'flex';
         document.getElementById('adspyOrderBy').style.display = mode === 'topads' ? '' : 'none';
+        const ttBox = document.getElementById('ttConnect');
+        ttBox.style.display = mode === 'trends' ? 'flex' : 'none';
+        if (mode === 'trends') ttRefreshStatus();
         const hint = document.getElementById('modeDiscoverHint');
         hint.style.display = isSearch ? 'none' : 'block';
         hint.textContent = isSearch ? '' : MODE_HINTS[mode] || '';
@@ -253,6 +265,101 @@ if ($pageId > 0) {
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
+    }
+
+    // ── Conexão TikTok: login no viewer do Steel p/ lista completa de trends ──
+    let ttSessionId = null;
+
+    async function ttApi(params) {
+        const body = new URLSearchParams();
+        Object.entries(params).forEach(([k, v]) => body.append(k, v));
+        const resp = await fetch('/admin/api/adspy.php', { method: 'POST', body });
+        return resp.json();
+    }
+
+    function ttRenderPending(show) {
+        document.getElementById('ttConnectBtn').style.display = show ? 'none' : '';
+        document.getElementById('ttPending').style.display = show ? 'flex' : 'none';
+        document.getElementById('ttPill').style.display = 'none';
+    }
+
+    async function ttRefreshStatus() {
+        if (currentMode !== 'trends') return;
+        try {
+            const data = await ttApi({ action: 'tt_status' });
+            if (!data.success) return;
+            const btn = document.getElementById('ttConnectBtn');
+            const pill = document.getElementById('ttPill');
+            document.getElementById('ttPending').style.display = 'none';
+            if (data.tiktok && data.tiktok.connected) {
+                const d = data.tiktok.connected_at ? String(data.tiktok.connected_at).substring(0, 10).split('-').reverse().join('/') : '';
+                btn.style.display = 'none';
+                pill.style.display = '';
+                pill.innerHTML = '<i class="fab fa-tiktok"></i> TikTok conectado' + (d ? ' em ' + d : '') +
+                    ' <a href="#" onclick="ttDisconnect();return false;" style="margin-left:8px;font-weight:600;color:var(--danger);text-decoration:none;">Desconectar</a>';
+            } else {
+                pill.style.display = 'none';
+                btn.style.display = '';
+                btn.disabled = false;
+                if (!data.steel) {
+                    btn.disabled = true;
+                    btn.title = IS_ADMIN ? 'Configure o Steel Browser em Admin → Configurações' : 'Steel Browser não configurado — avise o admin';
+                    btn.innerHTML = '<i class="fab fa-tiktok"></i> Steel não configurado';
+                } else if (!data.apify) {
+                    btn.disabled = true;
+                    btn.title = 'Configure seu token Apify em IA → Busca de Anúncios';
+                    btn.innerHTML = '<i class="fab fa-tiktok"></i> Falta token Apify';
+                } else {
+                    btn.title = 'Abre o browser do servidor para você logar no TikTok';
+                    btn.innerHTML = '<i class="fab fa-tiktok"></i> Conectar TikTok';
+                }
+            }
+        } catch (e) {}
+    }
+
+    async function ttConnect() {
+        const btn = document.getElementById('ttConnectBtn');
+        btn.disabled = true;
+        try {
+            const data = await ttApi({ action: 'tt_connect' });
+            if (!data.success) {
+                showToast(data.error || 'Falha ao criar a sessão no Steel Browser', 'error');
+                return;
+            }
+            ttSessionId = data.session_id;
+            window.open(data.viewer_url, '_blank', 'width=1280,height=860');
+            ttRenderPending(true);
+            showToast('Janela do TikTok aberta — faça login lá e clique em "Já fiz login"', 'success');
+        } catch (e) {
+            showToast('Erro de conexão: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function ttContext() {
+        if (!ttSessionId) { ttRenderPending(false); return; }
+        const sid = ttSessionId;
+        ttSessionId = null;
+        try {
+            const data = await ttApi({ action: 'tt_context', session_id: sid });
+            if (data.success) showToast('TikTok conectado! A lista completa de trends está liberada.', 'success');
+            else showToast(data.error || 'Não consegui concluir a conexão', 'error');
+        } catch (e) {
+            showToast('Erro de conexão: ' + e.message, 'error');
+        }
+        ttRenderPending(false);
+        ttRefreshStatus();
+    }
+
+    function ttCancel() {
+        ttSessionId = null;
+        ttRenderPending(false);
+    }
+
+    async function ttDisconnect() {
+        try { await ttApi({ action: 'tt_disconnect' }); } catch (e) {}
+        ttRefreshStatus();
     }
 
     async function loadProviderStatus() {
