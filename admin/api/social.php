@@ -8,6 +8,7 @@ require_once Config::getLibDir() . '/Social/SocialConnections.php';
 require_once Config::getLibDir() . '/Social/SocialQuota.php';
 require_once Config::getLibDir() . '/Social/SocialOAuth.php';
 require_once Config::getLibDir() . '/Social/SocialPublisher.php';
+require_once Config::getLibDir() . '/Social/SocialMetrics.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -180,6 +181,20 @@ switch ($action) {
         if (!$requireFeature()) break;
         $ok = SocialPublisher::delete($userId, (int)($_POST['id'] ?? 0));
         echo json_encode(['success' => $ok, 'error' => $ok ? null : 'Não foi possível excluir (post em publicação ou inexistente).']);
+        break;
+    }
+
+    case 'metrics': {
+        // Leitura: dashboard unificado (metricas ja coletadas)
+        echo json_encode(['success' => true, 'by_post' => SocialMetrics::forUser($userId)],
+            JSON_UNESCAPED_UNICODE);
+        break;
+    }
+
+    case 'collect': {
+        if (!$requireFeature()) break;
+        $summary = SocialMetrics::collect($userId, true, (int)($_POST['limit'] ?? 10));
+        echo json_encode(['success' => true, 'summary' => $summary], JSON_UNESCAPED_UNICODE);
         break;
     }
 

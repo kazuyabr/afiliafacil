@@ -141,6 +141,33 @@ if (isset($_GET['oauth'])) {
                 </div>
 
                 <div class="sec-title">
+                    <h2>Desempenho</h2>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span class="pill" id="metricsPill">—</span>
+                        <button class="btn btn-sm" id="metricsBtn" onclick="collectMetrics()"><i class="fas fa-rotate"></i> Atualizar métricas</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body" style="padding:0;overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+                            <thead><tr style="text-align:left;border-bottom:1px solid var(--border,#ddd);">
+                                <th style="padding:11px 14px;">Post</th>
+                                <th style="padding:11px 14px;">Rede</th>
+                                <th style="padding:11px 14px;">Curtidas</th>
+                                <th style="padding:11px 14px;">Coment.</th>
+                                <th style="padding:11px 14px;">Compart.</th>
+                                <th style="padding:11px 14px;">Impressões</th>
+                                <th style="padding:11px 14px;">Alcance/Views</th>
+                                <th style="padding:11px 14px;">Coletado</th>
+                            </tr></thead>
+                            <tbody id="metricsBody">
+                                <tr><td colspan="8" class="empty"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="sec-title">
                     <h2>Histórico</h2>
                     <button class="btn btn-sm" onclick="loadHistory(true)"><i class="fas fa-rotate"></i> Atualizar</button>
                 </div>
@@ -433,7 +460,62 @@ if (isset($_GET['oauth'])) {
             </tr>`).join('');
 
         const active = posts.some(p => ['scheduled', 'publishing'].includes(p.status));
+        STATE.posts = posts;
+        loadMetrics();
         if (active && !force) setTimeout(() => loadHistory(), 15000);
+    }
+
+    async function loadMetrics() {
+        const j = await api('metrics');
+        const byPost = (j && j.by_post) || {};
+        STATE.metrics = byPost;
+        const posts = (STATE.posts || []).filter(p =>
+            p.targets.some(t => t.status === 'published'));
+        const body = document.getElementById('metricsBody');
+        const pill = document.getElementById('metricsPill');
+        if (!posts.length) {
+            body.innerHTML = '<tr><td colspan="8" class="empty">As métricas aparecem aqui após publicar.</td></tr>';
+            pill.innerHTML = '<i class="fas fa-chart-simple"></i> sem dados';
+            return;
+        }
+        let last = '';
+        const rows = [];
+        posts.slice(0, 15).forEach(p => {
+            p.targets.filter(t => t.status === 'published').forEach(t => {
+                const m = (byPost[p.id] || {})[t.network] || null;
+                if (m && m.collected_at) last = m.collected_at;
+                rows.push(`<tr style="border-bottom:1px solid var(--border,#eee);">
+                    <td style="padding:9px 14px;max-width:260px;">${esc((p.caption || '(sem legenda)').slice(0, 70))}</td>
+                    <td style="padding:9px 14px;"><span class="tgt-chip published"><i class="fas fa-circle" style="font-size:.5rem;"></i> ${esc(t.network_label)}</span></td>
+                    <td style="padding:9px 14px;">${m ? (m.likes || 0).toLocaleString('pt-BR') : '—'}</td>
+                    <td style="padding:9px 14px;">${m ? (m.comments || 0).toLocaleString('pt-BR') : '—'}</td>
+                    <td style="padding:9px 14px;">${m ? (m.shares || 0).toLocaleString('pt-BR') : '—'}</td>
+                    <td style="padding:9px 14px;">${m ? (m.impressions || 0).toLocaleString('pt-BR') : '—'}</td>
+                    <td style="padding:9px 14px;">${m ? ((m.reach || m.views || 0)).toLocaleString('pt-BR') : '—'}</td>
+                    <td style="padding:9px 14px;white-space:nowrap;font-size:.78rem;color:var(--text-secondary);">${m && m.collected_at ? fmtDate(m.collected_at) : 'não coletado'}</td>
+                </tr>`);
+            });
+        });
+        body.innerHTML = rows.join('') || '<tr><td colspan="8" class="empty">As métricas aparecem aqui após publicar.</td></tr>';
+        pill.innerHTML = last
+            ? '<i class="fas fa-chart-simple"></i> atualizado ' + fmtDate(last)
+            : '<i class="fas fa-chart-simple"></i> clique em Atualizar';
+    }
+
+    async function collectMetrics() {
+        const btn = document.getElementById('metricsBtn');
+        const pill = document.getElementById('metricsPill');
+        btn.disabled = true;
+        pill.innerHTML = '<i class="fas fa-spinner fa-spin"></i> coletando…';
+        try {
+            const j = await api('collect');
+            const s = (j && j.summary) || {};
+            pill.innerHTML = '<i class="fas fa-chart-simple"></i> ' + (s.updated || 0) + ' atualizada(s)'
+                + ((s.failed || 0) ? ', ' + s.failed + ' falha(s)' : '');
+            await loadMetrics();
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     async function retry(id) {

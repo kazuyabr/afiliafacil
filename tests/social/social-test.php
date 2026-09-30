@@ -25,6 +25,7 @@ require_once Config::getLibDir() . '/Social/SocialHttp.php';
 require_once Config::getLibDir() . '/Social/SocialConnections.php';
 require_once Config::getLibDir() . '/Social/SocialQuota.php';
 require_once Config::getLibDir() . '/Social/SocialPublisher.php';
+require_once Config::getLibDir() . '/Social/SocialMetrics.php';
 
 if (!Database::available()) {
     fwrite(STDERR, "Banco indisponível\n");
@@ -63,6 +64,7 @@ function cleanup(int $adminId, int $trialId): void
             ->where('caption', 'like', 'SOCIALTEST%')->pluck('id');
         if (count($posts)) {
             \AfiliaFacil\Models\SocialPostTarget::whereIn('post_id', $posts)->delete();
+            \AfiliaFacil\Models\SocialPostMetric::whereIn('post_id', $posts)->delete();
             \AfiliaFacil\Models\SocialPost::whereIn('id', $posts)->delete();
         }
         \AfiliaFacil\Models\SocialConnection::where('user_id', $adminId)
@@ -89,6 +91,45 @@ register_shutdown_function(function () use ($adminId, $trialId) {
 // Fake HTTP: rotas das APIs sociais com sucesso, exceto threads (falha simulada)
 SocialHttp::$handler = function (string $method, string $url, array $opts = []): array {
     $j = fn (array $data, int $status = 200) => ['status' => $status, 'body' => json_encode($data)];
+
+    // --- metricas (GET) ---
+    if (preg_match('#graph\.facebook\.com/v21\.0/fb_feed_1$#', $url)) {
+        return $j(['id' => 'fb_feed_1',
+            'likes' => ['summary' => ['total_count' => 12]],
+            'comments' => ['summary' => ['total_count' => 3]],
+            'shares' => ['count' => 4],
+            'insights' => ['data' => [['name' => 'post_impressions', 'values' => [['value' => 340]]]]],
+        ]);
+    }
+    if (str_contains($url, '/ig_pub_1/insights')) {
+        return $j(['data' => [
+            ['name' => 'likes', 'values' => [['value' => 7]]],
+            ['name' => 'comments', 'values' => [['value' => 2]]],
+            ['name' => 'impressions', 'values' => [['value' => 150]]],
+            ['name' => 'reach', 'values' => [['value' => 120]]],
+            ['name' => 'saved', 'values' => [['value' => 1]]],
+        ]]);
+    }
+    if (str_contains($url, 'graph.threads.net') && str_contains($url, '/insights')) {
+        return $j(['data' => [
+            ['name' => 'likes', 'values' => [['value' => 3]]],
+            ['name' => 'replies', 'values' => [['value' => 1]]],
+            ['name' => 'reposts', 'values' => [['value' => 1]]],
+            ['name' => 'quotes', 'values' => [['value' => 1]]],
+            ['name' => 'impressions', 'values' => [['value' => 90]]],
+        ]]);
+    }
+    if (str_contains($url, 'api.x.com/2/tweets/')) {
+        return $j(['data' => ['id' => 'x_post_1',
+            'public_metrics' => ['like_count' => 5, 'reply_count' => 2, 'retweet_count' => 1,
+                'quote_count' => 1, 'impression_count' => 77]]]);
+    }
+    if (str_contains($url, 'open.tiktokapis.com/v2/video/query/')) {
+        return $j(['data' => ['videos' => [['id' => 'tt_9',
+            'like_count' => 10, 'comment_count' => 1, 'share_count' => 2, 'view_count' => 100]]]]);
+    }
+
+    // --- publicacao ---
     if (str_contains($url, 'graph.facebook.com') && str_contains($url, '/photos')) return $j(['id' => 'fb_photo_1']);
     if (str_contains($url, 'graph.facebook.com') && str_contains($url, '/feed')) return $j(['id' => 'fb_feed_1']);
     if (str_contains($url, 'graph.facebook.com') && str_ends_with($url, '/media')) return $j(['id' => 'ig_container_1']);
@@ -273,8 +314,71 @@ ok('delete remove post', SocialPublisher::delete($adminId, $firstId)
     && !\AfiliaFacil\Models\SocialPost::find($firstId));
 ok('delete nega post de outro usuário', !SocialPublisher::delete($trialId, $schedId));
 
-// ------------------------------------------------------------ 8. API HTTP
-section('8. API HTTP (/admin/api/social.php + tela)');
+// ------------------------------------------- 8. métricas (dashboard)
+section('8. Métricas por post/rede (Fase 2)');
+$now = date('Y-m-d H:i:s');
+$fxPost = \AfiliaFacil\Models\SocialPost::create([
+    'user_id' => $adminId, 'caption' => 'SOCIALTEST fixture de metricas',
+    'media_url' => '', 'media_kind' => '', 'status' => 'published',
+    'scheduled_at' => null, 'published_at' => $now, 'source' => 'manual',
+    'created_at' => $now, 'updated_at' => $now,
+]);
+$fxRemotes = ['facebook' => 'fb_feed_1', 'instagram' => 'ig_pub_1', 'threads' => 'th_pub_9',
+    'x' => 'x_post_1', 'tiktok' => 'tt_9'];
+foreach ($fxRemotes as $net => $remote) {
+    $c = SocialConnections::find($adminId, $net);
+    \AfiliaFacil\Models\SocialPostTarget::create([
+        'post_id' => (int)$fxPost->id, 'connection_id' => (int)$c->id, 'network' => $net,
+        'status' => 'published', 'remote_id' => $remote, 'error' => '',
+        'published_at' => $now, 'created_at' => $now, 'updated_at' => $now,
+    ]);
+}
+
+$sum = SocialMetrics::collectPost((int)$fxPost->id, true);
+ok('coleta respondeu as 5 redes', ($sum['updated'] ?? 0) === 5 && ($sum['failed'] ?? 0) === 0,
+    'summary=' . json_encode($sum));
+
+$byPost = SocialMetrics::forUser($adminId);
+$m = $byPost[(int)$fxPost->id] ?? [];
+ok('facebook: likes 12 / comments 3 / shares 4 / impr 340',
+    (($m['facebook']['likes'] ?? -1) === 12) && (($m['facebook']['comments'] ?? -1) === 3)
+    && (($m['facebook']['shares'] ?? -1) === 4) && (($m['facebook']['impressions'] ?? -1) === 340),
+    'fb=' . json_encode($m['facebook'] ?? null));
+ok('instagram: likes 7 / reach 120', (($m['instagram']['likes'] ?? -1) === 7)
+    && (($m['instagram']['reach'] ?? -1) === 120), 'ig=' . json_encode($m['instagram'] ?? null));
+ok('threads: likes 3 / shares (reposts+quotes) 2 / impr 90',
+    (($m['threads']['likes'] ?? -1) === 3) && (($m['threads']['shares'] ?? -1) === 2)
+    && (($m['threads']['impressions'] ?? -1) === 90), 'th=' . json_encode($m['threads'] ?? null));
+ok('x: likes 5 / comments 2 / impr 77', (($m['x']['likes'] ?? -1) === 5)
+    && (($m['x']['comments'] ?? -1) === 2) && (($m['x']['impressions'] ?? -1) === 77),
+    'x=' . json_encode($m['x'] ?? null));
+ok('tiktok: views 100 / shares 2', (($m['tiktok']['views'] ?? -1) === 100)
+    && (($m['tiktok']['shares'] ?? -1) === 2), 'tt=' . json_encode($m['tiktok'] ?? null));
+ok('collected_at preenchido', !empty($m['facebook']['collected_at']));
+
+$sum2 = SocialMetrics::collectPost((int)$fxPost->id, false);
+ok('sem force recoleta nada (coleta recente < 1h)', ($sum2['checked'] ?? -1) === 0,
+    'summary=' . json_encode($sum2));
+
+// falha graciosa: token removido nao apaga metricas ja coletadas
+$connX = SocialConnections::find($adminId, 'x');
+if ($connX) {
+    \AfiliaFacil\Models\SocialConnection::where('id', $connX->id)
+        ->update(['status' => 'expired', 'updated_at' => $now]);
+}
+$sum3 = SocialMetrics::collectPost((int)$fxPost->id, true);
+$mAfter = SocialMetrics::forUser($adminId)[(int)$fxPost->id] ?? [];
+ok('conexão expirada: 4 ok + 1 falha, métricas antigas preservadas',
+    ($sum3['updated'] ?? -1) === 4 && ($sum3['failed'] ?? -1) === 1
+    && (($mAfter['x']['likes'] ?? -1) === 5), 'summary=' . json_encode($sum3));
+SocialConnections::upsert($adminId, 'x', [
+    'token' => 'tok-x-restored-' . bin2hex(random_bytes(3)),
+    'account_id' => 'x_acc', 'account_name' => 'Conta x',
+    'meta' => ['username' => 'testuser', 'via' => 'test'],
+]);
+
+// ------------------------------------------------------ 9. API HTTP
+section('9. API HTTP (/admin/api/social.php + tela)');
 $BASE = 'http://localhost:9876';
 $http = function (string $method, string $url, array $post = null, string $jar = ''): array {
     $ch = curl_init($url);
@@ -330,10 +434,23 @@ $jp = json_decode($r['body'], true) ?: [];
 ok('action=process roda (polling)', $r['status'] === 200 && !empty($jp['success'])
     && isset($jp['due']['processed']), 'due=' . json_encode($jp['due'] ?? []));
 
+$r = $http('POST', $BASE . '/admin/api/social.php', ['action' => 'metrics'], $jar);
+$jm = json_decode($r['body'], true) ?: [];
+ok('action=metrics → by_post populado', $r['status'] === 200 && !empty($jm['success'])
+    && !empty($jm['by_post']), 'posts=' . count($jm['by_post'] ?? []));
+
+$r = $http('POST', $BASE . '/admin/api/social.php', ['action' => 'collect'], $jar);
+$jc2 = json_decode($r['body'], true) ?: [];
+ok('action=collect → summary sem erro', $r['status'] === 200 && !empty($jc2['success'])
+    && isset($jc2['summary']['checked']) && !isset($jc2['summary']['error']),
+    'summary=' . json_encode($jc2['summary'] ?? null));
+
 $r = $http('GET', $BASE . '/admin/integrations.php', null, $jar);
 ok('tela /admin/integrations.php → 200 com composer', $r['status'] === 200
     && str_contains($r['body'], 'Redes sociais') && str_contains($r['body'], 'publishBtn'),
     'status=' . $r['status'] . ' len=' . strlen($r['body']));
+ok('tela tem seção Desempenho + métricas', str_contains($r['body'], 'Desempenho')
+    && str_contains($r['body'], 'metricsBody') && str_contains($r['body'], 'collectMetrics'));
 
 // ------------------------------------------------------------------ resumo
 echo "\n----------------------------------------\n";
