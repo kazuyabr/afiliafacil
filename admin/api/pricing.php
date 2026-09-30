@@ -50,6 +50,8 @@ switch ($action) {
                 'max_tts' => (int)($p->max_tts ?? 0),
                 'max_agent_messages' => (int)($p->max_agent_messages ?? 0),
                 'max_subagents' => (int)($p->max_subagents ?? 0),
+                'max_social_connections' => (int)($p->max_social_connections ?? 0),
+                'max_posts_month' => (int)($p->max_posts_month ?? 0),
                 'active' => (bool)$p->active,
                 'prices' => $prices,
             ];
@@ -75,6 +77,8 @@ switch ($action) {
         if (isset($_POST['max_tts'])) $plan->max_tts = (int)$_POST['max_tts'];
         if (isset($_POST['max_agent_messages'])) $plan->max_agent_messages = (int)$_POST['max_agent_messages'];
         if (isset($_POST['max_subagents'])) $plan->max_subagents = (int)$_POST['max_subagents'];
+        if (isset($_POST['max_social_connections'])) $plan->max_social_connections = (int)$_POST['max_social_connections'];
+        if (isset($_POST['max_posts_month'])) $plan->max_posts_month = (int)$_POST['max_posts_month'];
         if (isset($_POST['active'])) $plan->active = (bool)$_POST['active'];
         if (isset($_POST['features'])) {
             $features = $_POST['features'];

@@ -8,6 +8,8 @@ require_once __DIR__ . '/../Offers/OfferQuota.php';
 require_once __DIR__ . '/../AdSpy/AdSpyQuota.php';
 require_once __DIR__ . '/../Ai/SttQuota.php';
 require_once __DIR__ . '/../Ai/TtsQuota.php';
+require_once __DIR__ . '/../Social/SocialQuota.php';
+require_once __DIR__ . '/../Social/SocialConnections.php';
 
 class AgentGuard
 {
@@ -84,6 +86,18 @@ class AgentGuard
                     ? ['allowed' => true, 'cost' => '1 subagente do plano']
                     : ['allowed' => false, 'reason' => 'Limite de subagentes do plano atingido (' . $quota['used'] . '/' . $quota['limit'] . '). Faça upgrade para criar mais especialistas.'];
 
+            case 'publicar_post':
+                if (!Plans::hasFeature($plan, 'social')) {
+                    return ['allowed' => false, 'reason' => 'O plano atual não inclui publicações nas redes sociais.'];
+                }
+                if (array_filter(SocialConnections::list($userId), fn ($c) => ($c['status'] ?? '') === 'connected') === []) {
+                    return ['allowed' => false, 'reason' => 'Nenhuma rede social conectada. Peça ao usuário para conectar em Integrações.'];
+                }
+                $quota = SocialQuota::check($userId, $plan);
+                return $quota['ok']
+                    ? ['allowed' => true, 'cost' => '1 post da cota mensal']
+                    : ['allowed' => false, 'reason' => $quota['error']];
+
             case 'delegar_subagente':
                 $active = array_values(array_filter(AgentSubagents::list($userId), fn($s) => !empty($s['active'])));
                 return count($active) > 0
@@ -108,7 +122,7 @@ class AgentGuard
         return in_array($tool, [
             'ver_oferta', 'espionar_anuncios', 'analisar_oferta',
             'transcrever_midia', 'gerar_narracao', 'clonar_pagina',
-            'criar_subagente', 'delegar_subagente',
+            'criar_subagente', 'delegar_subagente', 'publicar_post',
         ], true);
     }
 

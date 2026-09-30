@@ -16,13 +16,22 @@ if ($expected === '' || $key === '' || !hash_equals($expected, $key)) {
     exit;
 }
 
-if (Settings::get('offers_monitor_mode', 'cron') === 'manual') {
-    echo json_encode(['skipped' => true, 'reason' => 'Monitor em modo manual (Admin > Ofertas > Curadoria)']);
-    exit;
-}
-
 $startedAt = microtime(true);
 $result = ['started_at' => date('Y-m-d H:i:s')];
+
+// Publicacoes agendadas das redes sociais rodam sempre (independem do modo de ofertas)
+try {
+    require_once Config::getLibDir() . '/Social/SocialPublisher.php';
+    $result['social_posts'] = SocialPublisher::processDue(5);
+} catch (Throwable $e) {
+    $result['social_posts'] = ['error' => $e->getMessage()];
+}
+
+if (Settings::get('offers_monitor_mode', 'cron') === 'manual') {
+    echo json_encode(['skipped' => true, 'reason' => 'Monitor em modo manual (Admin > Ofertas > Curadoria)',
+        'social_posts' => $result['social_posts'] ?? null]);
+    exit;
+}
 
 try {
     $collector = new OfferCollector();

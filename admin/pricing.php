@@ -120,6 +120,14 @@ $theme = $_SESSION['theme'] ?? 'light';
                             <label>Subagentes (máx, -1 = ilimitado)</label>
                             <input type="number" class="form-control plan-max-subagents" value="${p.max_subagents ?? 0}">
                         </div>
+                        <div class="form-group">
+                            <label>Contas sociais conectadas (máx, -1 = ilimitado)</label>
+                            <input type="number" class="form-control plan-max-social-conn" value="${p.max_social_connections ?? 0}">
+                        </div>
+                        <div class="form-group">
+                            <label>Publicações sociais/mês (-1 = ilimitado)</label>
+                            <input type="number" class="form-control plan-max-posts" value="${p.max_posts_month ?? 0}">
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Recursos (separados por vírgula)</label>
@@ -154,6 +162,8 @@ $theme = $_SESSION['theme'] ?? 'light';
         body.append('max_tts', card.querySelector('.plan-max-tts').value);
         body.append('max_agent_messages', card.querySelector('.plan-max-agent').value);
         body.append('max_subagents', card.querySelector('.plan-max-subagents').value);
+        body.append('max_social_connections', card.querySelector('.plan-max-social-conn').value);
+        body.append('max_posts_month', card.querySelector('.plan-max-posts').value);
         body.append('features', card.querySelector('.plan-features').value);
         body.append('active', card.querySelector('.plan-active').checked ? '1' : '0');
         card.querySelectorAll('.plan-price').forEach(input => {

@@ -8,6 +8,11 @@ if (in_array(strtolower($ext), $staticExtensions)) {
     return false;
 }
 
+// Midias publicadas nas redes precisam ser URL publica (Graph/TikTok baixam daqui)
+if (str_starts_with($path, '/uploads/social/') && is_file(__DIR__ . $path)) {
+    return false;
+}
+
 $routes = [
     '/' => '/landing.php',
     '/index.php' => '/landing.php',
@@ -75,6 +80,7 @@ $routes = [
     '/admin/api/clone.php' => '/admin/api/clone.php',
     '/admin/api/pages.php' => '/admin/api/pages.php',
     '/admin/api/checkout.php' => '/admin/api/checkout.php',
+    '/admin/api/social.php' => '/admin/api/social.php',
 ];
 
 function matchRoute(array $routes, string $path): ?string

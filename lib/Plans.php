@@ -8,12 +8,14 @@ class Plans
         'trial' => [
             'name' => 'Trial',
             'price' => 0,
-            'features' => ['clone', 'offers', 'adspy'],
+            'features' => ['clone', 'offers', 'adspy', 'social'],
             'max_pages' => 1,
             'max_offers_views' => 3,
             'max_transcriptions' => 2,
             'max_tts' => 2,
             'max_agent_messages' => 10,
+            'max_social_connections' => 1,
+            'max_posts_month' => 10,
             'label' => 'Grátis por 3 dias',
         ],
         'trial_expired' => [
@@ -21,6 +23,8 @@ class Plans
             'price' => 0,
             'features' => [],
             'max_pages' => 0,
+            'max_social_connections' => 0,
+            'max_posts_month' => 0,
             'label' => 'Trial expirado - assine para continuar',
         ],
         'vsl' => [
@@ -32,8 +36,10 @@ class Plans
                 'semiannual' => 267,
                 'annual' => 468,
             ],
-            'features' => ['video', 'delay', 'clone'],
+            'features' => ['video', 'delay', 'clone', 'social'],
             'max_pages' => 1,
+            'max_social_connections' => 1,
+            'max_posts_month' => 10,
             'label' => 'Páginas de VSL com delay',
         ],
         'essencial' => [
@@ -45,13 +51,15 @@ class Plans
                 'semiannual' => 402,
                 'annual' => 679,
             ],
-            'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'editor', 'offers', 'adspy', 'agent'],
+            'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'editor', 'offers', 'adspy', 'agent', 'social'],
             'max_pages' => 5,
             'max_offers_views' => 30,
             'max_transcriptions' => 10,
             'max_tts' => 10,
             'max_agent_messages' => 100,
             'max_subagents' => 2,
+            'max_social_connections' => 3,
+            'max_posts_month' => 30,
             'label' => '5 páginas',
         ],
         'master' => [
@@ -63,25 +71,29 @@ class Plans
                 'semiannual' => 492,
                 'annual' => 838,
             ],
-            'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'integrations', 'quizz', 'editor', 'offers', 'adspy', 'agent'],
+            'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'integrations', 'quizz', 'editor', 'offers', 'adspy', 'agent', 'social'],
             'max_pages' => -1,
             'max_offers_views' => 300,
             'max_transcriptions' => 100,
             'max_tts' => 100,
             'max_agent_messages' => 500,
             'max_subagents' => 5,
+            'max_social_connections' => 5,
+            'max_posts_month' => 100,
             'label' => 'Tudo ilimitado + integrações',
         ],
         'premium' => [
             'name' => 'Admin',
             'price' => 0,
-            'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'integrations', 'quizz', 'editor', 'offers', 'adspy', 'agent'],
+            'features' => ['clone', 'pressel', 'player', 'pixel', 'cookie', 'backredirect', 'integrations', 'quizz', 'editor', 'offers', 'adspy', 'agent', 'social'],
             'max_pages' => -1,
             'max_offers_views' => -1,
             'max_transcriptions' => -1,
             'max_tts' => -1,
             'max_agent_messages' => -1,
             'max_subagents' => -1,
+            'max_social_connections' => -1,
+            'max_posts_month' => -1,
             'label' => 'Acesso de administrador',
         ],
     ];
@@ -123,6 +135,8 @@ class Plans
                     'max_tts' => (int)($plan->max_tts ?? 0),
                     'max_agent_messages' => (int)($plan->max_agent_messages ?? 0),
                     'max_subagents' => (int)($plan->max_subagents ?? 0),
+                    'max_social_connections' => (int)($plan->max_social_connections ?? 0),
+                    'max_posts_month' => (int)($plan->max_posts_month ?? 0),
                     'label' => $plan->label ?? '',
                 ];
             }
@@ -198,6 +212,16 @@ class Plans
     public static function maxSubagents(string $plan): int
     {
         return self::get($plan)['max_subagents'] ?? 0;
+    }
+
+    public static function maxSocialConnections(string $plan): int
+    {
+        return self::get($plan)['max_social_connections'] ?? 0;
+    }
+
+    public static function maxPostsMonth(string $plan): int
+    {
+        return self::get($plan)['max_posts_month'] ?? 0;
     }
 
     public static function hasFeature(string $plan, string $feature): bool

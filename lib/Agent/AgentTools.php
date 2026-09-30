@@ -20,6 +20,9 @@ require_once __DIR__ . '/../Ai/TtsQuota.php';
 require_once __DIR__ . '/../Ai/MediaDetector.php';
 require_once __DIR__ . '/../Moderation/ContentModerator.php';
 require_once __DIR__ . '/../Web/WebSearch.php';
+require_once __DIR__ . '/../Social/SocialPublisher.php';
+require_once __DIR__ . '/../Social/SocialConnections.php';
+require_once __DIR__ . '/../Social/SocialQuota.php';
 require_once __DIR__ . '/AgentSubagents.php';
 require_once __DIR__ . '/AgentPrompts.php';
 
@@ -44,6 +47,7 @@ class AgentTools
             ['name' => 'clonar_pagina', 'params' => ['url' => 'URL da página', 'affiliate_link' => 'link de afiliado', 'name?' => 'nome'], 'desc' => 'Clona uma página de vendas e aplica o link de afiliado. Consome 1 página do plano.'],
             ['name' => 'criar_subagente', 'params' => ['name' => 'nome do especialista', 'specialty?' => 'especialidade', 'instructions?' => 'instruções', 'tools?' => 'ferramentas permitidas'], 'desc' => 'Cria um subagente especializado (ex.: analista de Meta Ads) que você e o usuário poderão consultar depois.'],
             ['name' => 'delegar_subagente', 'params' => ['subagent' => 'nome ou id do subagente', 'question' => 'pergunta'], 'desc' => 'Consulta um subagente ativo e traz a resposta dele para a conversa (sem custo de cota extra).'],
+            ['name' => 'publicar_post', 'params' => ['caption' => 'texto do post', 'networks' => 'redes separadas por vírgula (ex.: instagram,facebook)', 'media_url?' => 'URL de imagem/vídeo', 'scheduled_at?' => 'data/hora agendada (Y-m-d H:i:s)'], 'desc' => 'Publica um post nas redes sociais conectadas do usuário (uma ou mais de uma vez). Mostra as redes conectadas antes; consome 1 post da cota mensal.'],
         ];
     }
 
@@ -65,6 +69,7 @@ class AgentTools
                 'clonar_pagina' => self::clonar($args, $userId),
                 'criar_subagente' => self::criarSubagente($args, $user, $userId, $context),
                 'delegar_subagente' => self::delegarSubagente($args, $user, $userId, $context),
+                'publicar_post' => self::publicarPost($args, $user, $userId),
                 default => ['success' => false, 'summary' => 'Ferramenta desconhecida.', 'render' => null],
             };
         } catch (Throwable $e) {
@@ -555,6 +560,74 @@ class AgentTools
             'success' => true,
             'summary' => 'Narração gerada (' . mb_strlen($text) . ' caracteres, voz ' . $voice . ').',
             'render' => ['type' => 'narracao', 'data' => ['id' => $id, 'voice' => $voice, 'format' => $ext]],
+        ];
+    }
+
+    private static function publicarPost(array $args, array $user, int $userId): array
+    {
+        $caption = trim((string)($args['caption'] ?? ''));
+        $mediaUrl = trim((string)($args['media_url'] ?? ''));
+        $scheduledAt = trim((string)($args['scheduled_at'] ?? ''));
+
+        if ($caption === '' && $mediaUrl === '') {
+            return ['success' => false, 'summary' => 'Informe a legenda do post (e opcionalmente uma URL de mídia).', 'render' => null];
+        }
+
+        $screen = ContentModerator::screen($caption !== '' ? $caption : $mediaUrl, 'social', $userId);
+        if (!$screen['allowed']) {
+            return ['success' => false, 'summary' => $screen['reason'], 'render' => null];
+        }
+        if ($caption !== '') $caption = $screen['clean'];
+
+        $networks = $args['networks'] ?? [];
+        if (is_string($networks)) $networks = array_filter(array_map('trim', explode(',', $networks)));
+        $networks = array_values(array_unique(array_filter((array)$networks)));
+
+        if ($networks === []) {
+            $connected = SocialConnections::list($userId);
+            $names = implode(', ', array_map(fn ($c) => $c['network'], $connected));
+            return ['success' => false, 'summary' => $connected === []
+                ? 'Nenhuma rede social conectada ainda. Peça ao usuário para conectar em Integrações antes de publicar.'
+                : 'Informe em qual(is) rede(s) publicar. Conectadas: ' . $names . '.', 'render' => null];
+        }
+
+        $kind = '';
+        if ($mediaUrl !== '') {
+            $ext = strtolower(pathinfo(parse_url($mediaUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
+            $kind = in_array($ext, ['mp4', 'webm', 'mov'], true) ? 'video' : 'image';
+        }
+
+        $result = SocialPublisher::create($userId, (string)$user['plan'], [
+            'caption' => $caption,
+            'media_url' => $mediaUrl,
+            'media_kind' => $kind,
+            'networks' => $networks,
+            'scheduled_at' => $scheduledAt ?: null,
+            'source' => 'agent',
+        ]);
+
+        if (empty($result['ok'])) {
+            $detail = !empty($result['errors']) ? implode(' · ', $result['errors']) : ($result['error'] ?? 'Falha ao publicar.');
+            return ['success' => false, 'summary' => $detail, 'render' => null];
+        }
+
+        if (($result['status'] ?? '') === 'scheduled') {
+            return [
+                'success' => true,
+                'summary' => 'Post agendado para ' . $result['scheduled_at'] . ' em ' . implode(', ', $networks) . '. Ele será publicado automaticamente.',
+                'render' => null,
+            ];
+        }
+
+        $parts = array_map(
+            fn ($t) => $t['network_label'] . ($t['status'] === 'published' ? ' ✓' : ' ✗ ' . ($t['error'] ?: 'falhou')),
+            $result['targets'] ?? []
+        );
+        $okCount = count(array_filter($result['targets'] ?? [], fn ($t) => $t['status'] === 'published'));
+        return [
+            'success' => $okCount > 0,
+            'summary' => 'Publicação em ' . count($result['targets'] ?? []) . ' rede(s): ' . implode(' | ', $parts) . '. Status: ' . ($result['status'] ?? '') . '.',
+            'render' => null,
         ];
     }
 
