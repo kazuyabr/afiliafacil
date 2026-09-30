@@ -68,17 +68,23 @@ switch ($action) {
         $mode = $_POST['mode'] ?? 'trends';
         $country = strtoupper($_POST['country'] ?? 'BR');
         if ($country === 'ALL') $country = 'BR'; // Creative Center exige país específico
+        $providers = $_POST['providers'] ?? AdSpyManager::PROVIDERS;
+        if (is_string($providers)) $providers = array_filter(explode(',', $providers));
+        $providers = array_values(array_intersect($providers, AdSpyManager::PROVIDERS));
+        if (empty($providers)) $providers = AdSpyManager::PROVIDERS;
+
         $options = [
             'country' => $country,
             'period' => (int)($_POST['period'] ?? 7),
             'order_by' => $_POST['order_by'] ?? 'ctr',
             'limit' => min(50, max(5, (int)($_POST['limit'] ?? 30))),
-            'query' => trim((string)($_POST['query'] ?? '')), // keyword opcional (Top Ads via Apify)
+            'query' => trim((string)($_POST['query'] ?? '')), // keyword opcional (sem termo = só TikTok)
+            'providers' => $providers,
         ];
 
         $manager = new AdSpyManager();
         $result = $manager->discover($userId, $plan, $mode, $options);
-        $result['success'] = empty($result['errors']);
+        $result['success'] = empty($result['errors']['quota']);
         echo json_encode($result);
         break;
 

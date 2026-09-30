@@ -192,11 +192,17 @@ if ($pageId > 0) {
         return 'há ' + days + (days === 1 ? ' dia' : ' dias');
     }
 
+    function updateQuotaPill(quota) {
+        const pill = document.getElementById('quotaSearch');
+        if (!pill || !quota) return;
+        pill.textContent = quota.limit === -1 ? 'ilimitado' : quota.used + '/' + quota.limit;
+    }
+
     // ── Modos de descoberta (Busca / Trends & Hashtags / Top Ads) ───────
     let currentMode = 'search';
     const MODE_HINTS = {
-        trends: 'Hashtags em alta no TikTok (por país e período) via seu token Apify. Digite um termo (ex.: meme) para buscar hashtags pelo texto; em branco, mostra as primeiras em alta da lista pública (sem login aparecem só as ~3 primeiras).',
-        topads: 'Melhores anúncios do TikTok (Top Ads) por desempenho. Sem token Apify a fonte pública responde com aviso de sessão — configure em IA → Busca de Anúncios. O termo (opcional) filtra por palavra-chave.',
+        trends: 'Hashtags em alta no TikTok (por país e período) via seu token Apify. Com termo consulta também Meta e Google (redes selecionadas) e consome 1 cota de busca por rede; em branco, só o TikTok (grátis) — sem login a lista pública traz só as ~3 primeiras.',
+        topads: 'Melhores anúncios por desempenho (sem filtro de período no Meta/Google). Com termo consulta também Meta e Google (redes selecionadas) e consome 1 cota de busca por rede; em branco, só o TikTok (grátis). Sem token Apify a fonte pública do TikTok responde com aviso de sessão — configure em IA → Busca de Anúncios.',
     };
 
     function setMode(mode) {
@@ -205,7 +211,7 @@ if ($pageId > 0) {
         const isSearch = mode === 'search';
         const label = document.getElementById('modeQueryLabel');
         const input = document.getElementById('adspyQuery');
-        document.getElementById('modeProviders').style.display = isSearch ? 'flex' : 'none';
+        document.getElementById('modeProviders').style.display = 'flex';
         document.getElementById('adspyGooglePlatform').style.display = isSearch ? '' : 'none';
         document.getElementById('modeDiscoverFields').style.display = isSearch ? 'none' : 'flex';
         document.getElementById('adspyOrderBy').style.display = mode === 'topads' ? '' : 'none';
@@ -218,11 +224,11 @@ if ($pageId > 0) {
             label.textContent = 'Termo, domínio ou anunciante';
             input.placeholder = 'ex: preguicaartificial.com.br, https://loja.com/produto, nome do produto, marca...';
         } else if (mode === 'topads') {
-            label.textContent = 'Palavra-chave (opcional — filtra os Top Ads)';
-            input.placeholder = 'ex: fogão, roupas... (ou deixe em branco)';
+            label.textContent = 'Termo (opcional — em branco consulta só o TikTok)';
+            input.placeholder = 'ex: fogão, loja.com.br (com termo: Meta + Google + TikTok)';
         } else {
-            label.textContent = 'Hashtag ou termo (opcional)';
-            input.placeholder = 'ex.: meme, fitness, maquiagem... (ou deixe em branco para as em alta)';
+            label.textContent = 'Hashtag ou termo (opcional — em branco consulta só o TikTok)';
+            input.placeholder = 'ex.: meme, fitness, maquiagem... (com termo: Meta + Google + TikTok)';
         }
     }
 
@@ -232,6 +238,9 @@ if ($pageId > 0) {
     }
 
     async function runDiscover() {
+        const providers = selectedProviders();
+        if (!providers.length) { showToast('Selecione ao menos uma plataforma', 'warning'); return; }
+
         document.getElementById('loading').style.display = 'block';
         document.getElementById('results').innerHTML = '';
         document.getElementById('errors').innerHTML = '';
@@ -242,8 +251,9 @@ if ($pageId > 0) {
             body.append('country', document.getElementById('adspyCountry').value);
             body.append('period', document.getElementById('adspyPeriod').value);
             if (currentMode === 'topads') body.append('order_by', document.getElementById('adspyOrderBy').value);
+            providers.forEach(p => body.append('providers[]', p));
             const q = document.getElementById('adspyQuery').value.trim();
-            if (q) body.append('query', q); // trends: busca hashtag por termo; topads: filtra por palavra-chave
+            if (q) body.append('query', q); // sem termo = só TikTok; com termo = redes selecionadas
 
             const resp = await fetch('/admin/api/adspy.php', { method: 'POST', body });
             const data = await resp.json();
@@ -316,6 +326,7 @@ async function runSearch() {
     }
 
 async function renderResults(data) {
+        if (data.quota) updateQuotaPill(data.quota);
         const errors = data.errors || {};
         if (errors.quota) {
             document.getElementById('errors').innerHTML = '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> ' + esc(errors.quota) + '</div>';
@@ -417,7 +428,7 @@ function renderAds(provider) {
                 (title ? '<div style="font-size:.8rem;font-weight:500;">' + esc(title) + '</div>' : '') +
                 (text ? '<div class="ad-text">' + esc(text) + '</div>' : '') +
                 '<div class="ad-meta">' +
-                '<span class="ad-meta-info">' + esc(ad.provider) + (ad.started_at ? ' · ' + esc(daysRunning(ad.started_at)) : '') + '</span>' +
+                (ad.started_at ? '<span class="ad-meta-info">' + esc(daysRunning(ad.started_at)) + '</span>' : '') +
                 (platformBadges ? '<div class="ad-badges">' + platformBadges + '</div>' : '') +
                 '<div class="ad-actions">' +
                 (ad.landing_page ? '<a href="/admin/clone.php?url=' + encodeURIComponent(ad.landing_page) + '" target="_blank" class="btn btn-sm btn-outline" title="Clonar esta página"><i class="fas fa-clone"></i></a>' : '') +

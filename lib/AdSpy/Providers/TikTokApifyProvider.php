@@ -35,8 +35,10 @@ class TikTokApifyProvider extends AdSpyProvider
             'sortBy' => $sortBy,
             'maxItems' => $maxItems,
         ];
-        // Query vazia = descoberta (Top Ads do país/período); campo correto do actor é "keyword" (string)
-        if (trim($query) !== '') $payload['keyword'] = $query;
+        // Query vazia = descoberta (Top Ads do país/período); o input do actor
+        // fetch_cat/tiktok-ads-library-scraper espera "keywords" (ARRAY de strings)
+        // — campo desconhecido é ignorado pelo actor e a busca volvava sem filtro.
+        if (trim($query) !== '') $payload['keywords'] = [$query];
 
         // Até 3 tentativas: o actor tem ~8% de runs transitórios FAILED ("did not succeed")
         $body = null;
@@ -100,7 +102,7 @@ class TikTokApifyProvider extends AdSpyProvider
             $brand = (string)($item['brandName'] ?? '');
             if ($brand === '') $brand = (string)($item['advertiserName'] ?? '');
             if ($brand === '' && $landing !== '') $brand = (string)(parse_url($landing, PHP_URL_HOST) ?: '');
-            if ($brand === '') $brand = 'TikTok Ads';
+            if ($brand === '') $brand = 'Anunciante desconhecido';
 
             $title = (string)($item['adTitle'] ?? '');
             if ($title === '' && $adText !== '') $title = mb_substr($adText, 0, 60);

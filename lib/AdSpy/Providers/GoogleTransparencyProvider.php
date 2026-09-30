@@ -139,6 +139,15 @@ class GoogleTransparencyProvider extends AdSpyProvider
             $params['platform'] = $options['platform'];
         }
 
+        // Janela de datas (descoberta Trends): o SerpApi aceita SOMENTE Yyyymmdd
+        // (ex.: 20260901) — aceita entrada Y-m-d e normaliza. Sem as opcoes,
+        // comportamento atual inalterado.
+        foreach (['start_date', 'end_date'] as $dateParam) {
+            if (empty($options[$dateParam])) continue;
+            $value = preg_replace('/\D/', '', (string)$options[$dateParam]);
+            if (strlen($value) === 8) $params[$dateParam] = $value;
+        }
+
         $body = $this->httpGet('https://serpapi.com/search.json?' . http_build_query($params));
         if ($body === null) return null;
 

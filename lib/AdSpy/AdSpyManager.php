@@ -146,34 +146,141 @@ class AdSpyManager
     }
 
     /**
-     * Descoberta do TikTok (sem a busca por keyword do modo 'search'):
-     *  - trends: com termo → ator powerai (busca de hashtag); sem termo →
-     *    ator anyx (lista publica em alta — ~3 linhas sem login)
-     *  - topads: Top Ads sem keyword — rota para o Apify quando o usuario tem token
-     * NÃO consome quota de busca — é exploração, não busca ativa por termo.
-     * Não grava health (AdSpyHealth) — o estado de trends/topads não deve
-     * sobrescrever o estado da busca por keyword do provider tiktok.
+     * Descoberta (abas Trends & Hashtags / Top Ads) — multiredes com termo,
+     * só TikTok sem termo:
+     *  - SEM termo: somente o TikTok consulta de verdade (grátis, sem cota) —
+     *    trends → ator anyx (lista publica em alta); topads → Apify quando há
+     *    token (fallback 40101 didático). Meta/Google respondem com HINT
+     *    "informe um termo" (não é erro, não chama rede, não consome cota).
+     *  - COM termo: consulta os providers selecionados (Meta + Google + TikTok)
+     *    e consome 1 cota KIND_SEARCH por rede que responder (igual search()).
+     *  - Cache 24h isento de cota (consume com fromCache=true); só grava cache
+     *    quando há anúncios.
+     *  - Trends = janela do período (7/30 dias); Top Ads sem restrição de data
+     *    (ordenação por desempenho).
+     *  - NÃO grava health (AdSpyHealth) — o estado de trends/topads não deve
+     *    sobrescrever o estado da busca por keyword do provider tiktok.
      */
     public function discover(int $userId, string $plan, string $mode, array $options = []): array
     {
+        $mode = str_replace(['_', '-'], '', strtolower(trim((string)$mode))); // top_ads/top-ads → topads
         if ($mode === 'hashtags') $mode = 'trends'; // alias: fonte unica (hashtags em alta)
         $mode = in_array($mode, self::DISCOVER_MODES, true) ? $mode : 'trends';
 
+        $query = trim((string)($options['query'] ?? ''));
+        $providerIds = $this->sanitizeProviders($options['providers'] ?? self::PROVIDERS);
+
         $options['user_id'] = $userId;
+        // query/providers entram nas options também para a cache key (mesma query
+        // com seleção de redes diferente = resultado diferente).
+        $options['query'] = $query;
+        $options['providers'] = $providerIds;
+        $options['countries'] = [strtoupper((string)($options['country'] ?? 'BR'))];
         // Trends sem termo trocou de Steel (top-3 anônimo) p/ anyx público —
         // prefixo muda a cache key e invalida resultados antigos já em cache.
-        if ($mode === 'trends' && trim((string)($options['query'] ?? '')) === '') {
-            $options['_src'] = 'anyx';
-        }
-        $cacheKey = $this->cacheKey('tiktok', 'discover:' . $mode, $options);
-        $cached = $this->getCache($cacheKey);
-        if ($cached !== null) {
-            return ['results' => ['tiktok' => $cached], 'errors' => [], 'mode' => $mode, 'cached' => true];
+        if ($mode === 'trends' && $query === '') $options['_src'] = 'anyx';
+
+        $quota = AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_SEARCH);
+        $results = [];
+        $errors = [];
+        $cached = false;
+
+        if ($query === '') {
+            foreach ($providerIds as $pid) {
+                if ($pid !== 'tiktok') {
+                    $results[$pid] = ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true,
+                        'hint' => 'Informe um termo para ver anúncios do Meta/Google.'];
+                    continue;
+                }
+
+                $cacheKey = $this->cacheKey($pid, 'discover:' . $mode, $options);
+                $hit = $this->getCache($cacheKey);
+                if ($hit !== null) {
+                    $results[$pid] = $hit;
+                    $cached = true;
+                    continue;
+                }
+
+                $r = $this->discoverTikTok($mode, $query, $options);
+                $results[$pid] = $r;
+                if (!empty($r['error'])) {
+                    $errors[$pid] = $r['error'];
+                } elseif (!empty($r['ads'])) {
+                    $this->setCache($cacheKey, $pid, $r);
+                }
+            }
+
+            return ['results' => $results, 'errors' => $errors, 'mode' => $mode, 'cached' => $cached,
+                'quota' => AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_SEARCH)];
         }
 
+        $screen = ContentModerator::screen($query, 'adspy', $userId);
+        if (!$screen['allowed']) {
+            return ['results' => [], 'errors' => ['query' => $screen['reason']], 'mode' => $mode, 'cached' => false,
+                'quota' => AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_SEARCH)];
+        }
+        $query = $screen['clean'];
+        $options['query'] = $query;
+
+        if (!$quota['allowed']) {
+            return [
+                'results' => [],
+                'errors' => ['quota' => 'Sua cota de buscas do mês foi atingida (' . $quota['used'] . '/' . $quota['limit'] . '). Faça upgrade para continuar.'],
+                'mode' => $mode,
+                'cached' => false,
+                'quota' => $quota,
+            ];
+        }
+
+        $consumed = 0;
+        foreach ($providerIds as $pid) {
+            if (!isset($this->providers[$pid])) continue;
+
+            $cacheKey = $this->cacheKey($pid, 'discover:' . $mode, $options);
+            $hit = $this->getCache($cacheKey);
+            if ($hit !== null) {
+                $results[$pid] = $hit;
+                $cached = true;
+                AdSpyQuota::consume($userId, AdSpyQuota::KIND_SEARCH, $query, $pid, count($hit['ads'] ?? []), true);
+                continue;
+            }
+
+            if ($quota['limit'] !== -1 && ($quota['used'] + $consumed) >= $quota['limit']) {
+                $errors[$pid] = 'Cota de buscas atingida durante esta consulta.';
+                continue;
+            }
+
+            try {
+                $r = $pid === 'tiktok'
+                    ? $this->discoverTikTok($mode, $query, $options)
+                    : $this->discoverSearch($pid, $mode, $query, $options);
+            } catch (Throwable $e) {
+                $r = ['ads' => [], 'total' => 0, 'error' => 'Erro inesperado: ' . $e->getMessage()];
+            }
+
+            $results[$pid] = $r;
+            if (empty($r['error'])) {
+                // So cachea quando ha resultado: "vazio" precisa ser re-verificado
+                if (!empty($r['ads'])) $this->setCache($cacheKey, $pid, $r);
+                // no_charge = resposta didatica sem consulta externa (Google sem chave)
+                if (empty($r['no_charge'])) {
+                    AdSpyQuota::consume($userId, AdSpyQuota::KIND_SEARCH, $query, $pid, count($r['ads'] ?? []), false);
+                    $consumed++;
+                }
+            } else {
+                $errors[$pid] = $r['error'];
+            }
+        }
+
+        return ['results' => $results, 'errors' => $errors, 'mode' => $mode, 'cached' => $cached,
+            'quota' => AdSpyQuota::check($userId, $plan, AdSpyQuota::KIND_SEARCH)];
+    }
+
+    /** Rota TikTok da descoberta (fluxo original: trends → anyx/powerai, topads → Apify/40101). */
+    private function discoverTikTok(string $mode, string $query, array $options): array
+    {
         try {
-            $query = trim((string)($options['query'] ?? ''));
-            if ($mode === 'topads' && AdSpyKeys::apify($userId) !== '') {
+            if ($mode === 'topads' && AdSpyKeys::apify((int)($options['user_id'] ?? 0)) !== '') {
                 // Descoberta de Top Ads com token Apify (keyword opcional via options['query'])
                 $apify = new TikTokApifyProvider();
                 $r = $apify->search($query, $options);
@@ -197,15 +304,43 @@ class AdSpyManager
         } catch (Throwable $e) {
             $r = ['ads' => [], 'total' => 0, 'error' => 'Erro inesperado: ' . $e->getMessage()];
         }
+        return $r;
+    }
 
-        $errors = [];
-        if (!empty($r['error'])) {
-            $errors['tiktok'] = $r['error'];
-        } else {
-            if (!empty($r['ads'])) $this->setCache($cacheKey, 'tiktok', $r);
+    /**
+     * Meta/Google na descoberta COM termo — reusa o search() do provider
+     * (token → API oficial → Steel no Meta; SerpApi BYOK no Google).
+     * Trends limita à janela do período (7/30 dias); Top Ads sem data.
+     */
+    private function discoverSearch(string $pid, string $mode, string $query, array $options): array
+    {
+        if ($mode === 'trends') {
+            $days = (int)($options['period'] ?? 7);
+            if ($pid === 'meta') {
+                $options['started_after'] = date('Y-m-d', strtotime('-' . $days . ' days'));
+            } elseif ($pid === 'google') {
+                $options['start_date'] = date('Ymd', strtotime('-' . $days . ' days'));
+                $options['end_date'] = date('Ymd');
+            }
         }
 
-        return ['results' => ['tiktok' => $r], 'errors' => $errors, 'mode' => $mode, 'cached' => false];
+        $r = $this->providers[$pid]->search($query, $options);
+
+        // Google sem chave SerpApi volta como erro didático — na descoberta é DICA
+        // (não falha da consulta): a UI exibe como hint, sem quebrar os demais.
+        if ($pid === 'google' && !empty($r['error']) && str_starts_with((string)$r['error'], 'Google: configure sua chave')) {
+            return ['ads' => [], 'total' => 0, 'error' => null, 'empty' => true, 'hint' => $r['error'], 'no_charge' => true];
+        }
+
+        return $r;
+    }
+
+    /** Interseção com a whitelist de providers; vazio → todos. */
+    private function sanitizeProviders($providerIds): array
+    {
+        if (!is_array($providerIds)) $providerIds = self::PROVIDERS;
+        $providerIds = array_values(array_intersect($providerIds, self::PROVIDERS));
+        return $providerIds ?: self::PROVIDERS;
     }
 
     /**
