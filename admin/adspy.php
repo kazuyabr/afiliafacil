@@ -333,7 +333,10 @@ async function renderResults(data) {
             return;
         }
         Object.entries(errors).forEach(([pid, msg]) => {
-            if (pid === 'query') return;
+            if (pid === 'query') {
+                document.getElementById('errors').innerHTML += '<div class="alert alert-warning"><i class="fas fa-info-circle"></i> ' + esc(msg) + '</div>';
+                return;
+            }
             const link = configLinkFor(msg);
             const inner = '<strong>' + esc(pid) + ':</strong> ' + esc(msg) +
                 (link ? ' <a href="' + link + '" style="font-weight:600;text-decoration:underline;">Configurar agora <i class="fas fa-arrow-right" style="font-size:.7rem;"></i></a>' : '');

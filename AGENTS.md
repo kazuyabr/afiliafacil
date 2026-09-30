@@ -188,6 +188,7 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 ## Homologação e validação
 
 - **`bin/smoke.php`** — smoke automatizado (login, todas as páginas, APIs, fluxos com limpeza): `docker exec afiliafacil php bin/smoke.php` → deve terminar com **SMOKE OK** (exit code 0/1)
+- **Suíte Ad Spy** (`tests/adspy/`, PHP): regressão do módulo de espionagem — `adspy-discover-test.php` (descoberta Trends/Top Ads multiredes), `adspy-api-test.php` (endpoints/quotas), `adspy-ui-test.php` (estáticos da tela) e `adspy-live-test.php` (opcional, consumo API real). Rodar: `docker exec afiliafacil php tests/adspy/<arquivo>.php` → deve terminar com `OK` (exit 0); rodar todos após qualquer mudança em `lib/AdSpy/` ou `admin/adspy.php`.
 - **`bin/seed-demo.php`** — dados de demonstração: contas `demo.trial@` / `demo.pro@` / `demo.master@afiliafacil.com` com **senha individual** (`Trial.Demo@2026` / `Pro.Demo@2026` / `Master.Demo@2026`), 5 ofertas fictícias aprovadas e 1 página de exemplo na conta Master. `--clean` remove tudo
 - **`bin/homol.ps1`** — sobe container + túnel **cloudflared** e mostra a URL pública (`*.trycloudflare.com`); `-Stop` encerra o túnel
 - **`bin/roteiro-pdf.ps1`** + **`bin/roteiro-html.js`** — gera PDF de docs via `npx marked` + Chrome headless (sem pandoc)

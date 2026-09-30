@@ -606,7 +606,6 @@ $profileText = AgentProfile::describe($profile);
                     '<div class="info">' +
                         '<div style="font-weight:600;">' + esc(ad.advertiser || 'Anunciante') + '</div>' +
                         '<div style="color:var(--text-secondary);">' + esc((ad.text || ad.title || '').substring(0, 120)) + '</div>' +
-                        '<div style="margin-top:2px;"><span class="offer-tag" style="font-size:.65rem;background:var(--bg-secondary);padding:1px 6px;border-radius:8px;">' + esc(ad.provider || '') + '</span></div>' +
                     '</div>' +
                 '</div>'
             ).join('') + (data.length > 8 ? '<div style="font-size:.75rem;color:var(--text-secondary);">+' + (data.length - 8) + ' anúncios</div>' : '');
