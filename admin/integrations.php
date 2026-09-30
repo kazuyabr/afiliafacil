@@ -187,6 +187,58 @@ if (isset($_GET['oauth'])) {
                         </table>
                     </div>
                 </div>
+
+                <div class="sec-title" id="flowsSection">
+                    <h2>Fluxos (automação)</h2>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span class="pill" id="flowsPill">—</span>
+                        <button class="btn btn-sm btn-primary" onclick="toggleFlowForm()"><i class="fas fa-plus"></i> Novo fluxo</button>
+                    </div>
+                </div>
+                <div class="card" id="flowFormCard" style="display:none;">
+                    <div class="card-body">
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                            <label style="display:block;font-size:.82rem;color:var(--text-secondary);">Nome
+                                <input id="flowName" type="text" maxlength="120" placeholder="Ex.: Postagem diária"
+                                    style="width:100%;margin-top:4px;">
+                            </label>
+                            <label style="display:block;font-size:.82rem;color:var(--text-secondary);">Gatilho
+                                <select id="flowTrigger" onchange="renderFlowCfg()" style="width:100%;margin-top:4px;">
+                                    <option value="schedule">Horário fixo</option>
+                                    <option value="post_published">Após publicar um post</option>
+                                </select>
+                            </label>
+                            <label style="display:block;font-size:.82rem;color:var(--text-secondary);">Ação
+                                <select id="flowAction" onchange="renderFlowCfg()" style="width:100%;margin-top:4px;">
+                                    <option value="publish_post">Publicar um post</option>
+                                    <option value="webhook">Webhook (POST JSON)</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div id="flowCfg" style="margin-top:14px;"></div>
+                        <div style="display:flex;gap:8px;align-items:center;margin-top:14px;">
+                            <button class="btn btn-primary" id="flowSaveBtn" onclick="createFlow()"><i class="fas fa-check"></i> Salvar fluxo</button>
+                            <button class="btn" onclick="toggleFlowForm()">Cancelar</button>
+                            <span id="flowMsg" style="font-size:.83rem;"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" id="flowsCard">
+                    <div class="card-body" style="padding:0;overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+                            <thead><tr style="text-align:left;border-bottom:1px solid var(--border,#ddd);">
+                                <th style="padding:11px 14px;">Fluxo</th>
+                                <th style="padding:11px 14px;">Gatilho</th>
+                                <th style="padding:11px 14px;">Ação</th>
+                                <th style="padding:11px 14px;">Última execução</th>
+                                <th style="padding:11px 14px;"></th>
+                            </tr></thead>
+                            <tbody id="flowsBody">
+                                <tr><td colspan="5" class="empty"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -194,7 +246,11 @@ if (isset($_GET['oauth'])) {
     <script>
     const HAS_FEATURE = <?= $hasFeature ? 'true' : 'false' ?>;
     const API = '/admin/api/social.php';
-    let STATE = { networks: {}, connections: [], selected: [], media: { url: '', kind: '' } };
+    const FLOWS_API = '/admin/api/flows.php';
+    const TRIG_PT = { schedule: 'Horário fixo', post_published: 'Após publicar post', manual: 'manual' };
+    const ACT_PT = { publish_post: 'Publicar post', webhook: 'Webhook (POST JSON)' };
+    const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    let STATE = { networks: {}, connections: [], selected: [], media: { url: '', kind: '' }, flows: [] };
 
     const STATUS_PT = { pending: 'pendente', publishing: 'publicando…', published: 'publicado', failed: 'falhou', scheduled: 'agendado' };
     const POST_PT = { draft: 'rascunho', scheduled: 'agendado', publishing: 'publicando…', published: 'publicado', partial: 'parcial', failed: 'falhou' };
@@ -204,6 +260,17 @@ if (isset($_GET['oauth'])) {
         fd.append('action', action);
         if (data) Object.entries(data).forEach(([k, v]) => fd.append(k, v));
         const r = await fetch(API, { method: 'POST', body: fd, credentials: 'same-origin' });
+        let j = null;
+        try { j = await r.json(); } catch (e) { j = { error: 'Resposta inválida do servidor' }; }
+        if (!r.ok && !j.error) j.error = 'Erro HTTP ' + r.status;
+        return j;
+    }
+
+    async function flowApi(action, data) {
+        const fd = new FormData();
+        fd.append('action', action);
+        if (data) Object.entries(data).forEach(([k, v]) => fd.append(k, v));
+        const r = await fetch(FLOWS_API, { method: 'POST', body: fd, credentials: 'same-origin' });
         let j = null;
         try { j = await r.json(); } catch (e) { j = { error: 'Resposta inválida do servidor' }; }
         if (!r.ok && !j.error) j.error = 'Erro HTTP ' + r.status;
@@ -228,6 +295,12 @@ if (isset($_GET['oauth'])) {
 
         document.getElementById('featureAlert').style.display = j.has_feature ? 'none' : '';
         document.getElementById('composerSection').style.display = j.has_feature ? '' : 'none';
+        ['flowsSection', 'flowsCard'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = j.has_feature ? '' : 'none';
+        });
+        const ff = document.getElementById('flowFormCard');
+        if (ff) ff.style.display = 'none';
 
         const cq = j.conn_quota || {};
         document.getElementById('connPill').innerHTML = cq.max === -1
@@ -529,13 +602,183 @@ if (isset($_GET['oauth'])) {
         loadHistory(true);
     }
 
+    // ------------------------------------------------------- Fluxos (Fase 3)
+
+    async function loadFlows() {
+        const j = await flowApi('list');
+        const body = document.getElementById('flowsBody');
+        if (j.error) { body.innerHTML = '<tr><td colspan="5" class="empty">' + esc(j.error) + '</td></tr>'; return; }
+        STATE.flows = j.flows || [];
+        const pill = document.getElementById('flowsPill');
+        const on = STATE.flows.filter(f => f.enabled).length;
+        pill.innerHTML = '<i class="fas fa-bolt"></i> ' + STATE.flows.length + ' (' + on + ' ativo(s))';
+        if (!STATE.flows.length) {
+            body.innerHTML = '<tr><td colspan="5" class="empty"><i class="fas fa-bolt"></i> Nenhum fluxo — automatize postagens e webhooks com "Novo fluxo".</td></tr>';
+            return;
+        }
+        body.innerHTML = STATE.flows.map(f => {
+            const cfgDays = f.trigger_config.days || [0, 1, 2, 3, 4, 5, 6];
+            const trig = f.trigger_kind === 'schedule'
+                ? DAY_NAMES.filter((_, i) => cfgDays.includes(i)).join(', ') + ' às ' + esc(f.trigger_config.time || '')
+                : TRIG_PT[f.trigger_kind];
+            const act = f.action_kind === 'publish_post'
+                ? `Publicar → ${(f.action_config.networks || []).map(n => (STATE.networks[n] ? STATE.networks[n].name : n)).join(', ')}`
+                : 'POST → ' + esc((f.action_config.url || '').slice(0, 60));
+            return `<tr style="border-bottom:1px solid var(--border,#eee);">
+                <td style="padding:11px 14px;">
+                    ${esc(f.name)}
+                    ${f.enabled ? '<span class="pill ok">ativo</span>' : '<span class="pill">pausado</span>'}
+                </td>
+                <td style="padding:11px 14px;">${esc(trig)}</td>
+                <td style="padding:11px 14px;">${act}</td>
+                <td style="padding:11px 14px;white-space:nowrap;font-size:.8rem;">
+                    ${f.last_run_at ? `<span class="pill ${f.last_status === 'ok' ? 'ok' : 'err'}">${f.last_status === 'ok' ? 'ok' : 'falhou'}</span> ${fmtDate(f.last_run_at)}` : '<span style="color:var(--text-secondary);">nunca</span>'}
+                </td>
+                <td style="padding:11px 14px;text-align:right;white-space:nowrap;">
+                    <button class="btn btn-sm" onclick="runFlow(${f.id})" title="Executar agora"><i class="fas fa-play"></i></button>
+                    <button class="btn btn-sm" onclick="toggleFlow(${f.id})" title="${f.enabled ? 'Pausar' : 'Ativar'}"><i class="fas fa-${f.enabled ? 'pause' : 'power-off'}"></i></button>
+                    <button class="btn btn-sm" onclick="removeFlow(${f.id})" title="Excluir"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function toggleFlowForm() {
+        const card = document.getElementById('flowFormCard');
+        const isClosed = card.style.display === 'none';
+        card.style.display = isClosed ? '' : 'none';
+        if (isClosed) {
+            renderFlowCfg();
+            document.getElementById('flowName').focus();
+        }
+    }
+
+    function renderFlowCfg() {
+        const trig = document.getElementById('flowTrigger').value;
+        const act = document.getElementById('flowAction').value;
+        const box = document.getElementById('flowCfg');
+        let html = '';
+
+        if (trig === 'schedule') {
+            const days = [1, 2, 3, 4, 5, 6, 0];
+            html += `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+                <label style="font-size:.82rem;color:var(--text-secondary);">Horário (Brasília)
+                    <input type="time" id="flowTime" value="09:00" style="display:block;margin-top:4px;">
+                </label>
+                <div>
+                    <div style="font-size:.82rem;color:var(--text-secondary);margin-bottom:4px;">Dias</div>
+                    <div style="display:flex;gap:6px;">
+                        ${days.map(d => `<label style="font-size:.8rem;"><input type="checkbox" class="flow-day" value="${d}" ${d <= 5 ? 'checked' : ''}> ${DAY_NAMES[d]}</label>`).join('')}
+                    </div>
+                </div>
+            </div>`;
+        } else {
+            html += `<p style="font-size:.83rem;color:var(--text-secondary);margin:0;">
+                <i class="fas fa-circle-info"></i> Dispara assim que um post for publicado nesta conta (publicação manual, agendada ou pelo Sócio).</p>`;
+        }
+
+        if (act === 'publish_post') {
+            const connected = STATE.connections.filter(c => c.status === 'connected').map(c => c.network);
+            html += `<div style="margin-bottom:10px;">
+                <div style="font-size:.82rem;color:var(--text-secondary);margin-bottom:6px;">Redes</div>
+                <div id="flowNetChecks" style="display:flex;gap:8px;flex-wrap:wrap;">
+                    ${connected.length ? connected.map(n => {
+                        const m = STATE.networks[n];
+                        return `<label class="net-check"><input type="checkbox" class="flow-net" value="${n}"> <i class="${m.icon}" style="color:${m.color};"></i> ${esc(m.name)}</label>`;
+                    }).join('') : '<span style="font-size:.83rem;color:var(--text-secondary);">Conecte ao menos uma conta acima.</span>'}
+                </div>
+            </div>
+            <label style="display:block;font-size:.82rem;color:var(--text-secondary);">Legenda
+                <textarea id="flowCaption" rows="3" maxlength="64000" placeholder="Texto publicado toda vez que o fluxo rodar" style="width:100%;margin-top:4px;"></textarea>
+            </label>`;
+        } else {
+            html += `<label style="display:block;font-size:.82rem;color:var(--text-secondary);">URL do webhook (POST JSON)
+                <input type="url" id="flowWebhookUrl" placeholder="https://seu-n8n/exemplo" style="width:100%;margin-top:4px;"></label>`;
+        }
+
+        box.innerHTML = html;
+    }
+
+    async function createFlow() {
+        const msg = document.getElementById('flowMsg');
+        const btn = document.getElementById('flowSaveBtn');
+        const trig = document.getElementById('flowTrigger').value;
+        const act = document.getElementById('flowAction').value;
+
+        const input = {
+            name: document.getElementById('flowName').value.trim(),
+            trigger_kind: trig,
+            trigger_config: trig === 'schedule'
+                ? {
+                    time: document.getElementById('flowTime').value,
+                    days: Array.from(document.querySelectorAll('.flow-day:checked')).map(c => parseInt(c.value, 10)),
+                }
+                : {},
+            action_kind: act,
+            action_config: act === 'publish_post'
+                ? {
+                    networks: Array.from(document.querySelectorAll('.flow-net:checked')).map(c => c.value),
+                    caption: document.getElementById('flowCaption').value,
+                }
+                : { url: document.getElementById('flowWebhookUrl').value.trim() },
+        };
+
+        btn.disabled = true;
+        msg.textContent = 'Salvando…';
+        try {
+            const fd = new FormData();
+            fd.append('action', 'create');
+            Object.entries(input).forEach(([k, v]) => fd.append(k, JSON.stringify(v)));
+            const r = await fetch(FLOWS_API, { method: 'POST', body: fd, credentials: 'same-origin' });
+            let j = null;
+            try { j = await r.json(); } catch (e) { j = { error: 'Resposta inválida do servidor' }; }
+            if (j.ok) {
+                msg.textContent = 'Fluxo criado.';
+                document.getElementById('flowName').value = '';
+                document.getElementById('flowFormCard').style.display = 'none';
+                await loadFlows();
+            } else {
+                msg.textContent = j.error || 'Falha ao criar o fluxo.';
+            }
+        } finally {
+            btn.disabled = false;
+            setTimeout(() => { if (msg.textContent.indexOf('criado') === -1) msg.textContent = ''; }, 6000);
+        }
+    }
+
+    async function toggleFlow(id) {
+        const j = await flowApi('toggle', { id });
+        if (j.error) { alert(j.error); return; }
+        await loadFlows();
+    }
+
+    async function removeFlow(id) {
+        if (!confirm('Excluir este fluxo e seu histórico de execuções?')) return;
+        const j = await flowApi('delete', { id });
+        if (j.error) { alert(j.error); return; }
+        await loadFlows();
+    }
+
+    async function runFlow(id) {
+        const pill = document.getElementById('flowsPill');
+        pill.innerHTML = '<i class="fas fa-spinner fa-spin"></i> executando…';
+        const j = await flowApi('run-now', { id });
+        pill.innerHTML = j.ok
+            ? '<i class="fas fa-circle" style="color:#28a745;font-size:.6rem;"></i> ' + esc(j.detail || 'executado')
+            : '<i class="fas fa-circle" style="color:#dc3545;font-size:.6rem;"></i> ' + esc(j.error || j.detail || 'falhou');
+        await loadFlows();
+        setTimeout(loadFlows, 4000);
+    }
+
     // Polling de agendamentos vencidos (o cron faz o mesmo no servidor)
     setInterval(async () => {
         if (!document.hasFocus()) return;
         await api('process');
+        if (HAS_FEATURE) await flowApi('process');
     }, 60000);
 
     loadConnections();
+    loadFlows();
     </script>
 </body>
 </html>

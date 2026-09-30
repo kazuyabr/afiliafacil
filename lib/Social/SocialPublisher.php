@@ -195,7 +195,20 @@ class SocialPublisher
                 $t->save();
             }
 
-            return self::finalize($postId);
+            $result = self::finalize($postId);
+
+            // Fluxos com gatilho post_published (Fase 3) — nunca propaga erro
+            // nem propaga mais de um nivel (FlowRunner tem guard de cascata).
+            if (!empty($result['ok'])) {
+                try {
+                    require_once __DIR__ . '/../Flows/FlowRunner.php';
+                    FlowRunner::onPostPublished((int)$post->user_id, $postId);
+                } catch (Throwable $e) {
+                    // ignora: fluxos nao podem quebrar a publicacao
+                }
+            }
+
+            return $result;
         } catch (Throwable $e) {
             return ['ok' => false, 'error' => 'Falha ao publicar: ' . $e->getMessage()];
         }

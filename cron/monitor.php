@@ -19,12 +19,14 @@ if ($expected === '' || $key === '' || !hash_equals($expected, $key)) {
 $startedAt = microtime(true);
 $result = ['started_at' => date('Y-m-d H:i:s')];
 
-// Publicacoes agendadas das redes sociais rodam sempre (independem do modo de ofertas)
+// Publicacoes agendadas das redes sociais e fluxos rodam sempre (independem do modo de ofertas)
 try {
     require_once Config::getLibDir() . '/Social/SocialPublisher.php';
     require_once Config::getLibDir() . '/Social/SocialMetrics.php';
+    require_once Config::getLibDir() . '/Flows/FlowRunner.php';
     $result['social_posts'] = SocialPublisher::processDue(5);
     $result['social_metrics'] = SocialMetrics::collectDue(20);
+    $result['flows'] = FlowRunner::runDue(10);
 } catch (Throwable $e) {
     $result['social_posts'] = ['error' => $e->getMessage()];
 }

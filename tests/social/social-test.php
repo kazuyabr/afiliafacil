@@ -26,6 +26,7 @@ require_once Config::getLibDir() . '/Social/SocialConnections.php';
 require_once Config::getLibDir() . '/Social/SocialQuota.php';
 require_once Config::getLibDir() . '/Social/SocialPublisher.php';
 require_once Config::getLibDir() . '/Social/SocialMetrics.php';
+require_once Config::getLibDir() . '/Flows/FlowRunner.php';
 
 if (!Database::available()) {
     fwrite(STDERR, "Banco indisponível\n");
@@ -69,6 +70,12 @@ function cleanup(int $adminId, int $trialId): void
         }
         \AfiliaFacil\Models\SocialConnection::where('user_id', $adminId)
             ->where('account_meta', 'like', '%"via":"test"%')->delete();
+        $flows = \AfiliaFacil\Models\Flow::where('user_id', $adminId)
+            ->where('name', 'like', 'SOCIALTEST%')->pluck('id');
+        if (count($flows)) {
+            \AfiliaFacil\Models\FlowRun::whereIn('flow_id', $flows)->delete();
+            \AfiliaFacil\Models\Flow::whereIn('id', $flows)->delete();
+        }
     } catch (Throwable $e) {
         echo "  (cleanup parcial: {$e->getMessage()})\n";
     }
@@ -91,6 +98,12 @@ register_shutdown_function(function () use ($adminId, $trialId) {
 // Fake HTTP: rotas das APIs sociais com sucesso, exceto threads (falha simulada)
 SocialHttp::$handler = function (string $method, string $url, array $opts = []): array {
     $j = fn (array $data, int $status = 200) => ['status' => $status, 'body' => json_encode($data)];
+
+    // --- webhook do fluxo (Fase 3) ---
+    if (str_contains($url, 'hooks.test')) {
+        $GLOBALS['WF_WEBHOOKS'][] = ['url' => $url, 'payload' => $opts['json'] ?? null];
+        return $j(['ok' => true]);
+    }
 
     // --- metricas (GET) ---
     if (preg_match('#graph\.facebook\.com/v21\.0/fb_feed_1$#', $url)) {
@@ -451,6 +464,139 @@ ok('tela /admin/integrations.php → 200 com composer', $r['status'] === 200
     'status=' . $r['status'] . ' len=' . strlen($r['body']));
 ok('tela tem seção Desempenho + métricas', str_contains($r['body'], 'Desempenho')
     && str_contains($r['body'], 'metricsBody') && str_contains($r['body'], 'collectMetrics'));
+ok('tela tem seção Fluxos + form', str_contains($r['body'], 'Fluxos (automação)')
+    && str_contains($r['body'], 'flowFormCard') && str_contains($r['body'], 'flowsBody')
+    && str_contains($r['body'], 'loadFlows'));
+
+// ------------------------------------------------- 10. Fluxos (Fase 3)
+section('10. Fluxos de automação (Fase 3)');
+
+$res = FlowRunner::create($adminId, [
+    'name' => '', 'trigger_kind' => 'schedule', 'trigger_config' => [],
+    'action_kind' => 'webhook', 'action_config' => ['url' => 'https://hooks.test/x'],
+]);
+ok('create sem nome → erro', !$res['ok'] && str_contains((string)$res['error'], 'nome'));
+
+$res = FlowRunner::create($adminId, [
+    'name' => 'SOCIALTEST valida schedule', 'trigger_kind' => 'schedule',
+    'trigger_config' => ['time' => '', 'days' => []],
+    'action_kind' => 'webhook', 'action_config' => ['url' => 'https://hooks.test/x'],
+]);
+ok('schedule sem horário → erro claro', !$res['ok'] && stripos((string)$res['error'], 'horário') !== false,
+    'error=' . ($res['error'] ?? ''));
+
+$res = FlowRunner::create($adminId, [
+    'name' => 'SOCIALTEST valida url', 'trigger_kind' => 'post_published', 'trigger_config' => [],
+    'action_kind' => 'webhook', 'action_config' => ['url' => 'notaurl'],
+]);
+ok('webhook com URL inválida → erro', !$res['ok'] && stripos((string)$res['error'], 'URL') !== false,
+    'error=' . ($res['error'] ?? ''));
+
+$resW = FlowRunner::create($adminId, [
+    'name' => 'SOCIALTEST webhook', 'trigger_kind' => 'post_published', 'trigger_config' => [],
+    'action_kind' => 'webhook', 'action_config' => ['url' => 'https://hooks.test/afilia'],
+]);
+ok('cria fluxo webhook pós-publicação', !empty($resW['ok']) && !empty($resW['id']),
+    'error=' . ($resW['error'] ?? ''));
+
+$resC = FlowRunner::create($adminId, [
+    'name' => 'SOCIALTEST cascata', 'trigger_kind' => 'post_published', 'trigger_config' => [],
+    'action_kind' => 'publish_post',
+    'action_config' => ['networks' => ['facebook'], 'caption' => 'SOCIALTEST cascata'],
+]);
+ok('cria fluxo publicação em cascata', !empty($resC['ok']), 'error=' . ($resC['error'] ?? ''));
+
+// publicar dispara os 2 fluxos; o guard de profundidade impede o loop
+$GLOBALS['WF_WEBHOOKS'] = [];
+$resP = SocialPublisher::create($adminId, 'premium', [
+    'caption' => 'SOCIALTEST gatilho post_published',
+    'networks' => ['facebook'],
+]);
+$hooks = $GLOBALS['WF_WEBHOOKS'];
+$cascataCount = \AfiliaFacil\Models\SocialPost::where('caption', 'SOCIALTEST cascata')->count();
+ok('publicação dispara fluxos: 1 webhook + 1 post em cascata (sem loop)',
+    !empty($resP['ok']) && count($hooks) === 1 && $cascataCount === 1,
+    'hooks=' . count($hooks) . ' cascata=' . $cascataCount . ' status=' . ($resP['status'] ?? ''));
+$payload = $hooks[0]['payload'] ?? null;
+ok('webhook recebeu event=post_published + post_id',
+    is_array($payload) && ($payload['event'] ?? '') === 'post_published'
+    && !empty($payload['data']['post_id']) && !empty($payload['flow_name']),
+    'payload=' . json_encode($payload));
+
+// fluxo agendado: última ocorrência vencida executa; depois não repete
+$resS = FlowRunner::create($adminId, [
+    'name' => 'SOCIALTEST diario', 'trigger_kind' => 'schedule',
+    'trigger_config' => ['time' => '00:00', 'days' => [0, 1, 2, 3, 4, 5, 6]],
+    'action_kind' => 'publish_post',
+    'action_config' => ['networks' => ['facebook'], 'caption' => 'SOCIALTEST via fluxo'],
+]);
+ok('cria fluxo agendado (schedule + publish_post)', !empty($resS['ok']),
+    'error=' . ($resS['error'] ?? ''));
+$schedFlowId = (int)($resS['id'] ?? 0);
+if ($schedFlowId) {
+    \AfiliaFacil\Models\Flow::where('id', $schedFlowId)->update(['created_at' => '2020-01-01 00:00:00']);
+}
+
+$due = FlowRunner::runDue(10);
+ok('runDue executa o fluxo vencido', ($due['processed'] ?? 0) >= 1 && ($due['ok'] ?? 0) >= 1,
+    'due=' . json_encode($due));
+$flowPost = \AfiliaFacil\Models\SocialPost::where('caption', 'SOCIALTEST via fluxo')->first();
+ok('fluxo publicou o post agendado', $flowPost && $flowPost->status === 'published',
+    'status=' . ($flowPost->status ?? '?'));
+$flowRow = $schedFlowId ? \AfiliaFacil\Models\Flow::find($schedFlowId) : null;
+ok('last_run_at + last_status gravados', $flowRow && !empty($flowRow->last_run_at)
+    && $flowRow->last_status === 'ok', 'last=' . ($flowRow->last_run_at ?? '?'));
+$runs = $schedFlowId ? FlowRunner::runs($adminId, $schedFlowId) : [];
+ok('flow_runs registrou a execução', count($runs) >= 1 && $runs[0]['status'] === 'ok',
+    'runs=' . count($runs) . ' first=' . json_encode($runs[0] ?? null));
+
+$due2 = FlowRunner::runDue(10);
+ok('segundo runDue não reexecuta (ocorrência já coberta)', ($due2['processed'] ?? -1) === 0,
+    'due=' . json_encode($due2));
+
+// API HTTP dos fluxos
+$r = $http('GET', $BASE . '/admin/api/flows.php?action=list');
+ok('flows sem sessão → 401', $r['status'] === 401, 'status=' . $r['status']);
+
+$r = $http('POST', $BASE . '/admin/api/flows.php', ['action' => 'list'], $jar);
+$jl = json_decode($r['body'], true) ?: [];
+ok('flows list → success + fluxos criados', $r['status'] === 200 && !empty($jl['success'])
+    && count($jl['flows'] ?? []) >= 3, 'flows=' . count($jl['flows'] ?? []));
+
+$r = $http('POST', $BASE . '/admin/api/flows.php', [
+    'action' => 'create',
+    'name' => 'SOCIALTEST http',
+    'trigger_kind' => 'post_published',
+    'trigger_config' => '{}',
+    'action_kind' => 'webhook',
+    'action_config' => json_encode(['url' => 'https://hooks.test/http']),
+], $jar);
+$jc = json_decode($r['body'], true) ?: [];
+ok('flows create via HTTP (configs como JSON string) → ok',
+    $r['status'] === 200 && !empty($jc['ok']) && !empty($jc['id']),
+    'status=' . $r['status'] . ' error=' . ($jc['error'] ?? ''));
+$httpFlowId = (int)($jc['id'] ?? 0);
+
+$r = $http('POST', $BASE . '/admin/api/flows.php',
+    ['action' => 'toggle', 'id' => $httpFlowId, 'enabled' => 'false'], $jar);
+$jt = json_decode($r['body'], true) ?: [];
+ok('toggle pausa o fluxo', $r['status'] === 200 && !empty($jt['ok']) && $jt['enabled'] === false,
+    'body=' . $r['body']);
+
+$r = $http('POST', $BASE . '/admin/api/flows.php', ['action' => 'runs', 'id' => $httpFlowId], $jar);
+$jr = json_decode($r['body'], true) ?: [];
+ok('runs → lista do fluxo', $r['status'] === 200 && !empty($jr['success'])
+    && is_array($jr['runs'] ?? null), 'runs=' . count($jr['runs'] ?? []));
+
+$r = $http('POST', $BASE . '/admin/api/flows.php', ['action' => 'process'], $jar);
+$jd = json_decode($r['body'], true) ?: [];
+ok('flows process → success + due', $r['status'] === 200 && !empty($jd['success'])
+    && isset($jd['due']['processed']), 'due=' . json_encode($jd['due'] ?? []));
+
+$r = $http('POST', $BASE . '/admin/api/flows.php', ['action' => 'delete', 'id' => $httpFlowId], $jar);
+$jd2 = json_decode($r['body'], true) ?: [];
+ok('delete remove o fluxo', $r['status'] === 200 && !empty($jd2['success'])
+    && !\AfiliaFacil\Models\Flow::find($httpFlowId));
 
 // ------------------------------------------------------------------ resumo
 echo "\n----------------------------------------\n";

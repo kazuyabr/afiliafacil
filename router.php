@@ -81,6 +81,7 @@ $routes = [
     '/admin/api/pages.php' => '/admin/api/pages.php',
     '/admin/api/checkout.php' => '/admin/api/checkout.php',
     '/admin/api/social.php' => '/admin/api/social.php',
+    '/admin/api/flows.php' => '/admin/api/flows.php',
 ];
 
 function matchRoute(array $routes, string $path): ?string
