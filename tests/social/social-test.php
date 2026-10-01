@@ -682,8 +682,9 @@ ok('modal: BYOK em "Avançado" + dica de SSO sem credenciais',
     && str_contains($ui, 'como um SSO'));
 ok('guias avisam Development x Live + App Review para clientes',
     str_contains($ui, 'App Review'));
-ok('guias cobrem Invalid Scopes (produtos Pages API/Instagram Graph API no app)',
-    str_contains($ui, 'Invalid Scopes') && str_contains($ui, 'Pages API'));
+ok('guias cobrem Invalid Scopes e App Domains (produtos/config do app Meta)',
+    str_contains($ui, 'Invalid Scopes') && str_contains($ui, 'Pages API')
+    && str_contains($ui, 'App Domains'));
 
 $r = $http('GET', $BASE . '/assets/css/app.css', null, $jar);
 ok('app.css estiliza botões disabled (estado óbvio)', $r['status'] === 200

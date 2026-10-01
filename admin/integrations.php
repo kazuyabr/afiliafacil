@@ -331,6 +331,7 @@ if (isset($_GET['oauth'])) {
                 'No <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener">Graph API Explorer</a>: selecione seu app → Permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code> → Get User Access Token.',
                 'O token do Explorer dura ~1 hora e morre antes do agendamento: estenda para <b>60 dias</b> em App Dashboard → Tools → Access Token Debugger → <i>Extend Access Token</i>.',
                 'Para o login oficial: adicione o produto <b>Facebook Login</b> ao app (se ainda não tiver) e em Settings → <b>Valid OAuth Redirect URIs</b> cadastre este Redirect URI exato — sem isso o popup é recusado com "URL bloqueada": <code class="conn-uri"></code>',
+                'Também em Settings → Basic: <b>App Domains</b> com <b>localhost</b> (e o domínio de produção quando existir) + <b>Site URL</b> igual a esta plataforma — sem isso o popup final falha com "Não é possível carregar a URL — o domínio não está incluído nos domínios do app".',
                 'Melhor caminho: salve o <b>App ID + Secret</b> abaixo e use o <b>login oficial</b> — renovação automática, sem colar token.',
                 'Modo <b>Development</b> do app só autoriza quem tem papel no app (admin/developer/tester) — para <b>clientes</b> conectarem sem app próprio, o app precisa ir ao modo <b>Live</b> com <b>App Review</b> das permissões (a Meta exige verificação de negócio; processo externo de dias/semanas).'
             ],
@@ -344,7 +345,7 @@ if (isset($_GET['oauth'])) {
                 'No app do Instagram: Configurações → Conta → <b>Conta profissional</b> (Creator/Business) → conecte à sua Página do Facebook.',
                 'Graph API Explorer → seu app → permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>instagram_content_publish</code> → gere o token.',
                 'Estenda para 60 dias (Access Token Debugger → Extend) e cole abaixo — a conta do IG ligada à Página é detectada automaticamente.',
-                'Para o login oficial: no app (Facebook Login → Settings → <b>Valid OAuth Redirect URIs</b>) cadastre este Redirect URI exato — sem isso o popup é recusado com "URL bloqueada": <code class="conn-uri"></code>',
+                'Para o login oficial: no app (Facebook Login → Settings → <b>Valid OAuth Redirect URIs</b>) cadastre este Redirect URI exato — sem isso o popup é recusado com "URL bloqueada": <code class="conn-uri"></code> — e em Settings → Basic coloque <b>App Domains</b> = <b>localhost</b> (erro "Não é possível carregar a URL — domínio não incluído nos domínios do app").',
                 'Publicação no feed exige <b>imagem</b> (vídeo só via Reels — fora do escopo desta API).',
                 'Modo <b>Development</b> só autoriza papéis do app — clientes conectam sem app próprio apenas com o app do Facebook em modo <b>Live</b> + <b>App Review</b> (Meta).'
             ],
