@@ -327,6 +327,7 @@ if (isset($_GET['oauth'])) {
             steps: [
                 'Tenha uma conta pessoal e crie uma <b>Página</b> (<a href="https://www.facebook.com/pages/create" target="_blank" rel="noopener">facebook.com/pages/create</a>) — publicamos na Página; <b>não é preciso</b> Business Suite/conta de negócio para isso.',
                 'Crie um app em <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a> (tipo Consumer) — <b>não exige App Review da Meta</b> para publicar dos recursos da sua própria conta (app em modo Development).',
+                'Em <b>Add Product</b> adicione <b>Pages API</b> (e <b>Facebook Login</b>, etapa abaixo) — sem esses produtos o login oficial é recusado no popup com "Invalid Scopes: pages_manage_posts".',
                 'No <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener">Graph API Explorer</a>: selecione seu app → Permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code> → Get User Access Token.',
                 'O token do Explorer dura ~1 hora e morre antes do agendamento: estenda para <b>60 dias</b> em App Dashboard → Tools → Access Token Debugger → <i>Extend Access Token</i>.',
                 'Para o login oficial: adicione o produto <b>Facebook Login</b> ao app (se ainda não tiver) e em Settings → <b>Valid OAuth Redirect URIs</b> cadastre este Redirect URI exato — sem isso o popup é recusado com "URL bloqueada": <code class="conn-uri"></code>',
@@ -339,7 +340,7 @@ if (isset($_GET['oauth'])) {
         instagram: {
             title: 'Instagram (conta profissional)',
             steps: [
-                'Siga os passos 1–2 do Facebook: app no developers.facebook.com + uma Página do Facebook.',
+                'Siga os passos 1–2 do Facebook: app no developers.facebook.com + uma Página do Facebook e, em <b>Add Product</b>, adicione <b>Pages API</b> + <b>Instagram Graph API</b> (e <b>Facebook Login</b>) — sem esses produtos o popup recusa com <b>"Invalid Scopes: pages_manage_posts, instagram_content_publish"</b>.',
                 'No app do Instagram: Configurações → Conta → <b>Conta profissional</b> (Creator/Business) → conecte à sua Página do Facebook.',
                 'Graph API Explorer → seu app → permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>instagram_content_publish</code> → gere o token.',
                 'Estenda para 60 dias (Access Token Debugger → Extend) e cole abaixo — a conta do IG ligada à Página é detectada automaticamente.',
