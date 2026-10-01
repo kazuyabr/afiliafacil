@@ -26,6 +26,8 @@ require_once Config::getLibDir() . '/Social/SocialConnections.php';
 require_once Config::getLibDir() . '/Social/SocialQuota.php';
 require_once Config::getLibDir() . '/Social/SocialPublisher.php';
 require_once Config::getLibDir() . '/Social/SocialMetrics.php';
+require_once Config::getLibDir() . '/Social/SocialOAuth.php';
+require_once Config::getLibDir() . '/Social/SocialAppCredentials.php';
 require_once Config::getLibDir() . '/Flows/FlowRunner.php';
 
 if (!Database::available()) {
@@ -76,6 +78,8 @@ function cleanup(int $adminId, int $trialId): void
             \AfiliaFacil\Models\FlowRun::whereIn('flow_id', $flows)->delete();
             \AfiliaFacil\Models\Flow::whereIn('id', $flows)->delete();
         }
+        \AfiliaFacil\Models\SocialAppCredential::where('user_id', $adminId)
+            ->whereIn('provider', ['meta', 'threads', 'x', 'tiktok'])->delete();
     } catch (Throwable $e) {
         echo "  (cleanup parcial: {$e->getMessage()})\n";
     }
@@ -103,6 +107,50 @@ SocialHttp::$handler = function (string $method, string $url, array $opts = []):
     if (str_contains($url, 'hooks.test')) {
         $GLOBALS['WF_WEBHOOKS'][] = ['url' => $url, 'payload' => $opts['json'] ?? null];
         return $j(['ok' => true]);
+    }
+
+    // --- conexao/probe OAuth (Fase 4) ---
+    if (str_contains($url, 'graph.threads.net/oauth/access_token')) {
+        return $j(['access_token' => 'th_short_1', 'token_type' => 'Bearer',
+            'expires_in' => 3600, 'refresh_token' => 'th_refresh_1']);
+    }
+    if (str_contains($url, 'graph.threads.net/refresh_access_token')) {
+        return $j(['access_token' => 'th_long_60d', 'token_type' => 'Bearer',
+            'expires_in' => 60 * 86400, 'refresh_token' => 'th_refresh_1']);
+    }
+    if (str_contains($url, 'graph.threads.net') && str_ends_with($url, '/v1.0/me')) {
+        return $j(['id' => 'th_probe_1', 'username' => 'th_probe']);
+    }
+    if (str_ends_with($url, '/v21.0/me')) {
+        return $j(['id' => 'fb_user_probe', 'name' => 'Usuário Probe']);
+    }
+    if (str_contains($url, 'debug_token')) {
+        $f = $GLOBALS['FB_DEBUG'] ?? null;
+        if (is_array($f)) return $j($f);
+        return $j(['data' => ['app_id' => 'meta_app_1', 'is_valid' => true,
+            'scopes' => ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts'],
+            'expires_at' => time() + 30 * 86400]]);
+    }
+    if (str_contains($url, '/me/accounts')) {
+        return $j(['data' => [[
+            'id' => 'page_probe_1', 'name' => 'Página Probe',
+            'access_token' => 'page_token_probe_1',
+            'instagram_business_account' => ['id' => 'ig_probe_1', 'username' => 'ig_probe_1'],
+        ]]]);
+    }
+    if (str_contains($url, 'api.x.com/2/users/me')) {
+        if (isset($GLOBALS['X_ME_ERROR'])) {
+            $e = $GLOBALS['X_ME_ERROR'];
+            return $j($e['body'], (int)($e['status'] ?? 400));
+        }
+        return $j(['data' => ['id' => 'x_probe_1', 'name' => 'X Probe', 'username' => 'x_probe_1']]);
+    }
+    if ($method === 'GET' && str_contains($url, 'open.tiktokapis.com/v2/oauth/token')) {
+        return $j(['scope' => $GLOBALS['TT_SCOPE'] ?? 'user.info.basic,video.publish',
+            'expires_in' => 86400]);
+    }
+    if (str_contains($url, 'open.tiktokapis.com/v2/user/info')) {
+        return $j(['data' => ['user' => ['open_id' => 'tt_probe_1', 'display_name' => 'TT Probe']]]);
     }
 
     // --- metricas (GET) ---
@@ -597,6 +645,193 @@ $r = $http('POST', $BASE . '/admin/api/flows.php', ['action' => 'delete', 'id' =
 $jd2 = json_decode($r['body'], true) ?: [];
 ok('delete remove o fluxo', $r['status'] === 200 && !empty($jd2['success'])
     && !\AfiliaFacil\Models\Flow::find($httpFlowId));
+
+// ------------------------------ 11. Conexão guiada + BYOK de app (Fase 4)
+section('11. Conexão guiada + credenciais de app (Fase 4)');
+
+// --- UI: modal com jornada por rede ---
+$r = $http('GET', $BASE . '/admin/integrations.php', null, $jar);
+$ui = (string)$r['body'];
+ok('tela tem modal de conexão guiada', $r['status'] === 200
+    && str_contains($ui, 'id="connModal"') && str_contains($ui, 'openConnModal(')
+    && str_contains($ui, 'Pré-requisitos (1 vez nesta rede)'), 'status=' . $r['status']);
+ok('tela traz guias por rede + redirect URI oficial', str_contains($ui, 'const GUIDES')
+    && str_contains($ui, 'console.x.com') && str_contains($ui, 'developers.tiktok.com')
+    && str_contains($ui, 'social.php?action=callback'));
+ok('OAuth via popup com postMessage + credenciais BYOK', str_contains($ui, 'af-social-oauth')
+    && str_contains($ui, 'waitForOAuthMessage') && str_contains($ui, 'saveAppCreds')
+    && str_contains($ui, "api('app-save'"));
+ok('caminho manual antigo removido (Conectar único)', !str_contains($ui, 'toggleManual(')
+    && !str_contains($ui, 'manual-box') && !str_contains($ui, 'onclick="saveToken('));
+
+// --- credenciais de app (BYOK): usuário > env + dialogs corretos ---
+ok('salva credencial BYOK do Meta', SocialAppCredentials::save($adminId, 'meta', 'meta_app_1', 'meta_secret_1'));
+$res = SocialOAuth::authorizeUrl('facebook', $adminId);
+ok('facebook BYOK → dialog Meta com pages_show_list', !empty($res['ok'])
+    && str_contains((string)($res['url'] ?? ''), 'facebook.com/v21.0/dialog/oauth')
+    && str_contains((string)($res['url'] ?? ''), 'pages_show_list'),
+    'url=' . substr((string)($res['url'] ?? ''), 0, 80));
+$cred = SocialOAuth::credentials('facebook', $adminId);
+ok('credencial do usuário vence o env (source=user)', !empty($cred['configured'])
+    && ($cred['source'] ?? '') === 'user' && ($cred['id'] ?? '') === 'meta_app_1',
+    'source=' . ($cred['source'] ?? ''));
+
+// Threads: sem credencial → oauth_not_configured (env removido do processo)
+$envTid = getenv('THREADS_APP_ID');
+$envTsec = getenv('THREADS_APP_SECRET');
+putenv('THREADS_APP_ID');
+putenv('THREADS_APP_SECRET');
+SocialAppCredentials::delete($adminId, 'threads');
+$res = SocialOAuth::authorizeUrl('threads', $adminId);
+$notCfg = !$res['ok'] && ($res['error'] ?? '') === 'oauth_not_configured';
+if ($envTid !== false) putenv('THREADS_APP_ID=' . $envTid);
+if ($envTsec !== false) putenv('THREADS_APP_SECRET=' . $envTsec);
+ok('threads sem credencial → oauth_not_configured', $notCfg, 'error=' . ($res['error'] ?? '?'));
+
+ok('salva credencial BYOK do Threads', SocialAppCredentials::save($adminId, 'threads', 'th_app_1', 'th_secret_1'));
+$res = SocialOAuth::authorizeUrl('threads', $adminId);
+$urlTh = (string)($res['url'] ?? '');
+ok('threads BYOK → Authorization Window própria (threads.com)', !empty($res['ok'])
+    && str_starts_with($urlTh, 'https://threads.com/oauth/authorize?')
+    && str_contains($urlTh, 'client_id=th_app_1')
+    && str_contains($urlTh, 'threads_content_publish')
+    && !str_contains($urlTh, 'facebook.com'), 'url=' . substr($urlTh, 0, 80));
+
+// callback oficial do Threads: code → troca → long-lived 60d → descoberta
+$state = '';
+foreach (explode('&', (string)parse_url($urlTh, PHP_URL_QUERY)) as $kv) {
+    $pair = explode('=', $kv, 2);
+    if (($pair[0] ?? '') === 'state') $state = rawurldecode((string)($pair[1] ?? ''));
+}
+ok('authorizeUrl gera state anti-CSRF na sessão', $state !== '');
+$cb = SocialOAuth::handleCallback(['state' => $state, 'code' => 'th-code-1']);
+$connTh = SocialConnections::find($adminId, 'threads');
+$thToken = $connTh ? (string)SocialConnections::tokenFor($connTh) : '';
+ok('callback threads: code trocado por long-lived 60d + refresh', !empty($cb['ok'])
+    && ($cb['network'] ?? '') === 'threads' && $thToken === 'th_long_60d'
+    && $connTh !== null && !empty($connTh->refresh_token)
+    && !empty($connTh->token_expires_at)
+    && strtotime((string)$connTh->token_expires_at) > time() + 55 * 86400,
+    'cb=' . json_encode($cb) . ' token=' . $thToken);
+ok('callback threads: perfil th_probe descoberto', $connTh !== null
+    && $connTh->account_name === 'th_probe' && $connTh->status === 'connected'
+    && str_contains((string)$connTh->account_meta, 'threads_user_id'),
+    'account=' . ($connTh->account_name ?? '?'));
+
+// devolve o estado (credencial/conexão de teste são recriadas limpas no próximo run)
+SocialConnections::disconnect($adminId, 'threads');
+SocialAppCredentials::delete($adminId, 'threads');
+
+// --- probe com diagnóstico acionável (Meta) ---
+$GLOBALS['FB_DEBUG'] = ['data' => ['app_id' => 'meta_app_1', 'is_valid' => true,
+    'scopes' => ['pages_show_list', 'pages_read_engagement'],
+    'expires_at' => time() + 30 * 86400]];
+$p = SocialOAuth::probe('facebook', 'tok-meta-1', $adminId);
+ok('probe Meta sem pages_manage_posts → erro aponta passo 3 do guia',
+    empty($p['ok']) && str_contains((string)($p['error'] ?? ''), 'pages_manage_posts')
+    && str_contains((string)($p['error'] ?? ''), 'passo 3'),
+    'error=' . ($p['error'] ?? ''));
+
+$GLOBALS['FB_DEBUG'] = ['data' => ['app_id' => 'meta_app_1', 'is_valid' => true,
+    'scopes' => ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts'],
+    'expires_at' => time() + 30 * 86400]];
+$p = SocialOAuth::probe('facebook', 'tok-meta-2', $adminId);
+ok('probe Meta completo → ok (via manual, sem note)', !empty($p['ok'])
+    && (($p['meta']['via'] ?? '') === 'manual') && !isset($p['note']) && !isset($p['error']),
+    'account=' . ($p['account_name'] ?? ''));
+
+$GLOBALS['FB_DEBUG'] = ['data' => ['app_id' => 'meta_app_1', 'is_valid' => true,
+    'scopes' => ['pages_manage_posts'], 'expires_at' => time() + 2 * 86400]];
+$p = SocialOAuth::probe('facebook', 'tok-meta-3', $adminId);
+ok('probe Meta: token perto de expirar → note (não bloqueia)', !empty($p['ok'])
+    && str_contains((string)($p['note'] ?? ''), 'expira em'), 'note=' . ($p['note'] ?? ''));
+
+$GLOBALS['FB_DEBUG'] = ['data' => ['app_id' => 'app_de_outrem', 'is_valid' => true,
+    'scopes' => [], 'expires_at' => 0]];
+$p = SocialOAuth::probe('facebook', 'tok-meta-4', $adminId);
+ok('probe Meta: token de outro app → sem diagnóstico (sem falso negativo)',
+    !empty($p['ok']) && !isset($p['error']) && !isset($p['note']));
+unset($GLOBALS['FB_DEBUG']);
+
+$p = SocialOAuth::probe('instagram', 'tok-ig-1', $adminId);
+ok('probe instagram descobre conta profissional ligada à Página', !empty($p['ok'])
+    && ($p['account_name'] ?? '') === 'ig_probe_1', 'account=' . ($p['account_name'] ?? ''));
+
+// --- probe X: billing x permissão ---
+$GLOBALS['X_ME_ERROR'] = ['status' => 403, 'body' => ['title' => 'Forbidden',
+    'detail' => 'When authenticating requests to the Twitter API v2 endpoints, you must use...']];
+$p = SocialOAuth::probe('x', 'tok-x-403', $adminId);
+ok('probe X 403 → aponta tweet.write/console.x.com', empty($p['ok'])
+    && str_contains((string)($p['error'] ?? ''), 'tweet.write')
+    && str_contains((string)($p['error'] ?? ''), 'console.x.com'),
+    'error=' . ($p['error'] ?? ''));
+
+$GLOBALS['X_ME_ERROR'] = ['status' => 402, 'body' => ['title' => 'Payment Required',
+    'detail' => 'You have no credits remaining for this endpoint.']];
+$p = SocialOAuth::probe('x', 'tok-x-402', $adminId);
+ok('probe X 402 → aponta créditos/Billing', empty($p['ok'])
+    && str_contains((string)($p['error'] ?? ''), 'Billing')
+    && str_contains((string)($p['error'] ?? ''), 'créditos'),
+    'error=' . ($p['error'] ?? ''));
+unset($GLOBALS['X_ME_ERROR']);
+
+$p = SocialOAuth::probe('x', 'tok-x-ok', $adminId);
+ok('probe X válido → ok com username', !empty($p['ok'])
+    && ($p['account_name'] ?? '') === 'x_probe_1', 'account=' . ($p['account_name'] ?? ''));
+
+// --- probe TikTok: escopo video.publish ---
+$GLOBALS['TT_SCOPE'] = 'user.info.basic';
+$p = SocialOAuth::probe('tiktok', 'tok-tt-noscope', $adminId);
+ok('probe TikTok sem video.publish → erro acionável', empty($p['ok'])
+    && str_contains((string)($p['error'] ?? ''), 'video.publish'),
+    'error=' . ($p['error'] ?? ''));
+
+$GLOBALS['TT_SCOPE'] = 'user.info.basic,video.publish';
+$p = SocialOAuth::probe('tiktok', 'tok-tt-ok', $adminId);
+ok('probe TikTok com escopo → ok', !empty($p['ok'])
+    && ($p['account_name'] ?? '') === 'TT Probe', 'account=' . ($p['account_name'] ?? ''));
+unset($GLOBALS['TT_SCOPE']);
+
+$p = SocialOAuth::probe('threads', 'tok-th-1', $adminId);
+ok('probe threads (graph.threads.net/v1.0/me) → ok', !empty($p['ok'])
+    && ($p['account_id'] ?? '') === 'th_probe_1', 'account=' . ($p['account_id'] ?? ''));
+
+// --- API: credenciais de app (BYOK) ---
+$r = $http('POST', $BASE . '/admin/api/social.php',
+    ['action' => 'app-save', 'network' => 'facebook', 'app_id' => '', 'app_secret' => ''], $jar);
+$ja = json_decode($r['body'], true) ?: [];
+ok('app-save sem credencial → 400 com mensagem clara', $r['status'] === 400
+    && str_contains((string)($ja['error'] ?? ''), 'App ID'), 'error=' . ($ja['error'] ?? ''));
+
+$r = $http('POST', $BASE . '/admin/api/social.php',
+    ['action' => 'app-save', 'network' => 'facebook', 'app_id' => 'meta_app_1',
+        'app_secret' => 's3cret-http'], $jar);
+$ja = json_decode($r['body'], true) ?: [];
+ok('app-save grava credencial do usuário → ok + configured', $r['status'] === 200
+    && !empty($ja['ok']) && !empty($ja['oauth_configured']), 'body=' . $r['body']);
+
+$r = $http('GET', $BASE . '/admin/api/social.php?action=connections', null, $jar);
+$jb2 = json_decode($r['body'], true) ?: [];
+$fbNet = $jb2['networks']['facebook'] ?? [];
+ok('connections expõe oauth_source=user + app_id', ($fbNet['oauth_configured'] ?? false) === true
+    && ($fbNet['oauth_source'] ?? '') === 'user' && ($fbNet['app_id'] ?? '') === 'meta_app_1',
+    'fb=' . json_encode($fbNet));
+
+$r = $http('POST', $BASE . '/admin/api/social.php',
+    ['action' => 'app-delete', 'network' => 'facebook'], $jar);
+$jd3 = json_decode($r['body'], true) ?: [];
+ok('app-delete remove as credenciais', $r['status'] === 200 && !empty($jd3['ok']),
+    'body=' . $r['body']);
+
+$r = $http('GET', $BASE . '/admin/api/social.php?action=connections', null, $jar);
+$jb3 = json_decode($r['body'], true) ?: [];
+$fbNet = $jb3['networks']['facebook'] ?? [];
+ok('após app-delete oauth_source não é mais user', ($fbNet['oauth_source'] ?? '') !== 'user',
+    'source=' . ($fbNet['oauth_source'] ?? '?'));
+
+$r = $http('POST', $BASE . '/admin/api/social.php',
+    ['action' => 'app-save', 'network' => 'facebook', 'app_id' => 'a', 'app_secret' => 'b']);
+ok('app-save sem sessão → 401', $r['status'] === 401, 'status=' . $r['status']);
 
 // ------------------------------------------------------------------ resumo
 echo "\n----------------------------------------\n";

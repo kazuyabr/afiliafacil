@@ -7,6 +7,7 @@ require_once Config::getLibDir() . '/Social/SocialNetworks.php';
 require_once Config::getLibDir() . '/Social/SocialConnections.php';
 require_once Config::getLibDir() . '/Social/SocialQuota.php';
 require_once Config::getLibDir() . '/Social/SocialOAuth.php';
+require_once Config::getLibDir() . '/Social/SocialAppCredentials.php';
 require_once Config::getLibDir() . '/Social/SocialPublisher.php';
 require_once Config::getLibDir() . '/Social/SocialMetrics.php';
 
@@ -25,7 +26,9 @@ $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
 // Callback do OAuth precisa da sessao (state/nonce) — os demais liberam o lock
 // para nao bloquear as demais paginas do usuario durante chamadas HTTP longas.
-if ($action !== 'callback') {
+// connect-url TAMBEM precisa: grava o state/nonce na sessao (anti-CSRF) —
+// fechar antes descartaria o state e o callback falharia.
+if (!in_array($action, ['callback', 'connect-url'], true)) {
     session_write_close();
 }
 
@@ -44,6 +47,7 @@ switch ($action) {
         $networks = [];
         foreach (SocialNetworks::ALL as $n) {
             $meta = SocialNetworks::meta()[$n];
+            $cred = SocialOAuth::credentials($n, $userId);
             $networks[$n] = [
                 'name' => $meta['name'],
                 'icon' => $meta['icon'],
@@ -52,7 +56,9 @@ switch ($action) {
                 'media' => $meta['media'],
                 'media_required' => $meta['media_required'],
                 'beta' => $meta['beta'],
-                'oauth_configured' => SocialOAuth::credentials($n)['configured'],
+                'oauth_configured' => $cred['configured'],
+                'oauth_source' => $cred['source'] ?? '',
+                'app_id' => ($cred['source'] ?? '') === 'user' ? $cred['id'] : '',
             ];
         }
         echo json_encode([
@@ -106,6 +112,53 @@ switch ($action) {
         $ok = SocialConnections::disconnect($userId, $network);
         echo json_encode(['success' => $ok, 'network' => $network,
             'conn_quota' => SocialConnections::checkCanConnect($userId, $plan)], JSON_UNESCAPED_UNICODE);
+        break;
+    }
+
+    case 'app-save': {
+        // BYOK de app: usuario cola App ID + Secret do app que ele ja criou
+        // na plataforma — libera o OAuth oficial sem App Review.
+        if (!$requireFeature()) break;
+        $network = (string)($_POST['network'] ?? '');
+        if (!SocialNetworks::supports($network)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Rede desconhecida.']);
+            break;
+        }
+        $provider = SocialOAuth::providerFor($network);
+        $appId = trim((string)($_POST['app_id'] ?? ''));
+        $secret = (string)($_POST['app_secret'] ?? '');
+        if ($appId === '' || trim($secret) === '') {
+            http_response_code(400);
+            echo json_encode(['error' => 'Informe o App ID e o App Secret do seu app.'], JSON_UNESCAPED_UNICODE);
+            break;
+        }
+        if (!SocialAppCredentials::save($userId, $provider, $appId, $secret)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Falha ao salvar as credenciais do app.'], JSON_UNESCAPED_UNICODE);
+            break;
+        }
+        echo json_encode(['success' => true, 'ok' => true, 'network' => $network,
+            'provider' => $provider,
+            'oauth_configured' => SocialOAuth::credentials($network, $userId)['configured']],
+            JSON_UNESCAPED_UNICODE);
+        break;
+    }
+
+    case 'app-delete': {
+        if (!$requireFeature()) break;
+        $network = (string)($_POST['network'] ?? '');
+        if (!SocialNetworks::supports($network)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Rede desconhecida.']);
+            break;
+        }
+        $provider = SocialOAuth::providerFor($network);
+        SocialAppCredentials::delete($userId, $provider);
+        echo json_encode(['success' => true, 'ok' => true, 'network' => $network,
+            'provider' => $provider,
+            'oauth_configured' => SocialOAuth::credentials($network, $userId)['configured']],
+            JSON_UNESCAPED_UNICODE);
         break;
     }
 

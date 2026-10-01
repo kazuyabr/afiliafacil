@@ -4,18 +4,23 @@ require_once __DIR__ . '/../Config.php';
 require_once __DIR__ . '/../Social/SocialNetworks.php';
 require_once __DIR__ . '/../Social/SocialHttp.php';
 require_once __DIR__ . '/../Social/SocialConnections.php';
+require_once __DIR__ . '/../Social/SocialAppCredentials.php';
 
 /**
  * Conexao oficial das redes (híbrido pragmático):
- * - OAuth 2.0 quando as credenciais da app estao configuradas (env).
- * - Caminho manual (token do proprio usuario, BYOK) enquanto o App Review
- *   da Meta/X/TikTok nao sai — mesmas APIs oficiais, sem credencial da plataforma.
+ * - OAuth 2.0 quando ha credenciais de app — do env (plataforma) ou do
+ *   proprio usuario (BYOK de app, salvas em SocialAppCredentials); criar o
+ *   app ja e obrigatorio para gerar token e o modo dev NAO exige App Review
+ *   para recursos do proprio usuario.
+ * - Caminho manual (token colado, BYOK) como alternativa — mesmo com o
+ *   probe diagnosticando permissoes/expiracao de forma acionavel.
  * O usuario ve sempre o que esta conectado e pode desconectar (revoke local).
  */
 class SocialOAuth
 {
     public const ENV_KEYS = [
         'meta' => ['META_APP_ID', 'META_APP_SECRET'],
+        'threads' => ['THREADS_APP_ID', 'THREADS_APP_SECRET'],
         'x' => ['X_CLIENT_ID', 'X_CLIENT_SECRET'],
         'tiktok' => ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET'],
     ];
@@ -28,13 +33,39 @@ class SocialOAuth
             'id' => $vals[0] ?? '', 'secret' => $vals[1] ?? ''];
     }
 
-    /** Credenciais OAuth do provedor da rede (meta|x|tiktok). */
-    public static function credentials(string $network): array
+    /** Provider de credenciais da rede (threads usa app ID proprio da Threads). Aceita a rede ou o proprio nome do provider ('meta'). */
+    public static function providerFor(string $network): string
     {
-        if (in_array($network, ['facebook', 'instagram', 'threads'], true)) return self::envPair('meta');
-        if ($network === 'x') return self::envPair('x');
-        if ($network === 'tiktok') return self::envPair('tiktok');
-        return ['configured' => false, 'id' => '', 'secret' => ''];
+        return match ($network) {
+            'facebook', 'instagram', 'meta' => 'meta',
+            'threads' => 'threads',
+            'x' => 'x',
+            'tiktok' => 'tiktok',
+            default => '',
+        };
+    }
+
+    /**
+     * Credenciais OAuth do provedor da rede. Prioridade: credencial do
+     * usuario (BYOK de app) > env da plataforma.
+     * @return array{configured:bool, id:string, secret:string, source:string}
+     */
+    public static function credentials(string $network, ?int $userId = null): array
+    {
+        $provider = self::providerFor($network);
+        if ($provider === '') {
+            return ['configured' => false, 'id' => '', 'secret' => '', 'source' => ''];
+        }
+        if ($userId !== null && $userId > 0) {
+            $own = SocialAppCredentials::get($userId, $provider);
+            if ($own !== null) {
+                return ['configured' => true, 'id' => $own['app_id'],
+                    'secret' => $own['secret'], 'source' => 'user'];
+            }
+        }
+        $pair = self::envPair($provider);
+        $pair['source'] = $pair['configured'] ? 'env' : '';
+        return $pair;
     }
 
     public static function redirectUri(): string
@@ -45,8 +76,8 @@ class SocialOAuth
     private static function scopes(string $network): string
     {
         return match ($network) {
-            'facebook' => 'pages_read_engagement,pages_manage_posts',
-            'instagram' => 'pages_read_engagement,pages_manage_posts,instagram_content_publish',
+            'facebook' => 'pages_show_list,pages_read_engagement,pages_manage_posts',
+            'instagram' => 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_content_publish',
             'threads' => 'threads_basic,threads_content_publish',
             'x' => 'tweet.read,tweet.write,users.read,offline.access',
             'tiktok' => 'video.publish,user.info.basic',
@@ -65,7 +96,7 @@ class SocialOAuth
     public static function authorizeUrl(string $network, int $userId): array
     {
         if (!SocialNetworks::supports($network)) return ['ok' => false, 'error' => 'Rede desconhecida.'];
-        $cred = self::credentials($network);
+        $cred = self::credentials($network, $userId);
         if (!$cred['configured']) {
             return ['ok' => false, 'error' => 'oauth_not_configured'];
         }
@@ -73,7 +104,18 @@ class SocialOAuth
         $state = self::stateFor($network, $userId);
         $redirect = rawurlencode(self::redirectUri());
 
-        if (in_array($network, ['facebook', 'instagram', 'threads'], true)) {
+        // Threads tem Authorization Window PROPRIA (threads.com) com o
+        // Threads App ID — o dialog do Facebook rejeita os scopes threads_*.
+        if ($network === 'threads') {
+            $url = 'https://threads.com/oauth/authorize?client_id=' . rawurlencode($cred['id'])
+                . '&redirect_uri=' . $redirect
+                . '&response_type=code'
+                . '&scope=' . rawurlencode(self::scopes($network))
+                . '&state=' . rawurlencode($state);
+            return ['ok' => true, 'url' => $url];
+        }
+
+        if (in_array($network, ['facebook', 'instagram'], true)) {
             $url = 'https://www.facebook.com/v21.0/dialog/oauth?client_id=' . rawurlencode($cred['id'])
                 . '&redirect_uri=' . $redirect
                 . '&scope=' . rawurlencode(self::scopes($network))
@@ -129,9 +171,10 @@ class SocialOAuth
 
         try {
             $result = match ($network) {
-                'facebook', 'instagram', 'threads' => self::exchangeMeta($network, $code),
-                'x' => self::exchangeX($code),
-                'tiktok' => self::exchangeTiktok($code),
+                'facebook', 'instagram' => self::exchangeMeta($network, $code, $userId),
+                'threads' => self::exchangeThreads($code, $userId),
+                'x' => self::exchangeX($code, $userId),
+                'tiktok' => self::exchangeTiktok($code, $userId),
                 default => ['ok' => false, 'error' => 'Rede desconhecida.'],
             };
         } catch (Throwable $e) {
@@ -148,9 +191,9 @@ class SocialOAuth
         return $result;
     }
 
-    private static function exchangeMeta(string $network, string $code): array
+    private static function exchangeMeta(string $network, string $code, int $userId): array
     {
-        $cred = self::credentials('meta');
+        $cred = self::credentials('meta', $userId);
         $tok = SocialHttp::json('GET', 'https://graph.facebook.com/v21.0/oauth/access_token', [
             'form' => [
                 'client_id' => $cred['id'],
@@ -212,21 +255,64 @@ class SocialOAuth
             return ['ok' => false, 'error' => 'Nenhuma conta profissional do Instagram ligada a uma Página. Ligue a conta em Configurações do Instagram e tente novamente.'];
         }
 
-        // threads
+        return ['ok' => false, 'error' => 'Rede desconhecida no Meta.'];
+    }
+
+    /**
+     * Threads: Authorization Window propria (threads.com) + exchange em
+     * graph.threads.net. O code gera token curto (1h) + refresh (60 dias);
+     * trocamos por long-lived (60 dias) via refresh_access_token para o
+     * agendamento nao morrer antes da proxima publicacao.
+     */
+    private static function exchangeThreads(string $code, int $userId): array
+    {
+        $cred = self::credentials('threads', $userId);
+        $tok = SocialHttp::json('GET', 'https://graph.threads.net/oauth/access_token', [
+            'form' => [
+                'client_id' => $cred['id'],
+                'client_secret' => $cred['secret'],
+                'grant_type' => 'authorization_code',
+                'code' => $code,
+                'redirect_uri' => self::redirectUri(),
+            ],
+        ]);
+        if (empty($tok['access_token'])) {
+            return ['ok' => false, 'error' => SocialHttp::errorMsg($tok, 'Falha ao autorizar no Threads.')];
+        }
+
+        $userToken = (string)$tok['access_token'];
+        $refresh = !empty($tok['refresh_token']) ? (string)$tok['refresh_token'] : null;
+        $expires = !empty($tok['expires_in'])
+            ? date('Y-m-d H:i:s', time() + (int)$tok['expires_in']) : null;
+
+        if ($refresh !== null) {
+            $long = SocialHttp::json('GET', 'https://graph.threads.net/refresh_access_token', [
+                'form' => ['grant_type' => 'th_refresh_token', 'access_token' => $refresh],
+            ]);
+            if (!empty($long['access_token'])) {
+                $userToken = (string)$long['access_token'];
+                $expires = !empty($long['expires_in'])
+                    ? date('Y-m-d H:i:s', time() + (int)$long['expires_in'])
+                    : date('Y-m-d H:i:s', time() + 60 * 86400);
+            }
+        }
+
         $me = SocialHttp::json('GET', 'https://graph.threads.net/v1.0/me', [
             'form' => ['access_token' => $userToken, 'fields' => 'id,username'],
         ]);
         if (empty($me['id'])) {
             return ['ok' => false, 'error' => SocialHttp::errorMsg($me, 'Não foi possível identificar o perfil do Threads.')];
         }
-        return ['ok' => true, 'token' => $userToken, 'expires_at' => $expires,
+
+        return ['ok' => true, 'token' => $userToken, 'refresh_token' => $refresh,
+            'expires_at' => $expires,
             'account_id' => (string)$me['id'], 'account_name' => (string)($me['username'] ?? ''),
             'meta' => ['threads_user_id' => (string)$me['id'], 'via' => 'oauth']];
     }
 
-    private static function exchangeX(string $code): array
+    private static function exchangeX(string $code, int $userId): array
     {
-        $cred = self::credentials('x');
+        $cred = self::credentials('x', $userId);
         $verifier = (string)($_SESSION['social_oauth']['verifier'] ?? '');
         $tok = SocialHttp::json('POST', 'https://api.x.com/2/oauth2/token', [
             'headers' => ['Authorization: Basic ' . base64_encode($cred['id'] . ':' . $cred['secret'])],
@@ -255,9 +341,9 @@ class SocialOAuth
             'meta' => ['username' => (string)($u['username'] ?? ''), 'via' => 'oauth']];
     }
 
-    private static function exchangeTiktok(string $code): array
+    private static function exchangeTiktok(string $code, int $userId): array
     {
-        $cred = self::credentials('tiktok');
+        $cred = self::credentials('tiktok', $userId);
         $tok = SocialHttp::json('POST', 'https://open.tiktokapis.com/v2/oauth/token/', [
             'form' => [
                 'client_key' => $cred['id'],
@@ -287,10 +373,12 @@ class SocialOAuth
     }
 
     /**
-     * Valida um token colado pelo usuario (caminho manual/BYOK) e descobre a conta.
-     * @return array{ok:bool, token?:string, account_id?:string, account_name?:string, meta?:array, error?:string}
+     * Valida um token colado pelo usuario (caminho manual/BYOK) e descobre a
+     * conta. Quando ha credenciais de app, diagnostica permissoes/expiracao
+     * de forma acionavel (aponta o passo do guia que precisa corrigir).
+     * @return array{ok:bool, token?:string, account_id?:string, account_name?:string, meta?:array, note?:string, error?:string}
      */
-    public static function probe(string $network, string $token): array
+    public static function probe(string $network, string $token, ?int $userId = null): array
     {
         $token = trim($token);
         if ($token === '') return ['ok' => false, 'error' => 'Cole um token de acesso válido.'];
@@ -308,14 +396,16 @@ class SocialOAuth
                 ]);
                 $page = ($pages['data'] ?? [])[0] ?? null;
                 if ($page) {
-                    return ['ok' => true, 'token' => (string)$page['access_token'],
+                    return self::metaDiag($userId, (string)$page['access_token'], 'facebook', [
+                        'ok' => true, 'token' => (string)$page['access_token'],
                         'account_id' => (string)$page['id'], 'account_name' => (string)($page['name'] ?? ''),
-                        'meta' => ['page_id' => (string)$page['id'], 'via' => 'manual']];
+                        'meta' => ['page_id' => (string)$page['id'], 'via' => 'manual']]);
                 }
                 // Sem Paged interfaces: assume que o token colado ja e de uma Pagina
-                return ['ok' => true, 'token' => $token,
+                return self::metaDiag($userId, $token, 'facebook', [
+                    'ok' => true, 'token' => $token,
                     'account_id' => (string)$me['id'], 'account_name' => (string)($me['name'] ?? ''),
-                    'meta' => ['page_id' => (string)$me['id'], 'via' => 'manual']];
+                    'meta' => ['page_id' => (string)$me['id'], 'via' => 'manual']]);
             }
 
             case 'instagram': {
@@ -329,9 +419,10 @@ class SocialOAuth
                 foreach (($pages['data'] ?? []) as $page) {
                     $ig = $page['instagram_business_account'] ?? null;
                     if (!empty($ig['id'])) {
-                        return ['ok' => true, 'token' => (string)($page['access_token'] ?? $token),
+                        return self::metaDiag($userId, (string)($page['access_token'] ?? $token), 'instagram', [
+                            'ok' => true, 'token' => (string)($page['access_token'] ?? $token),
                             'account_id' => (string)$ig['id'], 'account_name' => (string)($ig['username'] ?? ''),
-                            'meta' => ['ig_user_id' => (string)$ig['id'], 'page_id' => (string)$page['id'], 'via' => 'manual']];
+                            'meta' => ['ig_user_id' => (string)$ig['id'], 'page_id' => (string)$page['id'], 'via' => 'manual']]);
                     }
                 }
                 return ['ok' => false, 'error' => 'Nenhuma conta profissional do Instagram ligada a uma Página do Facebook neste token.'];
@@ -355,7 +446,7 @@ class SocialOAuth
                     'form' => ['user.fields' => 'id,name,username'],
                 ]);
                 if (empty($me['data']['id'])) {
-                    return ['ok' => false, 'error' => SocialHttp::errorMsg($me, 'Token inválido ou expirado no X.')];
+                    return ['ok' => false, 'error' => self::xProbeError($me)];
                 }
                 return ['ok' => true, 'token' => $token,
                     'account_id' => (string)$me['data']['id'],
@@ -372,6 +463,18 @@ class SocialOAuth
                 if (empty($u['open_id'])) {
                     return ['ok' => false, 'error' => SocialHttp::errorMsg($me, 'Token inválido ou expirado no TikTok.')];
                 }
+                // Verifica o escopo video.publish (sem ele TODO post falha)
+                $vi = SocialHttp::json('GET', 'https://open.tiktokapis.com/v2/oauth/token/', [
+                    'form' => ['access_token' => $token],
+                ]);
+                $scope = trim((string)($vi['scope'] ?? '')) ?: trim((string)($vi['data']['scope'] ?? ''));
+                if ($scope !== '') {
+                    $parts = preg_split('/[\s,]+/', $scope) ?: [];
+                    if (!in_array('video.publish', $parts, true)) {
+                        return ['ok' => false, 'error' => 'TikTok: token sem o escopo video.publish — ative o produto '
+                            . 'Content Posting API (Direct Post) no seu app e gere o token com esse escopo (passo 1 do guia).'];
+                    }
+                }
                 return ['ok' => true, 'token' => $token,
                     'account_id' => (string)$u['open_id'], 'account_name' => (string)($u['display_name'] ?? ''),
                     'meta' => ['open_id' => (string)$u['open_id'], 'via' => 'manual']];
@@ -381,12 +484,73 @@ class SocialOAuth
         return ['ok' => false, 'error' => 'Rede desconhecida.'];
     }
 
+    /**
+     * Diagnostico do token Meta via debug_token (só quando ha credencial de
+     * app e o token foi emitido POR ESSE app — tokens de outro app sao
+     * ignorados para nao dar falso negativo). Falta de permissao critica =
+     * erro acionavel apontando o passo do guia; token perto de expirar =
+     * note (nao bloqueia).
+     */
+    private static function metaDiag(int $userId, string $token, string $network, array $probe): array
+    {
+        $cred = self::credentials('meta', $userId);
+        if (empty($cred['configured'])) return $probe;
+
+        $d = SocialHttp::json('GET', 'https://graph.facebook.com/v21.0/debug_token', [
+            'form' => ['input_token' => $token,
+                'access_token' => $cred['id'] . '|' . $cred['secret']],
+        ]);
+        $data = $d['data'] ?? null;
+        if (!is_array($data)) return $probe;
+        // so diagnostica token emitido pelo app configurado
+        if (($data['app_id'] ?? '') === '' || (string)$data['app_id'] !== (string)$cred['id']) {
+            return $probe;
+        }
+        if (isset($data['is_valid']) && $data['is_valid'] === false) {
+            return ['ok' => false, 'error' => 'Token inválido ou revogado no Meta — gere um novo no '
+                . 'Graph API Explorer (passo 3 do guia) e cole novamente.'];
+        }
+        $scopes = $data['scopes'] ?? null;
+        if (is_array($scopes) && $scopes) {
+            $missing = array_values(array_diff(['pages_manage_posts'], $scopes));
+            if ($missing) {
+                $req = 'pages_show_list, pages_read_engagement, pages_manage_posts'
+                    . ($network === 'instagram' ? ', instagram_content_publish' : '');
+                return ['ok' => false, 'error' => 'Token sem a permissão pages_manage_posts — no Graph API '
+                    . 'Explorer gere o token marcando: ' . $req . ' (passo 3 do guia).'];
+            }
+        }
+        $exp = (int)($data['expires_at'] ?? 0);
+        if ($exp > 0 && $exp < time() + 7 * 86400) {
+            $probe['note'] = 'Token expira em ' . max(1, (int)ceil(($exp - time()) / 86400))
+                . ' dia(s) — prefira o login oficial (abaixo), que renova sozinho.';
+        }
+        return $probe;
+    }
+
+    /** Erro acionavel do probe do X (billing x permissao x token invalido). */
+    private static function xProbeError(array $me): string
+    {
+        $raw = strtolower(json_encode($me));
+        $status = (int)($me['_status'] ?? 0);
+        if ($status === 402 || preg_match('#credit|billing|payment|usage cap#i', $raw)) {
+            return 'X: app sem créditos — ative o pay-per-use em console.x.com > Billing (passo 3 do guia). '
+                . 'Sem créditos nenhum post é aceito.';
+        }
+        if ($status === 403 || str_contains($raw, 'forbidden') || str_contains($raw, 'insufficient')
+            || str_contains($raw, 'tweet.write') || str_contains($raw, 'scope')) {
+            return 'X: token sem permissão de escrita — gere com "Read and write" (escopo tweet.write) em '
+                . 'console.x.com > User authentication settings (passo 2 do guia) ou use o login oficial abaixo.';
+        }
+        return SocialHttp::errorMsg($me, 'Token inválido ou expirado no X.');
+    }
+
     /** Caminho manual: valida o token colado e salva a conexao. */
     public static function saveManual(int $userId, string $network, string $token): array
     {
         if (!SocialNetworks::supports($network)) return ['ok' => false, 'error' => 'Rede desconhecida.'];
 
-        $probe = self::probe($network, $token);
+        $probe = self::probe($network, $token, $userId);
         if (empty($probe['ok'])) return $probe;
 
         $saved = SocialConnections::upsert($userId, $network, [
@@ -418,7 +582,7 @@ class SocialOAuth
 
         $new = null;
         if ($conn->network === 'x') {
-            $cred = self::credentials('x');
+            $cred = self::credentials('x', (int)$conn->user_id);
             $r = SocialHttp::json('POST', 'https://api.x.com/2/oauth2/token', [
                 'headers' => ['Authorization: Basic ' . base64_encode($cred['id'] . ':' . $cred['secret'])],
                 'form' => ['grant_type' => 'refresh_token', 'refresh_token' => $refresh],
@@ -429,8 +593,20 @@ class SocialOAuth
                     'expires_at' => !empty($r['expires_in'])
                         ? date('Y-m-d H:i:s', time() + (int)$r['expires_in']) : null];
             }
+        } elseif ($conn->network === 'threads') {
+            // th_refresh_token nao exige client secret; renova o long-lived (60d)
+            $r = SocialHttp::json('GET', 'https://graph.threads.net/refresh_access_token', [
+                'form' => ['grant_type' => 'th_refresh_token', 'access_token' => $refresh],
+            ]);
+            if (!empty($r['access_token'])) {
+                $new = ['token' => (string)$r['access_token'],
+                    'refresh_token' => $r['refresh_token'] ?? $refresh,
+                    'expires_at' => !empty($r['expires_in'])
+                        ? date('Y-m-d H:i:s', time() + (int)$r['expires_in'])
+                        : date('Y-m-d H:i:s', time() + 60 * 86400)];
+            }
         } elseif ($conn->network === 'tiktok') {
-            $cred = self::credentials('tiktok');
+            $cred = self::credentials('tiktok', (int)$conn->user_id);
             $r = SocialHttp::json('POST', 'https://open.tiktokapis.com/v2/oauth/token/', [
                 'form' => ['client_key' => $cred['id'], 'client_secret' => $cred['secret'],
                     'grant_type' => 'refresh_token', 'refresh_token' => $refresh],

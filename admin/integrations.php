@@ -3,6 +3,7 @@ require_once __DIR__ . '/../lib/Config.php';
 require_once Config::getLibDir() . '/Auth.php';
 require_once Config::getLibDir() . '/Plans.php';
 require_once Config::getLibDir() . '/Social/SocialNetworks.php';
+require_once Config::getLibDir() . '/Social/SocialOAuth.php';
 Auth::requireAuth();
 $theme = $_SESSION['theme'] ?? 'light';
 $user = Auth::user();
@@ -55,9 +56,15 @@ if (isset($_GET['oauth'])) {
         [data-theme="dark"] .tgt-chip.published { background:#123f26; border-color:#1d6b41; color:#7ee0a8; }
         [data-theme="dark"] .tgt-chip.failed { background:#4a1a1a; border-color:#7a2e2e; color:#ff9c9c; }
         [data-theme="dark"] .tgt-chip.pending, [data-theme="dark"] .tgt-chip.publishing { background:#4a3a10; border-color:#7a6122; color:#ffd979; }
-        .manual-box { display:none; gap:8px; margin-top:10px; }
-        .manual-box.open { display:flex; }
-        .manual-box input { flex:1; }
+        .conn-step { margin-bottom:14px; }
+        .conn-step-h { display:flex; align-items:center; gap:8px; font-weight:600; font-size:.88rem; margin-bottom:8px; }
+        .conn-step-n { width:22px; height:22px; border-radius:50%; background:var(--accent,#0b5ed7); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:.72rem; flex-shrink:0; }
+        .conn-steps { margin:0; padding-left:20px; font-size:.82rem; color:var(--text-secondary); line-height:1.55; }
+        .conn-steps li { margin:5px 0; }
+        .conn-steps a { color:var(--accent,#0b5ed7); }
+        .conn-steps code, .conn-step code { background:var(--bg-secondary,#f0f0f0); padding:1px 5px; border-radius:4px; font-size:.78rem; word-break:break-all; }
+        .conn-method { border:1.5px solid var(--border,#ddd); border-radius:12px; padding:12px 14px; margin-top:10px; }
+        .conn-hint { font-size:.78rem; color:var(--text-secondary); margin-top:3px; line-height:1.5; }
         .cost-box { font-size:.8rem; color:var(--text-secondary); }
         .cost-box b { color:var(--text); }
         .sec-title { display:flex; justify-content:space-between; align-items:center; margin:26px 0 12px; gap:12px; flex-wrap:wrap; }
@@ -242,6 +249,69 @@ if (isset($_GET['oauth'])) {
             </div>
         </div>
     </div>
+
+    <div class="modal-overlay" id="connModal">
+        <div class="modal" style="max-width:660px;">
+            <div class="modal-header">
+                <h3 id="connTitle">Conectar</h3>
+                <button class="modal-close" onclick="closeConnModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;">
+                    <div class="net-icon" id="connNetIcon" style="width:42px;height:42px;font-size:1.15rem;"></div>
+                    <p id="connNetDesc" style="margin:0;font-size:.85rem;color:var(--text-secondary);"></p>
+                </div>
+
+                <div class="conn-step">
+                    <div class="conn-step-h"><span class="conn-step-n">1</span> Pré-requisitos (1 vez nesta rede)</div>
+                    <ol class="conn-steps" id="connSteps"></ol>
+                </div>
+
+                <div class="conn-step">
+                    <div class="conn-step-h"><span class="conn-step-n">2</span> Conectar</div>
+
+                    <div class="conn-method">
+                        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+                            <div>
+                                <b style="font-size:.88rem;">Login oficial (recomendado)</b>
+                                <div class="conn-hint" id="connOAuthHint"></div>
+                            </div>
+                            <button class="btn btn-sm btn-primary" id="connOAuthBtn" onclick="startOAuth()">
+                                <i class="fas fa-arrow-right-from-bracket"></i> <span id="connOAuthLabel">Entrar</span>
+                            </button>
+                        </div>
+                        <details id="connCredsBox" style="margin-top:10px;">
+                            <summary style="cursor:pointer;font-size:.82rem;font-weight:600;">
+                                <i class="fas fa-key"></i> Credenciais do seu app (App ID + Secret)
+                            </summary>
+                            <div class="conn-hint" id="connCredsHelp" style="margin:6px 0;"></div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+                                <input id="connAppId" placeholder="App ID / Client ID / Client Key" style="flex:1;min-width:150px;" autocomplete="off">
+                                <input id="connAppSecret" type="password" placeholder="App Secret / Client Secret" style="flex:1;min-width:150px;" autocomplete="off">
+                            </div>
+                            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+                                <button class="btn btn-sm" id="connCredsSaveBtn" onclick="saveAppCreds()"><i class="fas fa-floppy-disk"></i> Salvar credenciais</button>
+                                <button class="btn btn-sm" id="connCredsDelBtn" onclick="delAppCreds()" style="display:none;">Remover</button>
+                                <span id="connCredsMsg" class="conn-hint"></span>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div class="conn-method">
+                        <b style="font-size:.88rem;">…ou cole um token manual</b>
+                        <div class="conn-hint" id="connTokenHint"></div>
+                        <div style="display:flex;gap:8px;margin-top:8px;">
+                            <input type="password" id="connToken" placeholder="Token de acesso" style="flex:1;" autocomplete="off">
+                            <button class="btn btn-sm btn-primary" id="connTokenBtn" onclick="saveManualToken()">Validar e conectar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="connMsg" style="margin-top:12px;font-size:.83rem;"></div>
+            </div>
+        </div>
+    </div>
+
     <script src="/assets/js/app.js"></script>
     <script>
     const HAS_FEATURE = <?= $hasFeature ? 'true' : 'false' ?>;
@@ -341,12 +411,8 @@ if (isset($_GET['oauth'])) {
                                  <button class="btn btn-sm" onclick="disconnect('${n}')"><i class="fas fa-unlink"></i> Desconectar</button>
                                </div>`
                             : `<div class="net-actions">
-                                 <button class="btn btn-sm btn-primary" onclick="connectOAuth('${n}')" ${!m.oauth_configured ? 'disabled title="OAuth da plataforma não configurado — use o token"' : ''}><i class="fas fa-plug"></i> Conectar</button>
-                                 <button class="btn btn-sm" onclick="toggleManual('${n}')">Colar token</button>
-                               </div>
-                               <div class="manual-box" id="manual-${n}">
-                                 <input type="password" id="token-${n}" placeholder="Token de acesso da ${esc(m.name)}">
-                                 <button class="btn btn-sm btn-primary" onclick="saveToken('${n}')">Salvar</button>
+                                 <button class="btn btn-sm btn-primary" onclick="openConnModal('${n}')"><i class="fas fa-plug"></i> Conectar</button>
+                                 <span class="conn-hint">${m.oauth_configured ? (m.oauth_source === 'user' ? 'login oficial com seu app' : 'login oficial disponível') : 'guia de pré-requisitos + token'}</span>
                                </div>`}
                     </div>
                 </div>`;
@@ -381,24 +447,271 @@ if (isset($_GET['oauth'])) {
         renderChecks();
     }
 
-    function toggleManual(n) {
-        document.getElementById('manual-' + n).classList.toggle('open');
+    // ------------------------------------- modal de conexão guiada (Fase 4)
+
+    const REDIRECT_URI = <?= json_encode(SocialOAuth::redirectUri()) ?>;
+    const PAGE_HOST = <?= json_encode($_SERVER['HTTP_HOST'] ?? 'SEU-DOMINIO') ?>;
+    let CONN_NET = null;
+
+    // Jornadas verificadas por rede (pesquisa 2026): pré-requisitos
+    // encadeados, links oficiais e armadilhas reais antes de gerar o token.
+    const GUIDES = {
+        facebook: {
+            title: 'Facebook (Página)',
+            steps: [
+                'Tenha uma conta pessoal e crie uma <b>Página</b> (<a href="https://www.facebook.com/pages/create" target="_blank" rel="noopener">facebook.com/pages/create</a>) — publicamos na Página; <b>não é preciso</b> Business Suite/conta de negócio para isso.',
+                'Crie um app em <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a> (tipo Consumer) — <b>não exige App Review da Meta</b> para publicar dos recursos da sua própria conta (app em modo Development).',
+                'No <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener">Graph API Explorer</a>: selecione seu app → Permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code> → Get User Access Token.',
+                'O token do Explorer dura ~1 hora e morre antes do agendamento: estenda para <b>60 dias</b> em App Dashboard → Tools → Access Token Debugger → <i>Extend Access Token</i>.',
+                'Melhor caminho: salve o <b>App ID + Secret</b> abaixo e use o <b>login oficial</b> — renovação automática, sem colar token.'
+            ],
+            token: 'Cole o token long-lived (60 dias) do Access Token Debugger — o token de 1 hora do Explorer expira antes do próximo agendamento.',
+            creds: 'App ID + App Secret do seu app Meta (developers.facebook.com/apps → Settings → Basic).'
+        },
+        instagram: {
+            title: 'Instagram (conta profissional)',
+            steps: [
+                'Siga os passos 1–2 do Facebook: app no developers.facebook.com + uma Página do Facebook.',
+                'No app do Instagram: Configurações → Conta → <b>Conta profissional</b> (Creator/Business) → conecte à sua Página do Facebook.',
+                'Graph API Explorer → seu app → permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>instagram_content_publish</code> → gere o token.',
+                'Estenda para 60 dias (Access Token Debugger → Extend) e cole abaixo — a conta do IG ligada à Página é detectada automaticamente.',
+                'Publicação no feed exige <b>imagem</b> (vídeo só via Reels — fora do escopo desta API).'
+            ],
+            token: 'Cole o token long-lived do Meta (mesmo app e Página do Facebook).',
+            creds: 'App ID + App Secret do seu app Meta (o mesmo do Facebook).'
+        },
+        threads: {
+            title: 'Threads',
+            steps: [
+                'Em <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a> → seu app → produto <b>Threads API</b> → <i>Create Threads App</i>.',
+                'Anote o <b>Threads App ID</b> e o <b>Threads App Secret</b> — são diferentes do app Meta.',
+                'Cadastre o Redirect URI no produto Threads API: <code class="conn-uri"></code>',
+                'Salve Threads App ID + Secret abaixo e use o <b>login oficial</b> (janela própria do Threads, escopos <code>threads_basic</code> + <code>threads_content_publish</code>; token de 60 dias com renovação).',
+                'Sem app: gere o token em App Dashboard → Threads API → <i>Access Token Generator</i> e cole abaixo.'
+            ],
+            token: 'Cole o token do Access Token Generator (Threads API) — dura 60 dias.',
+            creds: 'Threads App ID + Threads App Secret (App Dashboard → Threads API).'
+        },
+        x: {
+            title: 'X (Twitter)',
+            steps: [
+                'Crie um app em <a href="https://developer.x.com/" target="_blank" rel="noopener">developer.x.com</a> (console.x.com) dentro de um Project.',
+                '<i>User authentication settings</i> → tipo <b>Web App</b>, permissão <b>Read and write</b>, callback: <code class="conn-uri"></code>',
+                '<b>Créditos (obrigatório desde 06/2026)</b>: o X não tem tier gratuito para apps novos — ative os créditos em <i>Billing</i>. Custo por conta: ~$0.015/post sem link e $0.20 com link (pago por você direto à X).',
+                'Salve <b>Client ID + Secret</b> abaixo → <b>login oficial</b> renova o token sozinho (ele dura só 2h; sem refresh o agendamento falharia).',
+                'Alternativa: gere um token de usuário com escopo <code>tweet.write</code> e cole — sem refresh ele expira em 2h. Bearer de app <b>não serve</b> para postar.'
+            ],
+            token: 'Token de usuário OAuth 2.0 com escopo tweet.write — bearer de app NÃO publica (403).',
+            creds: 'OAuth 2.0 Client ID + Client Secret (console.x.com → User authentication settings).'
+        },
+        tiktok: {
+            title: 'TikTok',
+            steps: [
+                'Crie o app em <a href="https://developers.tiktok.com/" target="_blank" rel="noopener">developers.tiktok.com</a> → adicione o produto <b>Content Posting API</b> → enable <b>Direct Post</b>.',
+                'Escopo <code>video.publish</code> precisa ser ativado no app — até a <b>auditoria</b> da TikTok os posts saem <b>privados</b> (só você vê) e o limite é 5 contas/24h.',
+                'Cadastre o Redirect URL: <code class="conn-uri"></code>',
+                `Em <i>URL Configuration</i> cadastre o domínio desta plataforma (<b>${PAGE_HOST}</b>) — sem isso o TikTok recusa a URL da mídia (<code>url_ownership_unverified</code>).`,
+                'Salve <b>Client Key + Secret</b> abaixo → login oficial; ou gere o token com <code>video.publish</code> e cole.'
+            ],
+            token: 'Cole o token com o escopo video.publish (gerador OAuth do seu app TikTok).',
+            creds: 'Client Key + Client Secret do seu app (developers.tiktok.com → app).'
+        }
+    };
+
+    // Resultado do OAuth: popup entrega via postMessage ao opener; mesmo fluxo
+    // (aba original/popup bloqueado) mostra toast + recarrega conexões.
+    (function oauthResult() {
+        try {
+            const p = new URLSearchParams(location.search);
+            if (!p.has('oauth')) return;
+            const wasPopup = localStorage.getItem('af_oauth_popup') === '1';
+            if (wasPopup) localStorage.removeItem('af_oauth_popup');
+            const ok = p.get('oauth') === 'ok';
+            const msg = p.get('msg') || '';
+            if (wasPopup && window.opener) {
+                window.opener.postMessage({
+                    source: 'af-social-oauth', ok,
+                    network: p.get('network') || '', msg,
+                }, location.origin);
+                document.documentElement.style.visibility = 'hidden';
+                setTimeout(() => { try { window.close(); } catch (e) {} }, 200);
+                return;
+            }
+            history.replaceState({}, '', location.pathname);
+            document.addEventListener('DOMContentLoaded', () => {
+                if (ok) { showToast('Conta conectada com sucesso!', 'success'); loadConnections(); }
+                else showToast(msg || 'Falha na conexão.', 'error');
+            });
+        } catch (e) { /* ignore */ }
+    })();
+
+    function openConnModal(n) {
+        const m = STATE.networks[n];
+        if (!m) return;
+        const c = (STATE.connections || []).find(x => x.network === n);
+        if (c && c.status === 'connected') return;
+        CONN_NET = n;
+        const g = GUIDES[n] || { title: m.name, steps: [], token: 'Cole o token de acesso.', creds: '' };
+
+        document.getElementById('connTitle').textContent = 'Conectar — ' + (g.title || m.name);
+        document.getElementById('connNetIcon').innerHTML = '<i class="' + m.icon + '"></i>';
+        document.getElementById('connNetIcon').style.background = m.color + '1f';
+        document.getElementById('connNetIcon').style.color = m.color;
+        document.getElementById('connNetDesc').textContent = m.desc || '';
+        document.getElementById('connSteps').innerHTML = (g.steps || []).map(s => '<li>' + s + '</li>').join('');
+        document.querySelectorAll('#connModal .conn-uri').forEach(el => { el.textContent = REDIRECT_URI; });
+        document.getElementById('connTokenHint').textContent = g.token || '';
+        document.getElementById('connCredsHelp').textContent = g.creds || '';
+        document.getElementById('connToken').value = '';
+        document.getElementById('connAppSecret').value = '';
+        document.getElementById('connMsg').innerHTML = '';
+        document.getElementById('connCredsMsg').textContent = '';
+        document.getElementById('connAppId').value = m.app_id || '';
+        document.getElementById('connCredsDelBtn').style.display = m.oauth_source === 'user' ? '' : 'none';
+        updateConnOAuthState();
+        document.getElementById('connModal').classList.add('active');
     }
 
-    async function connectOAuth(n) {
+    function updateConnOAuthState() {
+        const m = STATE.networks[CONN_NET] || {};
+        const btn = document.getElementById('connOAuthBtn');
+        const hint = document.getElementById('connOAuthHint');
+        document.getElementById('connOAuthLabel').textContent = 'Entrar com ' + (m.name || '');
+        btn.disabled = !m.oauth_configured;
+        hint.innerHTML = m.oauth_configured
+            ? (m.oauth_source === 'user'
+                ? '<i class="fas fa-check" style="color:#28a745;"></i> Suas credenciais de app — renovação automática de token.'
+                : '<i class="fas fa-check" style="color:#28a745;"></i> OAuth da plataforma configurado.')
+            : '<i class="fas fa-circle-info"></i> Salve o App ID + Secret do seu app (abaixo) para liberar o login oficial.';
+    }
+
+    function closeConnModal() {
+        document.getElementById('connModal').classList.remove('active');
+        CONN_NET = null;
+    }
+
+    async function startOAuth() {
+        const n = CONN_NET;
+        if (!n) return;
+        const msg = document.getElementById('connMsg');
+        msg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Abrindo autorização…';
         const j = await api('connect-url', { network: n });
-        if (j.url) { window.location.href = j.url; return; }
-        alert(j.error || 'Não foi possível iniciar a conexão.');
+        if (!j.url) {
+            msg.innerHTML = '<span style="color:#dc3545;">' + esc(j.error === 'oauth_not_configured'
+                ? 'Configure o App ID + Secret do seu app primeiro (abaixo).' : (j.error || 'Não foi possível iniciar.')) + '</span>';
+            return;
+        }
+        try { localStorage.setItem('af_oauth_popup', '1'); } catch (e) {}
+        const w = window.open(j.url, 'af-social-oauth', 'width=580,height=720');
+        if (!w) {
+            // popup bloqueado → mesmo fluxo antigo (redirect na mesma aba)
+            try { localStorage.removeItem('af_oauth_popup'); } catch (e) {}
+            window.location.href = j.url;
+            return;
+        }
+        msg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conclua a autorização na janela aberta…';
+        const res = await waitForOAuthMessage(120000);
+        if (!res) {
+            msg.innerHTML = '<span style="color:#dc3545;">Janela fechada sem concluir — clique em Entrar novamente.</span>';
+            return;
+        }
+        if (res.ok) {
+            closeConnModal();
+            await loadConnections();
+            showToast('Conta conectada com sucesso!', 'success');
+        } else {
+            msg.innerHTML = '<span style="color:#dc3545;">' + esc(res.msg || 'Falha na conexão.') + '</span>';
+        }
     }
 
-    async function saveToken(n) {
-        const token = document.getElementById('token-' + n).value.trim();
-        if (!token) { alert('Cole o token de acesso.'); return; }
-        const btn = event.target.closest('button'); btn.disabled = true;
-        const j = await api('save-token', { network: n, token });
-        btn.disabled = false;
-        if (j.ok) { await loadConnections(); }
-        else alert(j.error || 'Falha ao validar o token.');
+    function waitForOAuthMessage(timeoutMs) {
+        return new Promise(resolve => {
+            let done = false;
+            const finish = v => {
+                if (done) return;
+                done = true;
+                clearTimeout(timer);
+                window.removeEventListener('message', handler);
+                resolve(v);
+            };
+            const timer = setTimeout(() => finish(null), timeoutMs);
+            function handler(e) {
+                if (e.origin !== location.origin) return;
+                const d = e.data;
+                if (!d || d.source !== 'af-social-oauth') return;
+                finish(d);
+            }
+            window.addEventListener('message', handler);
+        });
+    }
+
+    async function saveManualToken() {
+        const n = CONN_NET;
+        if (!n) return;
+        const token = document.getElementById('connToken').value.trim();
+        const msg = document.getElementById('connMsg');
+        if (!token) {
+            msg.innerHTML = '<span style="color:#dc3545;">Cole o token de acesso.</span>';
+            return;
+        }
+        const btn = document.getElementById('connTokenBtn');
+        btn.disabled = true;
+        msg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Validando token na API da rede…';
+        try {
+            const j = await api('save-token', { network: n, token });
+            if (j.ok) {
+                closeConnModal();
+                await loadConnections();
+                showToast('Conta conectada com sucesso!', 'success');
+            } else {
+                msg.innerHTML = '<span style="color:#dc3545;">' + esc(j.error || 'Falha ao validar o token.') + '</span>';
+            }
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function saveAppCreds() {
+        const n = CONN_NET;
+        if (!n) return;
+        const appId = document.getElementById('connAppId').value.trim();
+        const secret = document.getElementById('connAppSecret').value.trim();
+        const m = document.getElementById('connCredsMsg');
+        if (!appId || !secret) { m.textContent = 'Preencha App ID e Secret.'; return; }
+        const btn = document.getElementById('connCredsSaveBtn');
+        btn.disabled = true;
+        try {
+            const j = await api('app-save', { network: n, app_id: appId, app_secret: secret });
+            if (j.ok || j.success) {
+                m.textContent = 'Credenciais salvas (secret criptografado).';
+                document.getElementById('connAppSecret').value = '';
+                document.getElementById('connCredsDelBtn').style.display = '';
+                const net = STATE.networks[n] || {};
+                net.oauth_configured = true;
+                net.oauth_source = 'user';
+                net.app_id = appId;
+                STATE.networks[n] = net;
+                updateConnOAuthState();
+            } else {
+                m.textContent = j.error || 'Falha ao salvar.';
+            }
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function delAppCreds() {
+        const n = CONN_NET;
+        if (!n) return;
+        const m = document.getElementById('connCredsMsg');
+        const j = await api('app-delete', { network: n });
+        if (j.ok || j.success) {
+            m.textContent = 'Credenciais removidas.';
+            await loadConnections();
+            if (CONN_NET) openConnModal(CONN_NET);
+        } else {
+            m.textContent = j.error || 'Falha ao remover.';
+        }
     }
 
     async function disconnect(n) {
