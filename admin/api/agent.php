@@ -9,6 +9,7 @@ require_once Config::getLibDir() . '/Agent/AgentProfile.php';
 require_once Config::getLibDir() . '/Agent/AgentSubagents.php';
 require_once Config::getLibDir() . '/Agent/AgentPermissions.php';
 require_once Config::getLibDir() . '/Agent/AgentKnowledge.php';
+require_once Config::getLibDir() . '/Agent/AgentAttachments.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -170,10 +171,24 @@ switch ($action) {
         echo json_encode($result);
         break;
 
+    case 'upload':
+        $file = $_FILES['file'] ?? null;
+        if (!$file) {
+            echo json_encode(['error' => 'Nenhum arquivo recebido.']);
+            break;
+        }
+        echo json_encode(AgentAttachments::store($userId, $file), JSON_UNESCAPED_UNICODE);
+        break;
+
     case 'send':
         $conversationId = (int)($_POST['conversation_id'] ?? 0);
         $message = (string)($_POST['message'] ?? '');
         $subagentId = (int)($_POST['subagent_id'] ?? 0);
+        $attachments = [];
+        if (isset($_POST['attachments']) && trim((string)$_POST['attachments']) !== '') {
+            $decoded = json_decode((string)$_POST['attachments'], true);
+            if (is_array($decoded)) $attachments = $decoded;
+        }
 
         if ($conversationId <= 0) {
             $created = $agent->newConversation($userId, $subagentId);
@@ -182,7 +197,7 @@ switch ($action) {
             }
         }
 
-        $result = $agent->send($userId, $user['plan'], $conversationId, $message);
+        $result = $agent->send($userId, $user['plan'], $conversationId, $message, $attachments);
         if (isset($result['error'])) {
             echo json_encode($result);
             break;

@@ -107,6 +107,33 @@ class AiClient
     }
 
     /**
+     * Achata content em array (ex: content-parts de imagem) para string de texto.
+     * Usado nos providers que NAO suportam o formato OpenAI de multimodal
+     * (anthropic/google) — sem isso o payload vira array e a API rejeita (400).
+     */
+    private static function flattenContent($content): string
+    {
+        if (is_string($content)) return $content;
+        if (!is_array($content)) return '';
+
+        $text = '';
+        foreach ($content as $part) {
+            if (is_string($part)) {
+                $text .= ($text !== '' ? "\n" : '') . $part;
+                continue;
+            }
+            if (is_array($part)) {
+                $piece = $part['text'] ?? null;
+                if (is_string($piece) && $piece !== '') {
+                    $text .= ($text !== '' ? "\n" : '') . $piece;
+                }
+            }
+        }
+
+        return $text;
+    }
+
+    /**
      * Tenta cada config em ordem (fallback automatico quando uma cota/limite estoura).
      * Ex.: BYOK do usuario -> plataforma -> chave alternativa da plataforma.
      */
@@ -309,9 +336,12 @@ class AiClient
         $chat = [];
         foreach ($messages as $m) {
             if (($m['role'] ?? '') === 'system') {
-                $system .= $m['content'] . "\n";
+                $system .= self::flattenContent($m['content'] ?? '') . "\n";
             } else {
-                $chat[] = $m;
+                $chat[] = [
+                    'role' => $m['role'] ?? 'user',
+                    'content' => self::flattenContent($m['content'] ?? ''),
+                ];
             }
         }
 
@@ -347,7 +377,7 @@ class AiClient
             }
             $contents[] = [
                 'role' => ($m['role'] ?? '') === 'assistant' ? 'model' : 'user',
-                'parts' => [['text' => $m['content']]],
+                'parts' => [['text' => self::flattenContent($m['content'] ?? '')]],
             ];
         }
 

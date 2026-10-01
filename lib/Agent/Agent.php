@@ -18,6 +18,7 @@ require_once __DIR__ . '/AgentPermissions.php';
 require_once __DIR__ . '/AgentPrompts.php';
 require_once __DIR__ . '/AgentJobs.php';
 require_once __DIR__ . '/AgentKnowledge.php';
+require_once __DIR__ . '/AgentAttachments.php';
 
 class Agent
 {
@@ -26,14 +27,18 @@ class Agent
     /** Profundidade de tool_calls encadeados (evita loop de ferramentas). */
     private int $toolCallDepth = 0;
 
-    public function send(int $userId, string $plan, int $conversationId, string $message): array
+    public function send(int $userId, string $plan, int $conversationId, string $message, array $attachments = []): array
     {
         if (!Database::available()) {
             return ['error' => 'Banco de dados indisponível.'];
         }
 
+        // Anexos: valida formato/ownership (refs invalidas sao descartadas em silencio).
+        $attachmentItems = AgentAttachments::validateRefs($userId, $attachments);
+        $toolArgs = !empty($attachmentItems) ? ['attachments' => $attachmentItems] : null;
+
         $message = trim($message);
-        if ($message === '') {
+        if ($message === '' && empty($attachmentItems)) {
             return ['error' => 'Escreva uma mensagem para o sócio.'];
         }
         if (mb_strlen($message) > 2000) {
@@ -44,7 +49,7 @@ class Agent
         if (!$screen['allowed']) {
             $conversation = $this->getConversation($userId, $conversationId);
             if ($conversation) {
-                $this->saveMessage((int)$conversation->id, 'user', $message, '', null, null, 'blocked', [], AgentQuota::source($userId));
+                $this->saveMessage((int)$conversation->id, 'user', $message, '', $toolArgs, null, 'blocked', [], AgentQuota::source($userId));
                 $this->saveMessage((int)$conversation->id, 'agent', $screen['reason']);
             }
             return ['success' => true, 'blocked' => true, 'quota' => AgentQuota::check($userId, $plan)];
@@ -64,7 +69,7 @@ class Agent
             return ['error' => 'Conversa não encontrada.'];
         }
 
-        $this->saveMessage((int)$conversation->id, 'user', $message, '', null, null, '', [], AgentQuota::source($userId));
+        $this->saveMessage((int)$conversation->id, 'user', $message, '', $toolArgs, null, '', [], AgentQuota::source($userId));
 
         // Onboarding: se o agente acabou de perguntar o NICHO e o usuario respondeu, salvamos no
         // perfil de forma DETERMINISTICA (nao dependemos da IA lembrar). Aceita nicho do swipe,
@@ -139,6 +144,37 @@ class Agent
                 ->first();
             $message = (string)($lastUserMessage->content ?? '');
 
+            // Anexos: extrai o conteudo (imagem/audio/pdf/texto), modera o texto extraido
+            // e injeta o bloco ANEXOS no contexto — a IA ve tudo sem mudar UI nem historico.
+            $attMeta = [];
+            $toolArgs = $lastUserMessage->tool_args ?? null;
+            if (is_array($toolArgs) && !empty($toolArgs['attachments']) && is_array($toolArgs['attachments'])) {
+                $attMeta = $toolArgs['attachments'];
+            }
+
+            $enriched = $message;
+            $images = [];
+            if (!empty($attMeta)) {
+                $extracted = AgentAttachments::extract($userId, $attMeta, $plan);
+                $images = $extracted['images'];
+                $attachText = $extracted['text'];
+
+                if ($attachText !== '') {
+                    $exScreen = ContentModerator::screen($attachText, 'agent', $userId);
+                    if (!$exScreen['allowed']) {
+                        // Conteudo do anexo bloqueado: nao chama a IA (mesma politica da mensagem).
+                        $this->saveMessage($conversationId, 'agent', $exScreen['reason']);
+                        AgentJobs::complete($jobId);
+                        return ['success' => true];
+                    }
+                    $attachText = $exScreen['clean'];
+                }
+
+                if ($attachText !== '') {
+                    $enriched = $message !== '' ? $message . "\n\n" . $attachText : $attachText;
+                }
+            }
+
             $candidates = AiConfig::candidates($userId);
             if (empty($candidates)) {
                 $this->saveMessage($conversationId, 'agent', 'Não consigo pensar agora: a IA da plataforma está temporária (pode ser cota diária do dia). Espera até amanhã ou configure sua própria chave em Configurações → Avançado → IA (chaves próprias).');
@@ -147,14 +183,18 @@ class Agent
             }
 
             AiClient::setUsageUser($userId);
-            $response = $this->chatWithRetry($this->buildMessages($userId, $plan, $conversationId, $message), $candidates);
+            if (!empty($images)) {
+                $response = $this->chatWithAttachments($userId, $plan, $conversationId, $enriched, $images, $candidates);
+            } else {
+                $response = $this->chatWithRetry($this->buildMessages($userId, $plan, $conversationId, $enriched), $candidates);
+            }
             if ($response === null) {
                 $this->saveMessage($conversationId, 'agent', $this->aiFailureMessage($plan));
                 AgentJobs::complete($jobId);
                 return ['success' => true];
             }
 
-            $this->handleResponse($userId, $plan, $conversationId, $response, $message);
+            $this->handleResponse($userId, $plan, $conversationId, $response, $enriched);
             AgentJobs::complete($jobId);
 
             return ['success' => true, 'conversation_id' => $conversationId];
@@ -631,6 +671,44 @@ class Agent
     private function chatWithRetry(array $messages, array $candidates, int $attempts = 2): ?string
     {
         return AiClient::chatWithFallback($messages, $candidates, $attempts);
+    }
+
+    /**
+     * Chat com imagens: envia content-parts (data URIs) usando candidatos com modelo
+     * de visao (CF_AI_VISION_MODEL). Se todos falharem (modelo sem visao ou sem
+     * licenca), refaz SO com texto e avisa o usuario — nunca deixa sem resposta.
+     */
+    private function chatWithAttachments(int $userId, string $plan, int $conversationId, string $enriched, array $images, array $candidates): ?string
+    {
+        $messages = $this->buildMessages($userId, $plan, $conversationId, $enriched);
+
+        $parts = [['type' => 'text', 'text' => (string)($messages[1]['content'] ?? '')]];
+        foreach ($images as $dataUri) {
+            $parts[] = ['type' => 'image_url', 'image_url' => ['url' => $dataUri]];
+        }
+        $messages[1]['content'] = $parts;
+
+        $response = $this->chatWithRetry($messages, self::visionCandidates($candidates));
+
+        if ($response === null && !AiClient::isQuotaError()) {
+            $fallback = $enriched
+                . "\n\n[Anexos de imagem não puderam ser analisados pelo modelo atual. Avise o usuário e peça para ele descrever a imagem, se necessário.]";
+            $response = $this->chatWithRetry($this->buildMessages($userId, $plan, $conversationId, $fallback), $candidates);
+        }
+
+        return $response;
+    }
+
+    /** Troca o modelo dos candidatos Cloudflare por um de visao quando ha imagens. */
+    private static function visionCandidates(array $candidates): array
+    {
+        $visionModel = getenv('CF_AI_VISION_MODEL') ?: '@cf/meta/llama-3.2-11b-vision-instruct';
+        foreach ($candidates as $i => $config) {
+            if (AiClient::resolveApiType($config) === 'cloudflare') {
+                $candidates[$i]['model'] = $visionModel;
+            }
+        }
+        return $candidates;
     }
 
     private function commentOnResult(int $userId, string $plan, int $conversationId, string $toolName, array $result): ?string

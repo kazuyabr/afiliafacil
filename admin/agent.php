@@ -125,8 +125,11 @@ $profileText = AgentProfile::describe($profile);
                             <i class="fas fa-triangle-exclamation"></i> O Sócio aguarda sua confirmação — confira o cartão de ação abaixo.
                         </div>
                         <div class="agent-messages" id="agentMessages"></div>
-                        <div class="agent-input">
+                        <div class="agent-input" style="flex-wrap:wrap;">
+                            <div id="attachChips" style="display:none;flex-basis:100%;gap:6px;flex-wrap:wrap;padding-bottom:2px;"></div>
                             <textarea id="agentInput" placeholder="Escreva para o seu sócio... (Enter envia, Shift+Enter quebra linha)" onkeydown="handleKey(event)"><?= htmlspecialchars($_GET['ask'] ?? '') ?></textarea>
+                            <input type="file" id="attachInput" multiple style="display:none;" accept="image/*,application/pdf,audio/*,.txt,.md,.csv,.json,.html" onchange="attachFiles(this)">
+                            <button class="btn btn-outline" id="attachBtn" onclick="document.getElementById('attachInput').click()" title="Anexar arquivo (imagem, PDF, áudio ou texto)"><i class="fas fa-paperclip"></i></button>
                             <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
                         </div>
                     </div>
@@ -251,8 +254,79 @@ $profileText = AgentProfile::describe($profile);
     let templatesCache = [];
     let availableToolsCache = [];
     let subagentQuota = null;
+    let pendingAttachments = [];
 
     function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    function fmtBytes(b) {
+        b = Number(b) || 0;
+        if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB';
+        if (b >= 1024) return Math.round(b / 1024) + ' KB';
+        return b + ' B';
+    }
+
+    function attIcon(kind) {
+        return { image: 'fa-file-image', audio: 'fa-file-audio', pdf: 'fa-file-pdf', text: 'fa-file-lines' }[kind] || 'fa-file';
+    }
+
+    function attachmentChipsHtml(list) {
+        if (!list || !list.length) return '';
+        return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' + list.map(a =>
+            '<span class="chip" style="font-size:.72rem;margin:0;cursor:default;"><i class="fas ' + esc(attIcon(a.kind || 'text')) + '"></i> ' + esc(a.name) + '</span>'
+        ).join('') + '</div>';
+    }
+
+    function renderAttachChips() {
+        const box = document.getElementById('attachChips');
+        box.style.display = pendingAttachments.length ? 'flex' : 'none';
+        box.innerHTML = pendingAttachments.map((a, i) =>
+            '<span class="chip" style="font-size:.74rem;margin:0;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (a.uploading ? 'opacity:.6;' : 'cursor:default;') + '">' +
+                '<i class="fas ' + (a.uploading ? 'fa-spinner fa-spin' : esc(attIcon(a.kind))) + '"></i> ' + esc(a.name) +
+                (a.size ? ' <span style="font-size:.68rem;opacity:.75;">(' + fmtBytes(a.size) + ')</span>' : '') +
+                (a.uploading ? '' : ' <a href="#" onclick="removeAttachment(' + i + ');return false;" style="margin-left:4px;color:inherit;" title="Remover"><i class="fas fa-xmark"></i></a>') +
+            '</span>'
+        ).join('');
+    }
+
+    function removeAttachment(i) {
+        pendingAttachments.splice(i, 1);
+        renderAttachChips();
+    }
+
+    async function attachFiles(input) {
+        const files = Array.from(input.files || []);
+        input.value = '';
+        if (!files.length) return;
+
+        const room = 3 - pendingAttachments.length;
+        if (room <= 0) { showToast('Máximo de 3 arquivos por mensagem.', 'error'); return; }
+
+        for (const f of files.slice(0, room)) {
+            const entry = { name: f.name, uploading: true };
+            pendingAttachments.push(entry);
+            renderAttachChips();
+
+            const fd = new FormData();
+            fd.append('file', f);
+            try {
+                const resp = await fetch('/admin/api/agent.php?action=upload', { method: 'POST', body: fd });
+                const data = await resp.json();
+                if (data.error) {
+                    const k = pendingAttachments.indexOf(entry);
+                    if (k >= 0) pendingAttachments.splice(k, 1);
+                    showToast(data.error, 'error');
+                } else {
+                    Object.assign(entry, { ref: data.ref, name: data.name, mime: data.mime, size: data.size, kind: data.kind, uploading: false });
+                }
+            } catch (e) {
+                const k = pendingAttachments.indexOf(entry);
+                if (k >= 0) pendingAttachments.splice(k, 1);
+                showToast('Falha no upload: ' + e.message, 'error');
+            }
+            renderAttachChips();
+        }
+        if (files.length > room) showToast('Máximo de 3 arquivos por mensagem.', 'info');
+    }
 
     function handleKey(e) {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -507,7 +581,8 @@ $profileText = AgentProfile::describe($profile);
 
     function renderMessage(m) {
         if (m.role === 'user') {
-            return '<div class="msg user">' + esc(m.content) + '</div>';
+            const atts = (m.tool_args && m.tool_args.attachments) || [];
+            return '<div class="msg user">' + esc(m.content) + attachmentChipsHtml(atts) + '</div>';
         }
 
         if (m.role === 'tool') {
@@ -733,22 +808,28 @@ $profileText = AgentProfile::describe($profile);
         if (sending) return;
         const input = document.getElementById('agentInput');
         const message = input.value.trim();
-        if (!message) return;
+        const ready = pendingAttachments.filter(a => !a.uploading);
+        if (pendingAttachments.some(a => a.uploading)) { showToast('Aguarde o envio dos arquivos anexados.', 'info'); return; }
+        if (!message && !ready.length) return;
 
         sending = true;
         input.value = '';
         document.getElementById('sendBtn').disabled = true;
 
         const container = document.getElementById('agentMessages');
-        container.innerHTML += '<div class="msg user">' + esc(message) + '</div>';
+        container.innerHTML += '<div class="msg user">' + esc(message) + attachmentChipsHtml(ready) + '</div>';
         container.scrollTop = container.scrollHeight;
 
         try {
-            const body = new URLSearchParams({ action: 'send', conversation_id: conversationId, message });
+            const params = { action: 'send', conversation_id: conversationId, message };
+            if (ready.length) params.attachments = JSON.stringify(ready.map(a => a.ref));
+            const body = new URLSearchParams(params);
             const resp = await fetch('/admin/api/agent.php', { method: 'POST', body });
             const data = await resp.json();
 
             if (data.error) { showToast(data.error, 'error'); return; }
+            pendingAttachments = [];
+            renderAttachChips();
             if (data.conversation_id) conversationId = data.conversation_id;
             if (data.messages) renderMessages(data.messages);
             if (data.quota) updateQuota(data.quota);

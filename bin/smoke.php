@@ -195,6 +195,10 @@ try {
         check('agente: enviar mensagem', ($send['json']['success'] ?? false) === true, 'resposta invalida');
     }
 
+    // Upload de anexo sem arquivo: erro tratado (não 500)
+    $att = smoke_json('POST', $base . '/admin/api/agent.php?action=upload');
+    check('agente: upload sem arquivo → erro tratado', isset($att['json']['error']), 'sem erro tratado');
+
     // Subagente: criar, listar, excluir
     $sub = smoke_json('POST', $base . '/admin/api/agent.php', [
         'action' => 'subagent-save',
