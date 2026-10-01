@@ -121,7 +121,7 @@ echo "\n";
 echo "[4] Paginas admin\n";
 $adminPages = [
     '', 'pages.php', 'clone.php', 'pressel.php', 'video.php', 'pixel.php', 'backredirect.php',
-    'cookie.php', 'domains.php', 'integrations.php', 'adspy.php', 'ofertas.php', 'agent.php',
+    'cookie.php', 'domains.php', 'integrations.php', 'publicacoes.php', 'adspy.php', 'ofertas.php', 'agent.php',
     'ai-settings.php', 'transcribe.php', 'tts.php', 'users.php', 'roles.php', 'pricing.php',
     'pay.php', 'audit.php', 'moderation.php', 'training.php', 'plan.php', 'storage.php', 'settings.php',
 ];

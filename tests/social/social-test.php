@@ -507,14 +507,23 @@ ok('action=collect → summary sem erro', $r['status'] === 200 && !empty($jc2['s
     'summary=' . json_encode($jc2['summary'] ?? null));
 
 $r = $http('GET', $BASE . '/admin/integrations.php', null, $jar);
-ok('tela /admin/integrations.php → 200 com composer', $r['status'] === 200
-    && str_contains($r['body'], 'Redes sociais') && str_contains($r['body'], 'publishBtn'),
+ok('tela /admin/integrations.php → 200 sem composer (composer migrou p/ Publicações)', $r['status'] === 200
+    && str_contains($r['body'], 'Redes sociais') && str_contains($r['body'], 'Contas conectadas')
+    && !str_contains($r['body'], 'publishBtn'),
     'status=' . $r['status'] . ' len=' . strlen($r['body']));
-ok('tela tem seção Desempenho + métricas', str_contains($r['body'], 'Desempenho')
-    && str_contains($r['body'], 'metricsBody') && str_contains($r['body'], 'collectMetrics'));
 ok('tela tem seção Fluxos + form', str_contains($r['body'], 'Fluxos (automação)')
     && str_contains($r['body'], 'flowFormCard') && str_contains($r['body'], 'flowsBody')
     && str_contains($r['body'], 'loadFlows'));
+
+$r = $http('GET', $BASE . '/admin/publicacoes.php', null, $jar);
+ok('tela /admin/publicacoes.php → 200 com composer', $r['status'] === 200
+    && str_contains($r['body'], 'Criar publicação') && str_contains($r['body'], 'publishBtn'),
+    'status=' . $r['status'] . ' len=' . strlen($r['body']));
+ok('tela tem seção Desempenho + métricas', str_contains($r['body'], 'Desempenho')
+    && str_contains($r['body'], 'metricsBody') && str_contains($r['body'], 'collectMetrics'));
+ok('tela tem seção Histórico', str_contains($r['body'], 'Histórico')
+    && str_contains($r['body'], 'histBody') && str_contains($r['body'], 'loadHistory'));
+ok('sidebar do composer linka Publicações (grupo Criar)', str_contains($r['body'], '/admin/publicacoes.php'));
 
 // ------------------------------------------------- 10. Fluxos (Fase 3)
 section('10. Fluxos de automação (Fase 3)');

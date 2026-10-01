@@ -38,6 +38,7 @@ $routes = [
     '/admin/cookie.php' => '/admin/cookie.php',
     '/admin/domains.php' => '/admin/domains.php',
     '/admin/integrations.php' => '/admin/integrations.php',
+    '/admin/publicacoes.php' => '/admin/publicacoes.php',
     '/admin/settings.php' => '/admin/settings.php',
     '/admin/plan.php' => '/admin/plan.php',
     '/admin/pay.php' => '/admin/pay.php',
