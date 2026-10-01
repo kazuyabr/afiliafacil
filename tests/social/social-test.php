@@ -672,8 +672,29 @@ ok('OAuth via popup com postMessage + credenciais BYOK', str_contains($ui, 'af-s
     && str_contains($ui, "api('app-save'"));
 ok('caminho manual antigo removido (Conectar único)', !str_contains($ui, 'toggleManual(')
     && !str_contains($ui, 'manual-box') && !str_contains($ui, 'onclick="saveToken('));
+ok('sem credenciais o clique guia para as credenciais (nunca botão morto)',
+    str_contains($ui, 'promptAppCreds') && !str_contains($ui, 'btn.disabled = !m.oauth_configured'));
+ok('guias Meta/Instagram incluem cadastro do Redirect URI',
+    str_contains($ui, 'Valid OAuth Redirect URIs') && str_contains($ui, 'URL bloqueada'));
+
+$r = $http('GET', $BASE . '/assets/css/app.css', null, $jar);
+ok('app.css estiliza botões disabled (estado óbvio)', $r['status'] === 200
+    && str_contains((string)$r['body'], 'button:disabled'), 'status=' . $r['status']);
 
 // --- credenciais de app (BYOK): usuário > env + dialogs corretos ---
+// instagram sem NENHUMA credencial (env removido + sem BYOK) → oauth_not_configured
+$envMid = getenv('META_APP_ID');
+$envMsec = getenv('META_APP_SECRET');
+putenv('META_APP_ID');
+putenv('META_APP_SECRET');
+SocialAppCredentials::delete($adminId, 'meta');
+$resIg = SocialOAuth::authorizeUrl('instagram', $adminId);
+$igNotCfg = !$resIg['ok'] && ($resIg['error'] ?? '') === 'oauth_not_configured';
+if ($envMid !== false) putenv('META_APP_ID=' . $envMid);
+if ($envMsec !== false) putenv('META_APP_SECRET=' . $envMsec);
+ok('instagram sem credencial → oauth_not_configured', $igNotCfg,
+    'error=' . ($resIg['error'] ?? '?'));
+
 ok('salva credencial BYOK do Meta', SocialAppCredentials::save($adminId, 'meta', 'meta_app_1', 'meta_secret_1'));
 $res = SocialOAuth::authorizeUrl('facebook', $adminId);
 ok('facebook BYOK → dialog Meta com pages_show_list', !empty($res['ok'])
@@ -684,6 +705,17 @@ $cred = SocialOAuth::credentials('facebook', $adminId);
 ok('credencial do usuário vence o env (source=user)', !empty($cred['configured'])
     && ($cred['source'] ?? '') === 'user' && ($cred['id'] ?? '') === 'meta_app_1',
     'source=' . ($cred['source'] ?? ''));
+
+// connect-url HTTP (endpoint) com credencial → URL oficial do dialog Meta
+$r = $http('POST', $BASE . '/admin/api/social.php',
+    ['action' => 'connect-url', 'network' => 'instagram'], $jar);
+$jc = json_decode($r['body'], true) ?: [];
+$urlIg = (string)($jc['url'] ?? '');
+ok('connect-url instagram → dialog Meta com client_id/redirect/state', $r['status'] === 200
+    && !empty($jc['ok']) && str_contains($urlIg, 'facebook.com/v21.0/dialog/oauth')
+    && str_contains($urlIg, 'client_id=meta_app_1')
+    && str_contains($urlIg, 'redirect_uri=') && str_contains($urlIg, 'state='),
+    'body=' . $r['body']);
 
 // Threads: sem credencial → oauth_not_configured (env removido do processo)
 $envTid = getenv('THREADS_APP_ID');

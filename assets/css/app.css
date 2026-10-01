@@ -115,6 +115,9 @@ a:hover { color: var(--accent-hover); }
 .btn-success { background: var(--success); color: #fff; }
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-warning { background: var(--warning); color: #000; }
+/* Desabilitado: estado óbvio — o app não tinha nenhum estilo :disabled e o
+   botão parecia clicável (clique morria em silêncio). */
+.btn:disabled, button:disabled { opacity: .55; cursor: not-allowed; pointer-events: none; }
 
 .layout { display: flex; min-height: 100vh; }
 .sidebar {

@@ -329,6 +329,7 @@ if (isset($_GET['oauth'])) {
                 'Crie um app em <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a> (tipo Consumer) — <b>não exige App Review da Meta</b> para publicar dos recursos da sua própria conta (app em modo Development).',
                 'No <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener">Graph API Explorer</a>: selecione seu app → Permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code> → Get User Access Token.',
                 'O token do Explorer dura ~1 hora e morre antes do agendamento: estenda para <b>60 dias</b> em App Dashboard → Tools → Access Token Debugger → <i>Extend Access Token</i>.',
+                'Para o login oficial: adicione o produto <b>Facebook Login</b> ao app (se ainda não tiver) e em Settings → <b>Valid OAuth Redirect URIs</b> cadastre este Redirect URI exato — sem isso o popup é recusado com "URL bloqueada": <code class="conn-uri"></code>',
                 'Melhor caminho: salve o <b>App ID + Secret</b> abaixo e use o <b>login oficial</b> — renovação automática, sem colar token.'
             ],
             token: 'Cole o token long-lived (60 dias) do Access Token Debugger — o token de 1 hora do Explorer expira antes do próximo agendamento.',
@@ -341,6 +342,7 @@ if (isset($_GET['oauth'])) {
                 'No app do Instagram: Configurações → Conta → <b>Conta profissional</b> (Creator/Business) → conecte à sua Página do Facebook.',
                 'Graph API Explorer → seu app → permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>instagram_content_publish</code> → gere o token.',
                 'Estenda para 60 dias (Access Token Debugger → Extend) e cole abaixo — a conta do IG ligada à Página é detectada automaticamente.',
+                'Para o login oficial: no app (Facebook Login → Settings → <b>Valid OAuth Redirect URIs</b>) cadastre este Redirect URI exato — sem isso o popup é recusado com "URL bloqueada": <code class="conn-uri"></code>',
                 'Publicação no feed exige <b>imagem</b> (vídeo só via Reels — fora do escopo desta API).'
             ],
             token: 'Cole o token long-lived do Meta (mesmo app e Página do Facebook).',
@@ -440,15 +442,22 @@ if (isset($_GET['oauth'])) {
 
     function updateConnOAuthState() {
         const m = STATE.networks[CONN_NET] || {};
-        const btn = document.getElementById('connOAuthBtn');
-        const hint = document.getElementById('connOAuthHint');
         document.getElementById('connOAuthLabel').textContent = 'Entrar com ' + (m.name || '');
-        btn.disabled = !m.oauth_configured;
+        const hint = document.getElementById('connOAuthHint');
         hint.innerHTML = m.oauth_configured
             ? (m.oauth_source === 'user'
                 ? '<i class="fas fa-check" style="color:#28a745;"></i> Suas credenciais de app — renovação automática de token.'
                 : '<i class="fas fa-check" style="color:#28a745;"></i> OAuth da plataforma configurado.')
             : '<i class="fas fa-circle-info"></i> Salve o App ID + Secret do seu app (abaixo) para liberar o login oficial.';
+    }
+
+    // Sem credenciais: em vez de um botão morto, o clique no Entrar abre a
+    // seção de credenciais do app e foca o App ID — caminho guiado até o login.
+    function promptAppCreds() {
+        const box = document.getElementById('connCredsBox');
+        if (box) box.open = true;
+        const appId = document.getElementById('connAppId');
+        if (appId) { try { appId.focus(); } catch (e) {} }
     }
 
     function closeConnModal() {
@@ -459,10 +468,18 @@ if (isset($_GET['oauth'])) {
     async function startOAuth() {
         const n = CONN_NET;
         if (!n) return;
+        const btn = document.getElementById('connOAuthBtn');
         const msg = document.getElementById('connMsg');
         msg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Abrindo autorização…';
-        const j = await api('connect-url', { network: n });
+        btn.disabled = true;
+        let j;
+        try {
+            j = await api('connect-url', { network: n });
+        } finally {
+            btn.disabled = false;
+        }
         if (!j.url) {
+            if (j.error === 'oauth_not_configured') promptAppCreds();
             msg.innerHTML = '<span style="color:#dc3545;">' + esc(j.error === 'oauth_not_configured'
                 ? 'Configure o App ID + Secret do seu app primeiro (abaixo).' : (j.error || 'Não foi possível iniciar.')) + '</span>';
             return;
