@@ -107,17 +107,17 @@ if (isset($_GET['oauth'])) {
                     <div class="card-body">
                         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
                             <label style="display:block;font-size:.82rem;color:var(--text-secondary);">Nome
-                                <input id="flowName" type="text" maxlength="120" placeholder="Ex.: Postagem diária"
+                                <input id="flowName" type="text" class="form-control" maxlength="120" placeholder="Ex.: Postagem diária"
                                     style="width:100%;margin-top:4px;">
                             </label>
                             <label style="display:block;font-size:.82rem;color:var(--text-secondary);">Gatilho
-                                <select id="flowTrigger" onchange="renderFlowCfg()" style="width:100%;margin-top:4px;">
+                                <select id="flowTrigger" class="form-control" onchange="renderFlowCfg()" style="width:100%;margin-top:4px;">
                                     <option value="schedule">Horário fixo</option>
                                     <option value="post_published">Após publicar um post</option>
                                 </select>
                             </label>
                             <label style="display:block;font-size:.82rem;color:var(--text-secondary);">Ação
-                                <select id="flowAction" onchange="renderFlowCfg()" style="width:100%;margin-top:4px;">
+                                <select id="flowAction" class="form-control" onchange="renderFlowCfg()" style="width:100%;margin-top:4px;">
                                     <option value="publish_post">Publicar um post</option>
                                     <option value="webhook">Webhook (POST JSON)</option>
                                 </select>
@@ -187,8 +187,8 @@ if (isset($_GET['oauth'])) {
                             </summary>
                             <div class="conn-hint" id="connCredsHelp" style="margin:6px 0;"></div>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
-                                <input id="connAppId" placeholder="App ID / Client ID / Client Key" style="flex:1;min-width:150px;" autocomplete="off">
-                                <input id="connAppSecret" type="password" placeholder="App Secret / Client Secret" style="flex:1;min-width:150px;" autocomplete="off">
+                                <input id="connAppId" class="form-control" placeholder="App ID / Client ID / Client Key" style="flex:1;min-width:150px;" autocomplete="off">
+                                <input id="connAppSecret" type="password" class="form-control" placeholder="App Secret / Client Secret" style="flex:1;min-width:150px;" autocomplete="off">
                             </div>
                             <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
                                 <button class="btn btn-sm" id="connCredsSaveBtn" onclick="saveAppCreds()"><i class="fas fa-floppy-disk"></i> Salvar credenciais</button>
@@ -202,7 +202,7 @@ if (isset($_GET['oauth'])) {
                         <b style="font-size:.88rem;">…ou cole um token manual</b>
                         <div class="conn-hint" id="connTokenHint"></div>
                         <div style="display:flex;gap:8px;margin-top:8px;">
-                            <input type="password" id="connToken" placeholder="Token de acesso" style="flex:1;" autocomplete="off">
+                            <input type="password" id="connToken" class="form-control" placeholder="Token de acesso" style="flex:1;" autocomplete="off">
                             <button class="btn btn-sm btn-primary" id="connTokenBtn" onclick="saveManualToken()">Validar e conectar</button>
                         </div>
                     </div>
@@ -666,7 +666,7 @@ if (isset($_GET['oauth'])) {
             const days = [1, 2, 3, 4, 5, 6, 0];
             html += `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
                 <label style="font-size:.82rem;color:var(--text-secondary);">Horário (Brasília)
-                    <input type="time" id="flowTime" value="09:00" style="display:block;margin-top:4px;">
+                    <input type="time" id="flowTime" class="form-control" value="09:00" style="display:block;margin-top:4px;width:150px;">
                 </label>
                 <div>
                     <div style="font-size:.82rem;color:var(--text-secondary);margin-bottom:4px;">Dias</div>
@@ -692,11 +692,11 @@ if (isset($_GET['oauth'])) {
                 </div>
             </div>
             <label style="display:block;font-size:.82rem;color:var(--text-secondary);">Legenda
-                <textarea id="flowCaption" rows="3" maxlength="64000" placeholder="Texto publicado toda vez que o fluxo rodar" style="width:100%;margin-top:4px;"></textarea>
+                <textarea id="flowCaption" class="form-control" rows="3" maxlength="64000" placeholder="Texto publicado toda vez que o fluxo rodar" style="width:100%;margin-top:4px;"></textarea>
             </label>`;
         } else {
             html += `<label style="display:block;font-size:.82rem;color:var(--text-secondary);">URL do webhook (POST JSON)
-                <input type="url" id="flowWebhookUrl" placeholder="https://seu-n8n/exemplo" style="width:100%;margin-top:4px;"></label>`;
+                <input type="url" id="flowWebhookUrl" class="form-control" placeholder="https://seu-n8n/exemplo" style="width:100%;margin-top:4px;"></label>`;
         }
 
         box.innerHTML = html;
