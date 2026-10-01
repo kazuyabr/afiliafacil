@@ -183,7 +183,7 @@ if (isset($_GET['oauth'])) {
                         </div>
                         <details id="connCredsBox" style="margin-top:10px;">
                             <summary style="cursor:pointer;font-size:.82rem;font-weight:600;">
-                                <i class="fas fa-key"></i> Credenciais do seu app (App ID + Secret)
+                                <i class="fas fa-key"></i> Avançado — usar meu próprio app (App ID + Secret, opcional)
                             </summary>
                             <div class="conn-hint" id="connCredsHelp" style="margin:6px 0;"></div>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
@@ -330,7 +330,8 @@ if (isset($_GET['oauth'])) {
                 'No <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener">Graph API Explorer</a>: selecione seu app → Permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code> → Get User Access Token.',
                 'O token do Explorer dura ~1 hora e morre antes do agendamento: estenda para <b>60 dias</b> em App Dashboard → Tools → Access Token Debugger → <i>Extend Access Token</i>.',
                 'Para o login oficial: adicione o produto <b>Facebook Login</b> ao app (se ainda não tiver) e em Settings → <b>Valid OAuth Redirect URIs</b> cadastre este Redirect URI exato — sem isso o popup é recusado com "URL bloqueada": <code class="conn-uri"></code>',
-                'Melhor caminho: salve o <b>App ID + Secret</b> abaixo e use o <b>login oficial</b> — renovação automática, sem colar token.'
+                'Melhor caminho: salve o <b>App ID + Secret</b> abaixo e use o <b>login oficial</b> — renovação automática, sem colar token.',
+                'Modo <b>Development</b> do app só autoriza quem tem papel no app (admin/developer/tester) — para <b>clientes</b> conectarem sem app próprio, o app precisa ir ao modo <b>Live</b> com <b>App Review</b> das permissões (a Meta exige verificação de negócio; processo externo de dias/semanas).'
             ],
             token: 'Cole o token long-lived (60 dias) do Access Token Debugger — o token de 1 hora do Explorer expira antes do próximo agendamento.',
             creds: 'App ID + App Secret do seu app Meta (developers.facebook.com/apps → Settings → Basic).'
@@ -343,7 +344,8 @@ if (isset($_GET['oauth'])) {
                 'Graph API Explorer → seu app → permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>instagram_content_publish</code> → gere o token.',
                 'Estenda para 60 dias (Access Token Debugger → Extend) e cole abaixo — a conta do IG ligada à Página é detectada automaticamente.',
                 'Para o login oficial: no app (Facebook Login → Settings → <b>Valid OAuth Redirect URIs</b>) cadastre este Redirect URI exato — sem isso o popup é recusado com "URL bloqueada": <code class="conn-uri"></code>',
-                'Publicação no feed exige <b>imagem</b> (vídeo só via Reels — fora do escopo desta API).'
+                'Publicação no feed exige <b>imagem</b> (vídeo só via Reels — fora do escopo desta API).',
+                'Modo <b>Development</b> só autoriza papéis do app — clientes conectam sem app próprio apenas com o app do Facebook em modo <b>Live</b> + <b>App Review</b> (Meta).'
             ],
             token: 'Cole o token long-lived do Meta (mesmo app e Página do Facebook).',
             creds: 'App ID + App Secret do seu app Meta (o mesmo do Facebook).'
@@ -447,8 +449,8 @@ if (isset($_GET['oauth'])) {
         hint.innerHTML = m.oauth_configured
             ? (m.oauth_source === 'user'
                 ? '<i class="fas fa-check" style="color:#28a745;"></i> Suas credenciais de app — renovação automática de token.'
-                : '<i class="fas fa-check" style="color:#28a745;"></i> OAuth da plataforma configurado.')
-            : '<i class="fas fa-circle-info"></i> Salve o App ID + Secret do seu app (abaixo) para liberar o login oficial.';
+                : '<i class="fas fa-check" style="color:#28a745;"></i> Conexão rápida — clique em <b>Entrar</b> e faça login com usuário/senha da rede (como um SSO).')
+            : '<i class="fas fa-circle-info"></i> Conexão rápida não habilitada nesta plataforma — contate o suporte.';
     }
 
     // Sem credenciais: em vez de um botão morto, o clique no Entrar abre a
@@ -481,7 +483,7 @@ if (isset($_GET['oauth'])) {
         if (!j.url) {
             if (j.error === 'oauth_not_configured') promptAppCreds();
             msg.innerHTML = '<span style="color:#dc3545;">' + esc(j.error === 'oauth_not_configured'
-                ? 'Configure o App ID + Secret do seu app primeiro (abaixo).' : (j.error || 'Não foi possível iniciar.')) + '</span>';
+                ? 'Conexão rápida indisponível — contate o suporte ou use as credenciais avançadas (abaixo).' : (j.error || 'Não foi possível iniciar.')) + '</span>';
             return;
         }
         try { localStorage.setItem('af_oauth_popup', '1'); } catch (e) {}

@@ -676,6 +676,12 @@ ok('sem credenciais o clique guia para as credenciais (nunca botão morto)',
     str_contains($ui, 'promptAppCreds') && !str_contains($ui, 'btn.disabled = !m.oauth_configured'));
 ok('guias Meta/Instagram incluem cadastro do Redirect URI',
     str_contains($ui, 'Valid OAuth Redirect URIs') && str_contains($ui, 'URL bloqueada'));
+ok('modal: BYOK em "Avançado" + dica de SSO sem credenciais',
+    str_contains($ui, 'Avançado — usar meu próprio app')
+    && str_contains($ui, 'Conexão rápida não habilitada')
+    && str_contains($ui, 'como um SSO'));
+ok('guias avisam Development x Live + App Review para clientes',
+    str_contains($ui, 'App Review'));
 
 $r = $http('GET', $BASE . '/assets/css/app.css', null, $jar);
 ok('app.css estiliza botões disabled (estado óbvio)', $r['status'] === 200
@@ -695,6 +701,17 @@ if ($envMsec !== false) putenv('META_APP_SECRET=' . $envMsec);
 ok('instagram sem credencial → oauth_not_configured', $igNotCfg,
     'error=' . ($resIg['error'] ?? '?'));
 
+// env da plataforma (SSO): sem nenhuma credencial de usuário, o app DO
+// PROJETO habilita o "Entrar" — cliente nunca vê App ID/Secret.
+putenv('META_APP_ID=env_meta_9');
+putenv('META_APP_SECRET=env_secret_9');
+$credEnv = SocialOAuth::credentials('instagram', $adminId);
+$resEnv = SocialOAuth::authorizeUrl('instagram', $adminId);
+ok('env da plataforma → SSO configurado (source=env + dialog com client_id)',
+    !empty($credEnv['configured']) && ($credEnv['source'] ?? '') === 'env'
+    && !empty($resEnv['ok']) && str_contains((string)($resEnv['url'] ?? ''), 'client_id=env_meta_9'),
+    'cred=' . json_encode($credEnv) . ' err=' . ($resEnv['error'] ?? ''));
+
 ok('salva credencial BYOK do Meta', SocialAppCredentials::save($adminId, 'meta', 'meta_app_1', 'meta_secret_1'));
 $res = SocialOAuth::authorizeUrl('facebook', $adminId);
 ok('facebook BYOK → dialog Meta com pages_show_list', !empty($res['ok'])
@@ -705,6 +722,8 @@ $cred = SocialOAuth::credentials('facebook', $adminId);
 ok('credencial do usuário vence o env (source=user)', !empty($cred['configured'])
     && ($cred['source'] ?? '') === 'user' && ($cred['id'] ?? '') === 'meta_app_1',
     'source=' . ($cred['source'] ?? ''));
+putenv('META_APP_ID');   // devolve o ambiente real (sem env da plataforma)
+putenv('META_APP_SECRET');
 
 // connect-url HTTP (endpoint) com credencial → URL oficial do dialog Meta
 $r = $http('POST', $BASE . '/admin/api/social.php',
