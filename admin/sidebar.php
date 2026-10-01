@@ -21,6 +21,11 @@ require_once Config::getLibDir() . '/Plans.php';
         </a>
 
         <div class="nav-section">Criar</div>
+        <?php if (Plans::hasFeature($_SESSION['user_plan'] ?? '', 'social') || Auth::isAdmin()): ?>
+        <a href="/admin/publicacoes.php" class="nav-item <?= $currentPage === 'publicacoes.php' ? 'active' : '' ?>">
+            <i class="fas fa-paper-plane"></i> Publicações
+        </a>
+        <?php endif; ?>
         <a href="/admin/clone.php" class="nav-item <?= $currentPage === 'clone.php' ? 'active' : '' ?>">
             <i class="fas fa-clone"></i> Clonador
         </a>
@@ -30,11 +35,6 @@ require_once Config::getLibDir() . '/Plans.php';
         <?php if (Plans::hasFeature($_SESSION['user_plan'] ?? '', 'video') || Plans::hasFeature($_SESSION['user_plan'] ?? '', 'videos') || Auth::isAdmin()): ?>
         <a href="/admin/videos.php" class="nav-item <?= $currentPage === 'videos.php' ? 'active' : '' ?>">
             <i class="fas fa-film"></i> Vídeos
-        </a>
-        <?php endif; ?>
-        <?php if (Plans::hasFeature($_SESSION['user_plan'] ?? '', 'social') || Auth::isAdmin()): ?>
-        <a href="/admin/publicacoes.php" class="nav-item <?= $currentPage === 'publicacoes.php' ? 'active' : '' ?>">
-            <i class="fas fa-paper-plane"></i> Publicações
         </a>
         <?php endif; ?>
 
