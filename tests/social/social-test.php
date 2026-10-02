@@ -121,7 +121,7 @@ SocialHttp::$handler = function (string $method, string $url, array $opts = []):
     if (str_contains($url, 'graph.threads.net') && str_ends_with($url, '/v1.0/me')) {
         return $j(['id' => 'th_probe_1', 'username' => 'th_probe']);
     }
-    if (str_ends_with($url, '/v21.0/me')) {
+    if (str_ends_with($url, '/v26.0/me')) {
         return $j(['id' => 'fb_user_probe', 'name' => 'Usuário Probe']);
     }
     if (str_contains($url, 'debug_token')) {
@@ -154,7 +154,7 @@ SocialHttp::$handler = function (string $method, string $url, array $opts = []):
     }
 
     // --- metricas (GET) ---
-    if (preg_match('#graph\.facebook\.com/v21\.0/fb_feed_1$#', $url)) {
+    if (preg_match('#graph\.facebook\.com/v26\.0/fb_feed_1$#', $url)) {
         return $j(['id' => 'fb_feed_1',
             'likes' => ['summary' => ['total_count' => 12]],
             'comments' => ['summary' => ['total_count' => 3]],
@@ -682,9 +682,17 @@ ok('modal: BYOK em "Avançado" + dica de SSO sem credenciais',
     && str_contains($ui, 'como um SSO'));
 ok('guias avisam Development x Live + App Review para clientes',
     str_contains($ui, 'App Review'));
-ok('guias cobrem Invalid Scopes e App Domains (produtos/config do app Meta)',
-    str_contains($ui, 'Invalid Scopes') && str_contains($ui, 'Pages API')
-    && str_contains($ui, 'App Domains'));
+ok('guias cobrem Invalid Scopes, Use Cases e App Domains (dashboard 2026)',
+    str_contains($ui, 'Invalid Scopes') && str_contains($ui, 'Use Cases')
+    && str_contains($ui, 'Ready for testing') && str_contains($ui, 'App Domains')
+    && str_contains($ui, 'Something else') && !str_contains($ui, 'tipo Consumer'));
+ok('guia avisa que o dono configura 1x e o cliente so clica Entrar',
+    str_contains($ui, 'uma única vez') && str_contains($ui, 'nunca vê estas configurações'));
+ok('guia Instagram inclui instagram_basic (dependencia do publish)',
+    str_contains($ui, 'instagram_basic'));
+ok('card expirado/erro oferece Reconectar + Desconectar (conexao nunca fica orfa)',
+    str_contains($ui, 'Reconectar') && str_contains($ui, 'token expirado')
+    && str_contains($ui, 'conexão com erro'));
 
 $r = $http('GET', $BASE . '/assets/css/app.css', null, $jar);
 ok('app.css estiliza botões disabled (estado óbvio)', $r['status'] === 200
@@ -718,7 +726,7 @@ ok('env da plataforma → SSO configurado (source=env + dialog com client_id)',
 ok('salva credencial BYOK do Meta', SocialAppCredentials::save($adminId, 'meta', 'meta_app_1', 'meta_secret_1'));
 $res = SocialOAuth::authorizeUrl('facebook', $adminId);
 ok('facebook BYOK → dialog Meta com pages_show_list', !empty($res['ok'])
-    && str_contains((string)($res['url'] ?? ''), 'facebook.com/v21.0/dialog/oauth')
+    && str_contains((string)($res['url'] ?? ''), 'facebook.com/v26.0/dialog/oauth')
     && str_contains((string)($res['url'] ?? ''), 'pages_show_list'),
     'url=' . substr((string)($res['url'] ?? ''), 0, 80));
 $cred = SocialOAuth::credentials('facebook', $adminId);
@@ -734,10 +742,13 @@ $r = $http('POST', $BASE . '/admin/api/social.php',
 $jc = json_decode($r['body'], true) ?: [];
 $urlIg = (string)($jc['url'] ?? '');
 ok('connect-url instagram → dialog Meta com client_id/redirect/state', $r['status'] === 200
-    && !empty($jc['ok']) && str_contains($urlIg, 'facebook.com/v21.0/dialog/oauth')
+    && !empty($jc['ok']) && str_contains($urlIg, 'facebook.com/v26.0/dialog/oauth')
     && str_contains($urlIg, 'client_id=meta_app_1')
     && str_contains($urlIg, 'redirect_uri=') && str_contains($urlIg, 'state='),
     'body=' . $r['body']);
+ok('dialog instagram pede instagram_basic (dependencia de instagram_content_publish)',
+    str_contains($urlIg, 'instagram_basic') && str_contains($urlIg, 'instagram_content_publish'),
+    'url=' . substr($urlIg, 0, 160));
 
 // Threads: sem credencial → oauth_not_configured (env removido do processo)
 $envTid = getenv('THREADS_APP_ID');
@@ -784,6 +795,20 @@ ok('callback threads: perfil th_probe descoberto', $connTh !== null
 // devolve o estado (credencial/conexão de teste são recriadas limpas no próximo run)
 SocialConnections::disconnect($adminId, 'threads');
 SocialAppCredentials::delete($adminId, 'threads');
+
+// --- callback Meta com erro do Facebook: mensagem rica ---
+$resFb = SocialOAuth::authorizeUrl('facebook', $adminId);
+$stateFb = '';
+foreach (explode('&', (string)parse_url((string)($resFb['url'] ?? ''), PHP_URL_QUERY)) as $kv) {
+    $pair = explode('=', $kv, 2);
+    if (($pair[0] ?? '') === 'state') $stateFb = rawurldecode((string)($pair[1] ?? ''));
+}
+$cbErr = SocialOAuth::handleCallback(['state' => $stateFb,
+    'error' => 'access_denied', 'error_description' => 'Permissions error']);
+ok('callback com erro do Facebook exibe error_description (contexto acionavel)',
+    empty($cbErr['ok']) && str_contains((string)($cbErr['error'] ?? ''), 'access_denied')
+    && str_contains((string)($cbErr['error'] ?? ''), 'Permissions error'),
+    'cb=' . json_encode($cbErr));
 
 // --- probe com diagnóstico acionável (Meta) ---
 $GLOBALS['FB_DEBUG'] = ['data' => ['app_id' => 'meta_app_1', 'is_valid' => true,

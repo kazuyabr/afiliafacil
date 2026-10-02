@@ -24,7 +24,7 @@
     },
     {
       "parameters": {
-        "url": "https://graph.facebook.com/v21.0/{{$env.INSTAGRAM_ACCOUNT_ID}}/media",
+        "url": "https://graph.facebook.com/v26.0/{{$env.INSTAGRAM_ACCOUNT_ID}}/media",
         "sendBody": true,
         "bodyParameters": { "parameters": [ { "name": "image_url", "value": "={{$body.imagem_url}}" }, { "name": "caption", "value": "={{$body.texto}}" }, { "name": "access_token", "value": "[configure o token]" } ] },
         "options": {}
@@ -37,7 +37,7 @@
     },
     {
       "parameters": {
-        "url": "https://graph.facebook.com/v21.0/{{$env.INSTAGRAM_ACCOUNT_ID}}/media_publish",
+        "url": "https://graph.facebook.com/v26.0/{{$env.INSTAGRAM_ACCOUNT_ID}}/media_publish",
         "sendBody": true,
         "bodyParameters": { "parameters": [ { "name": "creation_id", "value": "={{$node['Prepara Instagram (1/2)'].json.id}}" }, { "name": "access_token", "value": "[configure o token]" } ] },
         "options": {}

@@ -41,12 +41,12 @@ class SocialPublishers
         if ($pageId === '') return ['error' => 'Conexão sem Página do Facebook. Reconecte a conta.'];
 
         if (!empty($post['media_url'])) {
-            $r = SocialHttp::json('POST', "https://graph.facebook.com/v21.0/{$pageId}/photos", [
+            $r = SocialHttp::json('POST', "https://graph.facebook.com/v26.0/{$pageId}/photos", [
                 'form' => ['url' => $post['media_url'], 'message' => (string)$post['caption'],
                     'access_token' => $token],
             ]);
         } else {
-            $r = SocialHttp::json('POST', "https://graph.facebook.com/v21.0/{$pageId}/feed", [
+            $r = SocialHttp::json('POST', "https://graph.facebook.com/v26.0/{$pageId}/feed", [
                 'form' => ['message' => (string)$post['caption'], 'access_token' => $token],
             ]);
         }
@@ -61,7 +61,7 @@ class SocialPublishers
         if ($igId === '') return ['error' => 'Conexão sem conta do Instagram. Reconecte a conta.'];
         if (empty($post['media_url'])) return ['error' => 'Instagram exige uma imagem na publicação.'];
 
-        $container = SocialHttp::json('POST', "https://graph.facebook.com/v21.0/{$igId}/media", [
+        $container = SocialHttp::json('POST', "https://graph.facebook.com/v26.0/{$igId}/media", [
             'form' => ['image_url' => $post['media_url'], 'caption' => (string)$post['caption'],
                 'access_token' => $token],
         ]);
@@ -69,7 +69,7 @@ class SocialPublishers
             return ['error' => SocialHttp::errorMsg($container, 'Falha ao criar a mídia no Instagram.')];
         }
 
-        $pub = SocialHttp::json('POST', "https://graph.facebook.com/v21.0/{$igId}/media_publish", [
+        $pub = SocialHttp::json('POST', "https://graph.facebook.com/v26.0/{$igId}/media_publish", [
             'form' => ['creation_id' => (string)$container['id'], 'access_token' => $token],
         ]);
         if (!empty($pub['id'])) return ['remote_id' => (string)$pub['id']];

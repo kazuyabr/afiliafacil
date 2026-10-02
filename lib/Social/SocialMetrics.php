@@ -182,7 +182,7 @@ class SocialMetrics
 
     private static function facebook(string $token, string $postId): ?array
     {
-        $r = SocialHttp::json('GET', "https://graph.facebook.com/v21.0/{$postId}", [
+        $r = SocialHttp::json('GET', "https://graph.facebook.com/v26.0/{$postId}", [
             'form' => [
                 'fields' => 'likes.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users)',
                 'access_token' => $token,
@@ -206,7 +206,7 @@ class SocialMetrics
 
     private static function instagram(string $token, string $mediaId): ?array
     {
-        $r = SocialHttp::json('GET', "https://graph.facebook.com/v21.0/{$mediaId}/insights", [
+        $r = SocialHttp::json('GET', "https://graph.facebook.com/v26.0/{$mediaId}/insights", [
             'form' => ['metric' => 'likes,comments,impressions,reach,saved', 'access_token' => $token],
         ]);
         if (empty($r['data'])) return null;

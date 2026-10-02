@@ -298,11 +298,17 @@ if (isset($_GET['oauth'])) {
                                 : '<span class="pill">não conectada</span>'}
                         </h3>
                         <p>${esc(m.desc)} · ${m.media === 'video' ? 'vídeo' : 'imagem'}${m.media_required ? ' (obrigatório)' : ' (opcional)'}</p>
-                        ${c && c.status === 'connected'
-                            ? `<div class="net-actions">
-                                 <span style="font-size:.8rem;"><i class="fas fa-circle-user"></i> ${esc(c.account_name || c.account_id)}</span>
-                                 <button class="btn btn-sm" onclick="disconnect('${n}')"><i class="fas fa-unlink"></i> Desconectar</button>
-                               </div>`
+                        ${c
+                            ? (c.status === 'connected'
+                                ? `<div class="net-actions">
+                                     <span style="font-size:.8rem;"><i class="fas fa-circle-user"></i> ${esc(c.account_name || c.account_id)}</span>
+                                     <button class="btn btn-sm" onclick="disconnect('${n}')"><i class="fas fa-unlink"></i> Desconectar</button>
+                                   </div>`
+                                : `<div class="net-actions">
+                                     <button class="btn btn-sm btn-primary" onclick="openConnModal('${n}')"><i class="fas fa-plug"></i> Reconectar</button>
+                                     <button class="btn btn-sm" onclick="disconnect('${n}')"><i class="fas fa-unlink"></i> Desconectar</button>
+                                     <span class="conn-hint">${c.status === 'expired' ? 'token expirado' : 'conexão com erro'}</span>
+                                   </div>`)
                             : `<div class="net-actions">
                                  <button class="btn btn-sm btn-primary" onclick="openConnModal('${n}')"><i class="fas fa-plug"></i> Conectar</button>
                                  <span class="conn-hint">${m.oauth_configured ? (m.oauth_source === 'user' ? 'login oficial com seu app' : 'login oficial disponível') : 'guia de pré-requisitos + token'}</span>
@@ -325,15 +331,14 @@ if (isset($_GET['oauth'])) {
         facebook: {
             title: 'Facebook (Página)',
             steps: [
-                'Tenha uma conta pessoal e crie uma <b>Página</b> (<a href="https://www.facebook.com/pages/create" target="_blank" rel="noopener">facebook.com/pages/create</a>) — publicamos na Página; <b>não é preciso</b> Business Suite/conta de negócio para isso.',
-                'Crie um app em <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a> (tipo Consumer) — <b>não exige App Review da Meta</b> para publicar dos recursos da sua própria conta (app em modo Development).',
-                'Em <b>Add Product</b> adicione <b>Pages API</b> (e <b>Facebook Login</b>, etapa abaixo) — sem esses produtos o login oficial é recusado no popup com "Invalid Scopes: pages_manage_posts".',
-                'No <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener">Graph API Explorer</a>: selecione seu app → Permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code> → Get User Access Token.',
-                'O token do Explorer dura ~1 hora e morre antes do agendamento: estenda para <b>60 dias</b> em App Dashboard → Tools → Access Token Debugger → <i>Extend Access Token</i>.',
-                'Para o login oficial: adicione o produto <b>Facebook Login</b> ao app (se ainda não tiver) e em Settings → <b>Valid OAuth Redirect URIs</b> cadastre este Redirect URI exato — sem isso o popup é recusado com "URL bloqueada": <code class="conn-uri"></code>',
-                'Também em Settings → Basic: <b>App Domains</b> com <b>localhost</b> (e o domínio de produção quando existir) + <b>Site URL</b> igual a esta plataforma — sem isso o popup final falha com "Não é possível carregar a URL — o domínio não está incluído nos domínios do app".',
-                'Melhor caminho: salve o <b>App ID + Secret</b> abaixo e use o <b>login oficial</b> — renovação automática, sem colar token.',
-                'Modo <b>Development</b> do app só autoriza quem tem papel no app (admin/developer/tester) — para <b>clientes</b> conectarem sem app próprio, o app precisa ir ao modo <b>Live</b> com <b>App Review</b> das permissões (a Meta exige verificação de negócio; processo externo de dias/semanas).'
+                '<b>Quem faz este setup é o dono da plataforma, uma única vez</b> — o cliente final só clica em <b>Entrar</b> e faz o login normal do Facebook (como um SSO), nunca vê estas configurações.',
+                'Em <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a>: abra o app da plataforma — ou crie um novo do tipo <b>Something else</b> (<b>nunca Consumer</b>: apps Consumer bloqueiam os escopos <code>pages_*</code> com o erro "Invalid Scopes").',
+                'Na aba <b>Use Cases</b> (substitui o antigo "Add Product"): use/adicione o caso <b>Gerenciar tudo da sua Página</b> → <b>Customize</b> → <b>Permissions and features</b> e garanta status <b>"Ready for testing"</b> em <code>pages_show_list</code>, <code>pages_read_engagement</code> e <code>pages_manage_posts</code> (se aparecer outro status, clique em <b>Actions</b> e adicione a permissão ao caso) — sem isso o popup recusa com <b>"Invalid Scopes: pages_manage_posts"</b>.',
+                'Produto <b>Facebook Login</b> → Settings → <b>Valid OAuth Redirect URIs</b> (o campo inferior, não o validador): cadastre este Redirect URI exato — sem isso o popup é recusado com "URL bloqueada": <code class="conn-uri"></code>',
+                'Settings → Basic: <b>App Domains</b> = <b>localhost</b> (e o domínio de produção quando existir) + <b>Site URL</b> = esta plataforma + <b>Categoria</b> e <b>Privacy Policy URL</b> preenchidos → <b>Save Changes</b> (sem Categoria/Privacy o salvamento é ignorado e o popup falha com "domínio não está incluído nos domínios do app").',
+                'Sua conta precisa de papel no app (quem criou já é admin) e o app em modo <b>Development</b> — assim você conecta sua conta agora, <b>sem App Review</b>.',
+                'A conta precisa ter uma <b>Página</b> do Facebook (<a href="https://www.facebook.com/pages/create" target="_blank" rel="noopener">facebook.com/pages/create</a>) — publicamos na Página; não é preciso Business Suite/conta de negócio.',
+                '<b>Depois desta configuração única</b>, clientes conectam clicando só em <b>Entrar</b> — enquanto o app não estiver Live + App Review, só conectam contas com papel no app; os demais usam a seção Avançado (app próprio).'
             ],
             token: 'Cole o token long-lived (60 dias) do Access Token Debugger — o token de 1 hora do Explorer expira antes do próximo agendamento.',
             creds: 'App ID + App Secret do seu app Meta (developers.facebook.com/apps → Settings → Basic).'
@@ -341,13 +346,13 @@ if (isset($_GET['oauth'])) {
         instagram: {
             title: 'Instagram (conta profissional)',
             steps: [
-                'Siga os passos 1–2 do Facebook: app no developers.facebook.com + uma Página do Facebook e, em <b>Add Product</b>, adicione <b>Pages API</b> + <b>Instagram Graph API</b> (e <b>Facebook Login</b>) — sem esses produtos o popup recusa com <b>"Invalid Scopes: pages_manage_posts, instagram_content_publish"</b>.',
+                '<b>Setup uma única vez, feito pelo dono da plataforma</b> — o cliente só clica em <b>Entrar</b> e loga (SSO), sem ver estas configurações.',
+                'Siga os passos 2–5 do Facebook no mesmo app Meta: tipo <b>Something else</b> (nunca Consumer), <b>Use Cases → Customize → Permissions and features</b> com <b>"Ready for testing"</b> em <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <b><code>instagram_basic</code></b> e <b><code>instagram_content_publish</code></b> — sem eles o popup recusa com <b>"Invalid Scopes: instagram_basic, instagram_content_publish"</b> (o <code>instagram_basic</code> é dependência obrigatória do publish).',
+                'Adicione o produto <b>Instagram Graph API</b> (Add Products/Use Cases) no app — sem ele os escopos do IG não são aceitos.',
                 'No app do Instagram: Configurações → Conta → <b>Conta profissional</b> (Creator/Business) → conecte à sua Página do Facebook.',
-                'Graph API Explorer → seu app → permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>instagram_content_publish</code> → gere o token.',
-                'Estenda para 60 dias (Access Token Debugger → Extend) e cole abaixo — a conta do IG ligada à Página é detectada automaticamente.',
-                'Para o login oficial: no app (Facebook Login → Settings → <b>Valid OAuth Redirect URIs</b>) cadastre este Redirect URI exato — sem isso o popup é recusado com "URL bloqueada": <code class="conn-uri"></code> — e em Settings → Basic coloque <b>App Domains</b> = <b>localhost</b> (erro "Não é possível carregar a URL — domínio não incluído nos domínios do app").',
+                'Facebook Login → Settings → <b>Valid OAuth Redirect URIs</b> com este Redirect URI exato: <code class="conn-uri"></code> — e Settings → Basic com <b>App Domains</b> = <b>localhost</b> + Categoria/Privacy Policy → Save Changes.',
                 'Publicação no feed exige <b>imagem</b> (vídeo só via Reels — fora do escopo desta API).',
-                'Modo <b>Development</b> só autoriza papéis do app — clientes conectam sem app próprio apenas com o app do Facebook em modo <b>Live</b> + <b>App Review</b> (Meta).'
+                'Modo <b>Development</b> conecta só contas com papel no app; clientes em geral só com o app <b>Live + App Review</b> (Meta, verificação de negócio) ou via Avançado.'
             ],
             token: 'Cole o token long-lived do Meta (mesmo app e Página do Facebook).',
             creds: 'App ID + App Secret do seu app Meta (o mesmo do Facebook).'

@@ -11,7 +11,7 @@
     },
     {
       "parameters": {
-        "url": "https://graph.facebook.com/v21.0/{{$env.META_AD_ACCOUNT_ID}}/insights?fields=campaign_name,spend,clicks,purchases,action_values&date_preset=last_7d&level=campaign&access_token=[configure sua chave]",
+        "url": "https://graph.facebook.com/v26.0/{{$env.META_AD_ACCOUNT_ID}}/insights?fields=campaign_name,spend,clicks,purchases,action_values&date_preset=last_7d&level=campaign&access_token=[configure sua chave]",
         "options": {}
       },
       "id": "e2",

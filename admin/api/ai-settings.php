@@ -146,7 +146,7 @@ switch ($action) {
             break;
         }
 
-        $url = 'https://graph.facebook.com/v21.0/oauth/access_token?' . http_build_query([
+        $url = 'https://graph.facebook.com/v26.0/oauth/access_token?' . http_build_query([
             'grant_type' => 'fb_exchange_token',
             'client_id' => $appId,
             'client_secret' => $appSecret,
@@ -279,7 +279,7 @@ switch ($action) {
                 ? 'https://serpapi.com/account?api_key=' . urlencode($key)
                 : ($capability === 'adspy_apify'
                     ? 'https://api.apify.com/v2/users/me?token=' . urlencode($key)
-                    : 'https://graph.facebook.com/v21.0/me?access_token=' . urlencode($key));
+                    : 'https://graph.facebook.com/v26.0/me?access_token=' . urlencode($key));
 
             $ch = curl_init();
             curl_setopt_array($ch, [

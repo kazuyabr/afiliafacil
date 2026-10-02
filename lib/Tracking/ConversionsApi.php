@@ -10,7 +10,7 @@
 class ConversionsApi
 {
     public const ALLOWED_EVENTS = ['PageView', 'ViewContent', 'Lead', 'InitiateCheckout', 'AddToCart', 'Purchase'];
-    private const GRAPH_VERSION = 'v21.0';
+    private const GRAPH_VERSION = 'v26.0';
 
     /**
      * @return array{success:bool, event_id?:string, error?:string, meta_error?:string}

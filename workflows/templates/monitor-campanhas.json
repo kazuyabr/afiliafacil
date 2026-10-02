@@ -12,7 +12,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://graph.facebook.com/v21.0/{{$env.META_AD_ACCOUNT_ID}}/insights",
+        "url": "https://graph.facebook.com/v26.0/{{$env.META_AD_ACCOUNT_ID}}/insights",
         "qs": { "access_token": "[configure sua chave]" , "fields": "campaign_name,spend,clicks,impressions,cpc,ctr,frequency", "date_preset": "today", "level": "campaign" },
         "options": {}
       },

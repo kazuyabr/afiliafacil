@@ -206,7 +206,7 @@ class MetaAdLibraryProvider extends AdSpyProvider
         ];
         if (!empty($options['started_after'])) $params['ad_delivery_date_min'] = $options['started_after'];
 
-        $body = $this->httpGet('https://graph.facebook.com/v21.0/ads_archive?' . http_build_query($params));
+        $body = $this->httpGet('https://graph.facebook.com/v26.0/ads_archive?' . http_build_query($params));
         if ($body === null) return $this->emptyResult('Meta API: sem resposta do servidor da Meta (instável agora). Aguarde 1 minuto e toque em "Espionar" de novo — o sistema tentará novamente.');
 
         $json = json_decode($body, true);

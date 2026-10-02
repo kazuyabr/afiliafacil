@@ -77,7 +77,7 @@ class SocialOAuth
     {
         return match ($network) {
             'facebook' => 'pages_show_list,pages_read_engagement,pages_manage_posts',
-            'instagram' => 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_content_publish',
+            'instagram' => 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish',
             'threads' => 'threads_basic,threads_content_publish',
             'x' => 'tweet.read,tweet.write,users.read,offline.access',
             'tiktok' => 'video.publish,user.info.basic',
@@ -116,7 +116,7 @@ class SocialOAuth
         }
 
         if (in_array($network, ['facebook', 'instagram'], true)) {
-            $url = 'https://www.facebook.com/v21.0/dialog/oauth?client_id=' . rawurlencode($cred['id'])
+            $url = 'https://www.facebook.com/v26.0/dialog/oauth?client_id=' . rawurlencode($cred['id'])
                 . '&redirect_uri=' . $redirect
                 . '&scope=' . rawurlencode(self::scopes($network))
                 . '&state=' . rawurlencode($state);
@@ -162,8 +162,15 @@ class SocialOAuth
             return ['ok' => false, 'error' => 'Estado OAuth inválido (possible CSRF). Refaça a conexão.'];
         }
         if (!empty($q['error'])) {
-            return ['ok' => false, 'network' => $network,
-                'error' => 'Autorização recusada: ' . mb_substr((string)$q['error'], 0, 120)];
+            // Facebook devolve error_reason/error_description alem do error cru —
+            // sem eles a mensagem vira "access_denied" sem contexto acionavel.
+            $detail = trim((string)($q['error_description'] ?? ''));
+            if ($detail === '') $detail = trim((string)($q['error_reason'] ?? ''));
+            $msg = 'Autorização recusada: ' . mb_substr((string)$q['error'], 0, 120);
+            if ($detail !== '' && strcasecmp($detail, (string)$q['error']) !== 0) {
+                $msg .= ' — ' . mb_substr($detail, 0, 200);
+            }
+            return ['ok' => false, 'network' => $network, 'error' => $msg];
         }
 
         $code = (string)($q['code'] ?? '');
@@ -194,7 +201,7 @@ class SocialOAuth
     private static function exchangeMeta(string $network, string $code, int $userId): array
     {
         $cred = self::credentials('meta', $userId);
-        $tok = SocialHttp::json('GET', 'https://graph.facebook.com/v21.0/oauth/access_token', [
+        $tok = SocialHttp::json('GET', 'https://graph.facebook.com/v26.0/oauth/access_token', [
             'form' => [
                 'client_id' => $cred['id'],
                 'redirect_uri' => self::redirectUri(),
@@ -207,7 +214,7 @@ class SocialOAuth
         }
 
         // Token long-lived (60 dias) — menos reconexoes para o usuario
-        $long = SocialHttp::json('GET', 'https://graph.facebook.com/v21.0/oauth/access_token', [
+        $long = SocialHttp::json('GET', 'https://graph.facebook.com/v26.0/oauth/access_token', [
             'form' => [
                 'grant_type' => 'fb_exchange_token',
                 'client_id' => $cred['id'],
@@ -225,7 +232,7 @@ class SocialOAuth
     /** Descobre a conta alvo (Página / IG / Threads) a partir de um token do usuario Meta. */
     private static function discoverMeta(string $network, string $userToken, ?string $expires): array
     {
-        $pages = SocialHttp::json('GET', 'https://graph.facebook.com/v21.0/me/accounts', [
+        $pages = SocialHttp::json('GET', 'https://graph.facebook.com/v26.0/me/accounts', [
             'form' => ['access_token' => $userToken,
                 'fields' => 'id,name,access_token,instagram_business_account{id,username}'],
         ]);
@@ -385,13 +392,13 @@ class SocialOAuth
 
         switch ($network) {
             case 'facebook': {
-                $me = SocialHttp::json('GET', 'https://graph.facebook.com/v21.0/me', [
+                $me = SocialHttp::json('GET', 'https://graph.facebook.com/v26.0/me', [
                     'form' => ['access_token' => $token, 'fields' => 'id,name'],
                 ]);
                 if (empty($me['id'])) {
                     return ['ok' => false, 'error' => SocialHttp::errorMsg($me, 'Token inválido ou expirado no Facebook.')];
                 }
-                $pages = SocialHttp::json('GET', 'https://graph.facebook.com/v21.0/me/accounts', [
+                $pages = SocialHttp::json('GET', 'https://graph.facebook.com/v26.0/me/accounts', [
                     'form' => ['access_token' => $token, 'fields' => 'id,name,access_token'],
                 ]);
                 $page = ($pages['data'] ?? [])[0] ?? null;
@@ -409,7 +416,7 @@ class SocialOAuth
             }
 
             case 'instagram': {
-                $pages = SocialHttp::json('GET', 'https://graph.facebook.com/v21.0/me/accounts', [
+                $pages = SocialHttp::json('GET', 'https://graph.facebook.com/v26.0/me/accounts', [
                     'form' => ['access_token' => $token,
                         'fields' => 'id,name,access_token,instagram_business_account{id,username}'],
                 ]);
@@ -496,7 +503,7 @@ class SocialOAuth
         $cred = self::credentials('meta', $userId);
         if (empty($cred['configured'])) return $probe;
 
-        $d = SocialHttp::json('GET', 'https://graph.facebook.com/v21.0/debug_token', [
+        $d = SocialHttp::json('GET', 'https://graph.facebook.com/v26.0/debug_token', [
             'form' => ['input_token' => $token,
                 'access_token' => $cred['id'] . '|' . $cred['secret']],
         ]);
@@ -515,7 +522,7 @@ class SocialOAuth
             $missing = array_values(array_diff(['pages_manage_posts'], $scopes));
             if ($missing) {
                 $req = 'pages_show_list, pages_read_engagement, pages_manage_posts'
-                    . ($network === 'instagram' ? ', instagram_content_publish' : '');
+                    . ($network === 'instagram' ? ', instagram_basic, instagram_content_publish' : '');
                 return ['ok' => false, 'error' => 'Token sem a permissão pages_manage_posts — no Graph API '
                     . 'Explorer gere o token marcando: ' . $req . ' (passo 3 do guia).'];
             }
