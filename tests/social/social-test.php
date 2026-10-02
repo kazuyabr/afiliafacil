@@ -676,18 +676,21 @@ ok('sem credenciais o clique guia para as credenciais (nunca botão morto)',
     str_contains($ui, 'promptAppCreds') && !str_contains($ui, 'btn.disabled = !m.oauth_configured'));
 ok('guias Meta/Instagram incluem cadastro do Redirect URI',
     str_contains($ui, 'Valid OAuth Redirect URIs') && str_contains($ui, 'URL bloqueada'));
-ok('modal: BYOK em "Avançado" + dica de SSO sem credenciais',
-    str_contains($ui, 'Avançado — usar meu próprio app')
+ok('modal: app do cliente como caminho principal + SSO como alternativa',
+    str_contains($ui, 'Seu app da rede (recomendado)')
+    && str_contains($ui, 'Alternativa: conexão rápida da plataforma')
+    && str_contains($ui, 'como um SSO')
     && str_contains($ui, 'Conexão rápida não habilitada')
-    && str_contains($ui, 'como um SSO'));
+    && !str_contains($ui, 'Avançado — usar meu próprio app'));
 ok('guias avisam Development x Live + App Review para clientes',
     str_contains($ui, 'App Review'));
 ok('guias cobrem Invalid Scopes, Use Cases e App Domains (dashboard 2026)',
     str_contains($ui, 'Invalid Scopes') && str_contains($ui, 'Use Cases')
     && str_contains($ui, 'Ready for testing') && str_contains($ui, 'App Domains')
     && str_contains($ui, 'Something else') && !str_contains($ui, 'tipo Consumer'));
-ok('guia avisa que o dono configura 1x e o cliente so clica Entrar',
-    str_contains($ui, 'uma única vez') && str_contains($ui, 'nunca vê estas configurações'));
+ok('guia orienta o cliente a criar o proprio app (uma unica vez, sem App Review)',
+    str_contains($ui, 'criar seu próprio app') && str_contains($ui, 'uma única vez')
+    && str_contains($ui, 'testers') && str_contains($ui, 'sem App Review'));
 ok('guia Instagram inclui instagram_basic (dependencia do publish)',
     str_contains($ui, 'instagram_basic'));
 ok('card expirado/erro oferece Reconectar + Desconectar (conexao nunca fica orfa)',

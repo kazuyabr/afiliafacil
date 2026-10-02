@@ -172,18 +172,9 @@ if (isset($_GET['oauth'])) {
                     <div class="conn-step-h"><span class="conn-step-n">2</span> Conectar</div>
 
                     <div class="conn-method">
-                        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
-                            <div>
-                                <b style="font-size:.88rem;">Login oficial (recomendado)</b>
-                                <div class="conn-hint" id="connOAuthHint"></div>
-                            </div>
-                            <button class="btn btn-sm btn-primary" id="connOAuthBtn" onclick="startOAuth()">
-                                <i class="fas fa-arrow-right-from-bracket"></i> <span id="connOAuthLabel">Entrar</span>
-                            </button>
-                        </div>
-                        <details id="connCredsBox" style="margin-top:10px;">
-                            <summary style="cursor:pointer;font-size:.82rem;font-weight:600;">
-                                <i class="fas fa-key"></i> Avançado — usar meu próprio app (App ID + Secret, opcional)
+                        <details id="connCredsBox" open style="margin-top:0;">
+                            <summary style="cursor:pointer;font-size:.84rem;font-weight:600;">
+                                <i class="fas fa-key"></i> <b>Seu app da rede (recomendado)</b> — App ID + Secret
                             </summary>
                             <div class="conn-hint" id="connCredsHelp" style="margin:6px 0;"></div>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
@@ -196,6 +187,18 @@ if (isset($_GET['oauth'])) {
                                 <span id="connCredsMsg" class="conn-hint"></span>
                             </div>
                         </details>
+                    </div>
+
+                    <div class="conn-method">
+                        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+                            <div>
+                                <b style="font-size:.88rem;">Login oficial da rede</b>
+                                <div class="conn-hint" id="connOAuthHint"></div>
+                            </div>
+                            <button class="btn btn-sm btn-primary" id="connOAuthBtn" onclick="startOAuth()">
+                                <i class="fas fa-arrow-right-from-bracket"></i> <span id="connOAuthLabel">Entrar</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="conn-method">
@@ -311,7 +314,7 @@ if (isset($_GET['oauth'])) {
                                    </div>`)
                             : `<div class="net-actions">
                                  <button class="btn btn-sm btn-primary" onclick="openConnModal('${n}')"><i class="fas fa-plug"></i> Conectar</button>
-                                 <span class="conn-hint">${m.oauth_configured ? (m.oauth_source === 'user' ? 'login oficial com seu app' : 'login oficial disponível') : 'guia de pré-requisitos + token'}</span>
+                                 <span class="conn-hint">${m.oauth_configured ? (m.oauth_source === 'user' ? 'login com seu app' : 'conexão rápida disponível') : 'crie seu app no guia + token'}</span>
                                </div>`}
                     </div>
                 </div>`;
@@ -331,14 +334,14 @@ if (isset($_GET['oauth'])) {
         facebook: {
             title: 'Facebook (Página)',
             steps: [
-                '<b>Quem faz este setup é o dono da plataforma, uma única vez</b> — o cliente final só clica em <b>Entrar</b> e faz o login normal do Facebook (como um SSO), nunca vê estas configurações.',
+                '<b>Este guia é para você criar seu próprio app</b> (uma única vez por rede) — você é o dono dele e não depende de aprovação de ninguém; no fim, salve o App ID + Secret no passo 2 e clique em <b>Entrar</b>.',
                 'Em <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a>: abra o app da plataforma — ou crie um novo do tipo <b>Something else</b> (<b>nunca Consumer</b>: apps Consumer bloqueiam os escopos <code>pages_*</code> com o erro "Invalid Scopes").',
                 'Na aba <b>Use Cases</b> (substitui o antigo "Add Product"): use/adicione o caso <b>Gerenciar tudo da sua Página</b> → <b>Customize</b> → <b>Permissions and features</b> e garanta status <b>"Ready for testing"</b> em <code>pages_show_list</code>, <code>pages_read_engagement</code> e <code>pages_manage_posts</code> (se aparecer outro status, clique em <b>Actions</b> e adicione a permissão ao caso) — sem isso o popup recusa com <b>"Invalid Scopes: pages_manage_posts"</b>.',
                 'Produto <b>Facebook Login</b> → Settings → <b>Valid OAuth Redirect URIs</b> (o campo inferior, não o validador): cadastre este Redirect URI exato — sem isso o popup é recusado com "URL bloqueada": <code class="conn-uri"></code>',
                 'Settings → Basic: <b>App Domains</b> = <b>localhost</b> (e o domínio de produção quando existir) + <b>Site URL</b> = esta plataforma + <b>Categoria</b> e <b>Privacy Policy URL</b> preenchidos → <b>Save Changes</b> (sem Categoria/Privacy o salvamento é ignorado e o popup falha com "domínio não está incluído nos domínios do app").',
                 'Sua conta precisa de papel no app (quem criou já é admin) e o app em modo <b>Development</b> — assim você conecta sua conta agora, <b>sem App Review</b>.',
                 'A conta precisa ter uma <b>Página</b> do Facebook (<a href="https://www.facebook.com/pages/create" target="_blank" rel="noopener">facebook.com/pages/create</a>) — publicamos na Página; não é preciso Business Suite/conta de negócio.',
-                '<b>Depois desta configuração única</b>, clientes conectam clicando só em <b>Entrar</b> — enquanto o app não estiver Live + App Review, só conectam contas com papel no app; os demais usam a seção Avançado (app próprio).'
+                '<b>Feito:</b> você (quem criou o app é admin dele) conecta agora <b>sem App Review</b>; outras contas entram como <b>testers</b> (App Roles) no seu app, ou publique o app (Live + App Review) para qualquer conta conectar.'
             ],
             token: 'Cole o token long-lived (60 dias) do Access Token Debugger — o token de 1 hora do Explorer expira antes do próximo agendamento.',
             creds: 'App ID + App Secret do seu app Meta (developers.facebook.com/apps → Settings → Basic).'
@@ -346,13 +349,13 @@ if (isset($_GET['oauth'])) {
         instagram: {
             title: 'Instagram (conta profissional)',
             steps: [
-                '<b>Setup uma única vez, feito pelo dono da plataforma</b> — o cliente só clica em <b>Entrar</b> e loga (SSO), sem ver estas configurações.',
+                '<b>Usando o mesmo app Meta criado no Facebook (guia do Facebook)</b> — configure uma única vez, salve o App ID/Secret no passo 2 e clique em <b>Entrar</b>.',
                 'Siga os passos 2–5 do Facebook no mesmo app Meta: tipo <b>Something else</b> (nunca Consumer), <b>Use Cases → Customize → Permissions and features</b> com <b>"Ready for testing"</b> em <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <b><code>instagram_basic</code></b> e <b><code>instagram_content_publish</code></b> — sem eles o popup recusa com <b>"Invalid Scopes: instagram_basic, instagram_content_publish"</b> (o <code>instagram_basic</code> é dependência obrigatória do publish).',
                 'Adicione o produto <b>Instagram Graph API</b> (Add Products/Use Cases) no app — sem ele os escopos do IG não são aceitos.',
                 'No app do Instagram: Configurações → Conta → <b>Conta profissional</b> (Creator/Business) → conecte à sua Página do Facebook.',
                 'Facebook Login → Settings → <b>Valid OAuth Redirect URIs</b> com este Redirect URI exato: <code class="conn-uri"></code> — e Settings → Basic com <b>App Domains</b> = <b>localhost</b> + Categoria/Privacy Policy → Save Changes.',
                 'Publicação no feed exige <b>imagem</b> (vídeo só via Reels — fora do escopo desta API).',
-                'Modo <b>Development</b> conecta só contas com papel no app; clientes em geral só com o app <b>Live + App Review</b> (Meta, verificação de negócio) ou via Avançado.'
+                'Modo <b>Development</b> conecta você (papel no app) sem App Review; outras contas precisam ser <b>testers</b> no app ou o app precisa ir <b>Live + App Review</b> (Meta, verificação de negócio).'
             ],
             token: 'Cole o token long-lived do Meta (mesmo app e Página do Facebook).',
             creds: 'App ID + App Secret do seu app Meta (o mesmo do Facebook).'
@@ -443,6 +446,8 @@ if (isset($_GET['oauth'])) {
         document.getElementById('connAppSecret').value = '';
         document.getElementById('connMsg').innerHTML = '';
         document.getElementById('connCredsMsg').textContent = '';
+        const credsBox = document.getElementById('connCredsBox');
+        if (credsBox) credsBox.open = true;
         document.getElementById('connAppId').value = m.app_id || '';
         document.getElementById('connCredsDelBtn').style.display = m.oauth_source === 'user' ? '' : 'none';
         updateConnOAuthState();
@@ -455,9 +460,9 @@ if (isset($_GET['oauth'])) {
         const hint = document.getElementById('connOAuthHint');
         hint.innerHTML = m.oauth_configured
             ? (m.oauth_source === 'user'
-                ? '<i class="fas fa-check" style="color:#28a745;"></i> Suas credenciais de app — renovação automática de token.'
-                : '<i class="fas fa-check" style="color:#28a745;"></i> Conexão rápida — clique em <b>Entrar</b> e faça login com usuário/senha da rede (como um SSO).')
-            : '<i class="fas fa-circle-info"></i> Conexão rápida não habilitada nesta plataforma — contate o suporte.';
+                ? '<i class="fas fa-check" style="color:#28a745;"></i> Usa o app que você salvou acima — clique em <b>Entrar</b> e faça login na rede.'
+                : '<i class="fas fa-check" style="color:#28a745;"></i> Alternativa: conexão rápida da plataforma — clique em <b>Entrar</b> e faça login com usuário/senha da rede (como um SSO).')
+            : '<i class="fas fa-circle-info"></i> Conexão rápida não habilitada — salve o App ID e o App Secret do seu app acima.';
     }
 
     // Sem credenciais: em vez de um botão morto, o clique no Entrar abre a
@@ -490,7 +495,7 @@ if (isset($_GET['oauth'])) {
         if (!j.url) {
             if (j.error === 'oauth_not_configured') promptAppCreds();
             msg.innerHTML = '<span style="color:#dc3545;">' + esc(j.error === 'oauth_not_configured'
-                ? 'Conexão rápida indisponível — contate o suporte ou use as credenciais avançadas (abaixo).' : (j.error || 'Não foi possível iniciar.')) + '</span>';
+                ? 'Sem credenciais — salve o App ID e o App Secret do seu app acima (guia do passo 1).' : (j.error || 'Não foi possível iniciar.')) + '</span>';
             return;
         }
         try { localStorage.setItem('af_oauth_popup', '1'); } catch (e) {}
