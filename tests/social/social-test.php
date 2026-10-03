@@ -674,8 +674,10 @@ ok('caminho manual antigo removido (Conectar único)', !str_contains($ui, 'toggl
     && !str_contains($ui, 'manual-box') && !str_contains($ui, 'onclick="saveToken('));
 ok('sem credenciais o clique guia para as credenciais (nunca botão morto)',
     str_contains($ui, 'promptAppCreds') && !str_contains($ui, 'btn.disabled = !m.oauth_configured'));
-ok('guias Meta/Instagram incluem cadastro do Redirect URI',
-    str_contains($ui, 'Valid OAuth Redirect URIs') && str_contains($ui, 'URL bloqueada'));
+ok('guias Meta/Instagram incluem cadastro do Redirect URI (3 locais do dashboard 2026)',
+    str_contains($ui, 'Valid OAuth Redirect URIs') && str_contains($ui, 'URL bloqueada')
+    && str_contains($ui, 'Facebook Login for Business') && str_contains($ui, 'Add Product')
+    && str_contains($ui, 'fb-login/settings/'));
 ok('modal: app do cliente como caminho principal + SSO como alternativa',
     str_contains($ui, 'Seu app da rede (recomendado)')
     && str_contains($ui, 'Alternativa: conexão rápida da plataforma')
