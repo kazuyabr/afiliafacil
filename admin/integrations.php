@@ -102,7 +102,7 @@ if (isset($_GET['oauth'])) {
                         <ol class="conn-steps">
                             <li><b>Criar o app:</b> <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a> → <b>Criar app</b> → caso de uso <b>"Manage everything on your Page"</b> (Gerenciar tudo da sua Página) e, se perguntar o tipo, <b>Something else</b> — nunca Consumer (bloqueia os escopos <code>pages_*</code> com "Invalid Scopes").</li>
                             <li><b>Permissões:</b> menu lateral <b>Use Cases</b> → no caso de uso → <b>Customize</b> → <b>Permissions and features</b> → garanta <b>"Ready for testing"</b> em <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>instagram_basic</code> e <code>instagram_content_publish</code> (adicione via <b>Actions</b> se aparecer outro status) + produto <b>Instagram Graph API</b>.</li>
-                            <li><b>Redirect URI:</b> cadastre <code>http://localhost:9876/admin/api/social.php?action=callback</code> em <b>Valid OAuth Redirect URIs</b> — o campo fica em UM destes lugares: <b>Use Cases → Customize → Settings</b> (apps por use case <b>não têm "Add Product"</b>) · <b>Facebook Login for Business → Settings</b> · <b>Add Product → Facebook Login → Settings</b> (layout antigo). Atalho: <code>developers.facebook.com/apps/SEU_APP_ID/fb-login/settings/</code>.</li>
+                            <li><b>Redirect URI:</b> cadastre <code><?= htmlspecialchars(SocialOAuth::redirectUri()) ?></code> em <b>Valid OAuth Redirect URIs</b> — o campo fica em UM destes lugares: <b>Use Cases → Customize → Settings</b> (apps por use case <b>não têm "Add Product"</b>) · <b>Facebook Login for Business → Settings</b> · <b>Add Product → Facebook Login → Settings</b> (layout antigo). Atalho: <code>developers.facebook.com/apps/SEU_APP_ID/fb-login/settings/</code>. A URL precisa bater <b>exatamente</b> com o domínio que você usa no painel (também aparece nos passos do modal "Conectar").</li>
                             <li><b>Credenciais:</b> <b>Settings → Basic</b> → copie o <b>App ID</b> e o <b>App Secret</b> (botão Mostrar) + preencha <b>App Domains</b>=<code>localhost</code>, <b>Site URL</b>=<code>http://localhost:9876</code>, <b>Categoria</b> e <b>Privacy Policy URL</b>=<code>http://localhost:9876/privacidade</code> → <b>Save Changes</b> (sem Categoria/Privacy o save é ignorado).</li>
                             <li><b>.env:</b> cole como <code>META_APP_ID=...</code> e <code>META_APP_SECRET=...</code> e <b>recrie o container</b>: <code>docker-compose up -d --force-recreate</code> — um simples restart não recarrega o .env.</li>
                             <li><b>Modo Development</b> só conecta contas com papel no app (você, quem criou) — clientes em geral só após o app <b>Live + App Review</b> (próximo épico). Teste agora clicando em <b>Conectar</b> numa rede.</li>
@@ -174,6 +174,7 @@ if (isset($_GET['oauth'])) {
         </div>
     </div>
 
+    <?php if ($isAdmin): ?>
     <div class="modal-overlay" id="connModal">
         <div class="modal" style="max-width:660px;">
             <div class="modal-header">
@@ -242,6 +243,7 @@ if (isset($_GET['oauth'])) {
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <script src="/assets/js/app.js"></script>
     <script>
@@ -464,6 +466,9 @@ if (isset($_GET['oauth'])) {
         const c = (STATE.connections || []).find(x => x.network === n);
         if (c && c.status === 'connected') return;
         CONN_NET = n;
+        // Cliente: sem modal — o clique vai DIRETO para o login da mídia
+        // (o próprio popup da Meta mostra qual app está pedindo a conta).
+        if (!IS_ADMIN) { startOAuth(); return; }
         const g = GUIDES[n] || { title: m.name, steps: [], token: 'Cole o token de acesso.', creds: '' };
 
         const el = id => document.getElementById(id);
@@ -514,31 +519,39 @@ if (isset($_GET['oauth'])) {
     }
 
     function closeConnModal() {
-        document.getElementById('connModal').classList.remove('active');
+        const modal = document.getElementById('connModal');
+        if (modal) modal.classList.remove('active');
         CONN_NET = null;
+    }
+
+    // Feedback do OAuth: admin vê dentro do modal; cliente (sem modal) leva toast.
+    function connSay(html, text, kind) {
+        const msg = document.getElementById('connMsg');
+        if (msg) { msg.innerHTML = html; return; }
+        try { showToast(text, kind || 'info'); } catch (e) {}
     }
 
     async function startOAuth() {
         const n = CONN_NET;
         if (!n) return;
         const btn = document.getElementById('connOAuthBtn');
-        const msg = document.getElementById('connMsg');
-        msg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Abrindo autorização…';
-        btn.disabled = true;
+        connSay('<i class="fas fa-spinner fa-spin"></i> Abrindo autorização…', 'Abrindo autorização…');
+        if (btn) btn.disabled = true;
         let j;
         try {
             j = await api('connect-url', { network: n });
         } finally {
-            btn.disabled = false;
+            if (btn) btn.disabled = false;
         }
         if (!j.url) {
             if (j.error === 'oauth_not_configured') promptAppCreds();
             const notCfg = j.error === 'oauth_not_configured';
-            msg.innerHTML = '<span style="color:#dc3545;">' + esc(notCfg
+            const text = notCfg
                 ? (IS_ADMIN
                     ? 'Sem credenciais — salve o App ID e o App Secret na Configuração avançada abaixo, ou preencha o .env da plataforma (guia do dono).'
                     : 'Conexão não habilitada nesta plataforma — contate o suporte.')
-                : (j.error || 'Não foi possível iniciar.')) + '</span>';
+                : (j.error || 'Não foi possível iniciar.');
+            connSay('<span style="color:#dc3545;">' + esc(text) + '</span>', text, 'error');
             return;
         }
         try { localStorage.setItem('af_oauth_popup', '1'); } catch (e) {}
@@ -549,10 +562,11 @@ if (isset($_GET['oauth'])) {
             window.location.href = j.url;
             return;
         }
-        msg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conclua a autorização na janela aberta…';
+        connSay('<i class="fas fa-spinner fa-spin"></i> Conclua a autorização na janela aberta…', 'Conclua a autorização na janela aberta…');
         const res = await waitForOAuthMessage(120000);
         if (!res) {
-            msg.innerHTML = '<span style="color:#dc3545;">Janela fechada sem concluir — clique em Entrar novamente.</span>';
+            const text = 'Janela fechada sem concluir — clique em Conectar novamente.';
+            connSay('<span style="color:#dc3545;">' + text + '</span>', text, 'error');
             return;
         }
         if (res.ok) {
@@ -560,7 +574,8 @@ if (isset($_GET['oauth'])) {
             await loadConnections();
             showToast('Conta conectada com sucesso!', 'success');
         } else {
-            msg.innerHTML = '<span style="color:#dc3545;">' + esc(res.msg || 'Falha na conexão.') + '</span>';
+            const text = res.msg || 'Falha na conexão.';
+            connSay('<span style="color:#dc3545;">' + esc(text) + '</span>', text, 'error');
         }
     }
 

@@ -441,6 +441,14 @@ SocialConnections::upsert($adminId, 'x', [
 // ------------------------------------------------------ 9. API HTTP
 section('9. API HTTP (/admin/api/social.php + tela)');
 $BASE = 'http://localhost:9876';
+
+// GET com form tem de ir na QUERY string — corpos de GET são ignorados pelos
+// servidores (bug: a troca de token Meta devolvia "Missing client_id parameter").
+ok('SocialHttp::formToQuery leva params de GET para a query string',
+    str_contains(\SocialHttp::formToQuery('https://graph.test/oauth/access_token', ['client_id' => '123']), 'client_id=123')
+    && str_contains(\SocialHttp::formToQuery('https://graph.test/x?a=1', ['b' => '2']), '?a=1&b=2')
+    && \SocialHttp::formToQuery('https://graph.test/x', []) === 'https://graph.test/x'
+    && str_contains(\SocialHttp::formToQuery('https://graph.test/x', ['redirect_uri' => 'http://localhost/a?b=c']), 'redirect_uri='));
 $http = function (string $method, string $url, array $post = null, string $jar = ''): array {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -707,11 +715,11 @@ $jarT = sys_get_temp_dir() . '/social-test-trial.cookie';
 $http('POST', $BASE . '/login', ['email' => 'demo.trial@afiliafacil.com', 'password' => 'Trial.Demo@2026'], $jarT);
 $r = $http('GET', $BASE . '/admin/integrations.php', null, $jarT);
 $uiT = (string)$r['body'];
-ok('cliente: so o botao Conectar (GUIES={}, sem guia/IDs/redirect/token no HTML)',
+ok('cliente: clique Conectar vai DIRETO pra midia (sem modal/guia/IDs/token no HTML)',
     $r['status'] === 200
-    && str_contains($uiT, 'openConnModal(') && str_contains($uiT, 'connOAuthBtn')
+    && str_contains($uiT, 'openConnModal(') && str_contains($uiT, 'function startOAuth')
     && str_contains($uiT, 'const GUIDES = {}')
-    && str_contains($uiT, '<span class="conn-step-n">1</span> Conectar')
+    && !str_contains($uiT, 'id="connModal"') && !str_contains($uiT, 'id="connOAuthBtn"')
     && !str_contains($uiT, 'id="connCredsBox"') && !str_contains($uiT, 'id="connAppId"')
     && !str_contains($uiT, 'id="connToken"') && !str_contains($uiT, 'Pré-requisitos')
     && !str_contains($uiT, 'Valid OAuth Redirect URIs') && !str_contains($uiT, 'Guia do dono')

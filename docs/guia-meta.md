@@ -52,13 +52,19 @@ Apps criados hoje **não têm o menu "Add Product"** antigo: tudo passa pelo men
 
 ## Passo 3 — Cadastrar o Redirect URI (URL de retorno)
 
-A Meta só devolve o login para uma URL previamente cadastrada. Cadastre **exatamente**:
+A Meta só devolve o login para uma URL previamente cadastrada. A sua é
+**`<endereço-do-painel>/admin/api/social.php?action=callback`** — ou seja, o mesmo domínio/ porta
+que você usa para abrir o painel, mais esse caminho. Exemplos:
 
 ```
-http://localhost:9876/admin/api/social.php?action=callback
+http://localhost:9876/admin/api/social.php?action=callback        ← painel em localhost
+https://seusite.com/admin/api/social.php?action=callback          ← produção
 ```
 
-(Em produção, troque `localhost:9876` pelo domínio real.)
+> **Copie em vez de digitar**: a URL exata aparece no card "Guia do dono" (Integrações) e nos
+> passos do modal **Conectar** do admin. Ela precisa bater **caractere por caractere** —
+> `http` ≠ `https`, `localhost` ≠ `127.0.0.1`. Se você abrir o painel por outro endereço
+> (tunel/Cloudflare), cadastre a URL desse endereço também.
 
 **Onde fica o campo `Valid OAuth Redirect URIs`** — depende do layout do seu app; é **um** destes:
 
@@ -148,6 +154,7 @@ o criador do app é admin dele, então funciona **antes** da App Review.
 |---|---|---|
 | `Invalid Scopes: pages_manage_posts` (ou `instagram_*`) | Permissão sem "Ready for testing", ou app tipo Consumer | Passo 2 (Use Cases) e/ou trocar tipo para "Something else" |
 | `URL bloqueada` (URL Blocked) | Redirect URI não cadastrado | Passo 3 (os 3 locais + atalho da URL) |
+| `Missing client_id parameter` | Parâmetros da troca de token não chegando ao Meta (versão antiga da plataforma enviava GET no corpo) — ou `META_APP_ID` vazio | Atualize a plataforma (corrigido) e confira `META_APP_ID`/`META_APP_SECRET` no `.env` + `--force-recreate` |
 | "o domínio não está incluído nos domínios do app" | Save de Settings ignorado (Categoria/Privacy vazios) | Passo 4 → preencher tudo e **Save Changes** |
 | Login abre e volta pedindo de novo (loop de consentimento) | Consentimento antigo revogado/resetado | <https://www.facebook.com/settings?tab=applications> → remova o app e repita o login |
 | Popup não abre / botão sem reação no cliente | App sem credencial configurada (só afeta clientes) | `META_APP_ID/SECRET` no `.env` + recriar container |

@@ -20,6 +20,14 @@ class SocialHttp
             return (self::$handler)($method, $url, $opts);
         }
 
+        // GET com form: servidores IGNORAM o corpo de GET (o Graph devolvia
+        // "Missing client_id parameter" na troca de token) — params vão para
+        // a query string. POST continua no corpo (urlencoded).
+        if (strtoupper($method) === 'GET' && !empty($opts['form'])) {
+            $url = self::formToQuery($url, $opts['form']);
+            unset($opts['form']);
+        }
+
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
@@ -50,6 +58,14 @@ class SocialHttp
         }
         curl_close($ch);
         return ['status' => $status, 'body' => (string)$body];
+    }
+
+    /** Merga um form urlencoded na query string (chamadas GET). */
+    public static function formToQuery(string $url, array $form): string
+    {
+        $qs = http_build_query($form);
+        if ($qs === '') return $url;
+        return $url . (str_contains($url, '?') ? '&' : '?') . $qs;
     }
 
     /** request + json_decode; devolve [] em corpo vazio/inválido. `_status` é sempre preenchido. */
