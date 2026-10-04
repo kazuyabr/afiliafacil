@@ -92,11 +92,16 @@ No layout **(c)** a mesma tela (**Client OAuth Settings**) tem mais dois toggles
 
 ## Passo 4 — App ID, App Secret e dados do app
 
-1. Menu lateral → **Settings → Basic**.
+1. Menu lateral → **Settings → Basic** — em português: **Configurações do app → Básico**.
+   É a seção própria do app, lá embaixo no menu lateral (a mesma onde fica "Publicar") —
+   **não** é o "Configurações" do submenu "Login do Facebook", que é a tela do Passo 3.
+   Atalho no navegador: `https://developers.facebook.com/apps/SEU_APP_ID/settings/basic/`
+   (troque `SEU_APP_ID`).
 2. Copie o **App ID** e o **App Secret** (botão **Mostrar** ao lado do secret).
 3. Preencha também:
    - **App Domains**: `localhost` (e o domínio de produção, quando existir)
-   - **Site URL**: `http://localhost:9876`
+   - **Site URL**: `http://localhost:9876` — se não achar o campo, clique em
+     **Add Platform** / **Adicionar plataforma** (fim da página) → **Website** e cadastre lá
    - **Categoria**: qualquer uma (ex.: *Business and pages*)
    - **Privacy Policy URL**: `http://localhost:9876/privacidade`
 4. Clique em **Save Changes**.
