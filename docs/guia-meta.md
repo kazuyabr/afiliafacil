@@ -79,6 +79,15 @@ https://seusite.com/admin/api/social.php?action=callback          ← produção
 
 > Falta isso e o login é recusado com **"URL bloqueada"** (*URL Blocked*).
 
+No layout **(c)** a mesma tela (**Client OAuth Settings**) tem mais dois toggles:
+
+- **"Forçar HTTPS" → `Não`** enquanto o painel roda em `http://localhost` — com ele ligado o Meta
+  exige URI `https://` e recusa a sua.
+- **"Usar modo estrito para URIs de redirecionamento"** pode ficar **`Sim`**: ele exige match
+  exato, e a sua URI bate caractere por caractere.
+- O **"Validador da URI"** no topo é só uma ferramenta de teste (o X vermelho sobre o exemplo
+  `https://example.com/oauth.php` não é erro da sua configuração).
+
 ## Passo 4 — App ID, App Secret e dados do app
 
 1. Menu lateral → **Settings → Basic**.
@@ -154,6 +163,7 @@ o criador do app é admin dele, então funciona **antes** da App Review.
 |---|---|---|
 | `Invalid Scopes: pages_manage_posts` (ou `instagram_*`) | Permissão sem "Ready for testing", ou app tipo Consumer | Passo 2 (Use Cases) e/ou trocar tipo para "Something else" |
 | `URL bloqueada` (URL Blocked) | Redirect URI não cadastrado | Passo 3 (os 3 locais + atalho da URL) |
+| URI já cadastrada, mas o redirect ainda é recusado | "Forçar HTTPS" ligado (exige `https://`, o localhost é `http://`) | Mesma tela → **"Forçar HTTPS" = Não** |
 | `Missing client_id parameter` | Parâmetros da troca de token não chegando ao Meta (versão antiga da plataforma enviava GET no corpo) — ou `META_APP_ID` vazio | Atualize a plataforma (corrigido) e confira `META_APP_ID`/`META_APP_SECRET` no `.env` + `--force-recreate` |
 | "o domínio não está incluído nos domínios do app" | Save de Settings ignorado (Categoria/Privacy vazios) | Passo 4 → preencher tudo e **Save Changes** |
 | Login abre e volta pedindo de novo (loop de consentimento) | Consentimento antigo revogado/resetado | <https://www.facebook.com/settings?tab=applications> → remova o app e repita o login |
