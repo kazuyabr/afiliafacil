@@ -9,6 +9,7 @@ $theme = $_SESSION['theme'] ?? 'light';
 $user = Auth::user();
 $plan = (string)$user['plan'];
 $hasFeature = Plans::hasFeature($plan, 'social');
+$isAdmin = Auth::isAdmin();
 $oauthMsg = null;
 if (isset($_GET['oauth'])) {
     $oauthMsg = $_GET['oauth'] === 'ok'
@@ -58,6 +59,8 @@ if (isset($_GET['oauth'])) {
         .sec-title { display:flex; justify-content:space-between; align-items:center; margin:26px 0 12px; gap:12px; flex-wrap:wrap; }
         .sec-title h2 { margin:0; font-size:1.1rem; }
         .empty { text-align:center; padding:26px; color:var(--text-secondary); font-size:.88rem; }
+        details.guide > summary { cursor:pointer; list-style:none; }
+        details.guide > summary::-webkit-details-marker { display:none; }
     </style>
 </head>
 <body>
@@ -87,6 +90,26 @@ if (isset($_GET['oauth'])) {
                     <i class="fas fa-lock"></i> Seu plano não inclui publicações sociais.
                     <a href="/admin/plan.php">Fazer upgrade</a> para liberar conexões e publicações.
                 </div>
+
+                <?php if ($isAdmin): ?>
+                <details class="card guide" id="ownerGuideCard" style="margin-bottom:6px;">
+                    <summary style="padding:14px 18px;font-weight:600;font-size:.9rem;">
+                        <i class="fas fa-graduation-cap" style="color:var(--accent,#0b5ed7);"></i>
+                        Guia do dono — configurar o app Meta uma vez (só você vê — o cliente nunca vê nada disto)
+                    </summary>
+                    <div class="card-body" style="border-top:1px solid var(--border,#ddd);">
+                        <p class="conn-hint" style="margin-top:0;">As credenciais ficam no <code>.env</code> da plataforma (<code>META_APP_ID</code> / <code>META_APP_SECRET</code>) — o cliente só clica <b>Conectar</b>. Guia completo e mais detalhado: <code>docs/guia-meta.md</code> no repositório.</p>
+                        <ol class="conn-steps">
+                            <li><b>Criar o app:</b> <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a> → <b>Criar app</b> → caso de uso <b>"Manage everything on your Page"</b> (Gerenciar tudo da sua Página) e, se perguntar o tipo, <b>Something else</b> — nunca Consumer (bloqueia os escopos <code>pages_*</code> com "Invalid Scopes").</li>
+                            <li><b>Permissões:</b> menu lateral <b>Use Cases</b> → no caso de uso → <b>Customize</b> → <b>Permissions and features</b> → garanta <b>"Ready for testing"</b> em <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>instagram_basic</code> e <code>instagram_content_publish</code> (adicione via <b>Actions</b> se aparecer outro status) + produto <b>Instagram Graph API</b>.</li>
+                            <li><b>Redirect URI:</b> cadastre <code>http://localhost:9876/admin/api/social.php?action=callback</code> em <b>Valid OAuth Redirect URIs</b> — o campo fica em UM destes lugares: <b>Use Cases → Customize → Settings</b> (apps por use case <b>não têm "Add Product"</b>) · <b>Facebook Login for Business → Settings</b> · <b>Add Product → Facebook Login → Settings</b> (layout antigo). Atalho: <code>developers.facebook.com/apps/SEU_APP_ID/fb-login/settings/</code>.</li>
+                            <li><b>Credenciais:</b> <b>Settings → Basic</b> → copie o <b>App ID</b> e o <b>App Secret</b> (botão Mostrar) + preencha <b>App Domains</b>=<code>localhost</code>, <b>Site URL</b>=<code>http://localhost:9876</code>, <b>Categoria</b> e <b>Privacy Policy URL</b>=<code>http://localhost:9876/privacidade</code> → <b>Save Changes</b> (sem Categoria/Privacy o save é ignorado).</li>
+                            <li><b>.env:</b> cole como <code>META_APP_ID=...</code> e <code>META_APP_SECRET=...</code> e <b>recrie o container</b>: <code>docker-compose up -d --force-recreate</code> — um simples restart não recarrega o .env.</li>
+                            <li><b>Modo Development</b> só conecta contas com papel no app (você, quem criou) — clientes em geral só após o app <b>Live + App Review</b> (próximo épico). Teste agora clicando em <b>Conectar</b> numa rede.</li>
+                        </ol>
+                    </div>
+                </details>
+                <?php endif; ?>
 
                 <div class="sec-title">
                     <h2>Contas conectadas</h2>
@@ -163,18 +186,33 @@ if (isset($_GET['oauth'])) {
                     <p id="connNetDesc" style="margin:0;font-size:.85rem;color:var(--text-secondary);"></p>
                 </div>
 
+                <?php if ($isAdmin): ?>
                 <div class="conn-step">
                     <div class="conn-step-h"><span class="conn-step-n">1</span> Pré-requisitos (1 vez nesta rede)</div>
                     <ol class="conn-steps" id="connSteps"></ol>
                 </div>
+                <?php endif; ?>
 
                 <div class="conn-step">
-                    <div class="conn-step-h"><span class="conn-step-n">2</span> Conectar</div>
+                    <div class="conn-step-h"><span class="conn-step-n"><?= $isAdmin ? '2' : '1' ?></span> Conectar</div>
 
                     <div class="conn-method">
-                        <details id="connCredsBox" open style="margin-top:0;">
-                            <summary style="cursor:pointer;font-size:.84rem;font-weight:600;">
-                                <i class="fas fa-key"></i> <b>Seu app da rede (recomendado)</b> — App ID + Secret
+                        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+                            <div>
+                                <b style="font-size:.88rem;">Entrar com login da rede</b>
+                                <div class="conn-hint" id="connOAuthHint"></div>
+                            </div>
+                            <button class="btn btn-sm btn-primary" id="connOAuthBtn" onclick="startOAuth()">
+                                <i class="fas fa-arrow-right-from-bracket"></i> <span id="connOAuthLabel">Entrar</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <?php if ($isAdmin): ?>
+                    <div class="conn-method">
+                        <details id="connCredsBox" style="margin-top:0;">
+                            <summary style="cursor:pointer;font-size:.84rem;font-weight:600;list-style:none;">
+                                <i class="fas fa-key"></i> <b>Configuração avançada (só admin)</b> — usar meu próprio app (App ID + Secret)
                             </summary>
                             <div class="conn-hint" id="connCredsHelp" style="margin:6px 0;"></div>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
@@ -190,18 +228,6 @@ if (isset($_GET['oauth'])) {
                     </div>
 
                     <div class="conn-method">
-                        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
-                            <div>
-                                <b style="font-size:.88rem;">Login oficial da rede</b>
-                                <div class="conn-hint" id="connOAuthHint"></div>
-                            </div>
-                            <button class="btn btn-sm btn-primary" id="connOAuthBtn" onclick="startOAuth()">
-                                <i class="fas fa-arrow-right-from-bracket"></i> <span id="connOAuthLabel">Entrar</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="conn-method">
                         <b style="font-size:.88rem;">…ou cole um token manual</b>
                         <div class="conn-hint" id="connTokenHint"></div>
                         <div style="display:flex;gap:8px;margin-top:8px;">
@@ -209,6 +235,7 @@ if (isset($_GET['oauth'])) {
                             <button class="btn btn-sm btn-primary" id="connTokenBtn" onclick="saveManualToken()">Validar e conectar</button>
                         </div>
                     </div>
+                    <?php endif; ?>
                 </div>
 
                 <div id="connMsg" style="margin-top:12px;font-size:.83rem;"></div>
@@ -219,6 +246,7 @@ if (isset($_GET['oauth'])) {
     <script src="/assets/js/app.js"></script>
     <script>
     const HAS_FEATURE = <?= $hasFeature ? 'true' : 'false' ?>;
+    const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
     const API = '/admin/api/social.php';
     const FLOWS_API = '/admin/api/flows.php';
     const TRIG_PT = { schedule: 'Horário fixo', post_published: 'Após publicar post', manual: 'manual' };
@@ -314,7 +342,7 @@ if (isset($_GET['oauth'])) {
                                    </div>`)
                             : `<div class="net-actions">
                                  <button class="btn btn-sm btn-primary" onclick="openConnModal('${n}')"><i class="fas fa-plug"></i> Conectar</button>
-                                 <span class="conn-hint">${m.oauth_configured ? (m.oauth_source === 'user' ? 'login com seu app' : 'conexão rápida disponível') : 'crie seu app no guia + token'}</span>
+                                 <span class="conn-hint">${m.oauth_configured ? (IS_ADMIN ? (m.oauth_source === 'user' ? 'app próprio salvo' : 'app da plataforma (.env)') : '') : (IS_ADMIN ? 'configure o app (guia do dono)' : 'contate o suporte')}</span>
                                </div>`}
                     </div>
                 </div>`;
@@ -328,8 +356,10 @@ if (isset($_GET['oauth'])) {
     const PAGE_HOST = <?= json_encode($_SERVER['HTTP_HOST'] ?? 'SEU-DOMINIO') ?>;
     let CONN_NET = null;
 
+    <?php if ($isAdmin): ?>
     // Jornadas verificadas por rede (pesquisa 2026): pré-requisitos
     // encadeados, links oficiais e armadilhas reais antes de gerar o token.
+    // Só admin: o cliente vê apenas o botão Conectar (nada de guias no HTML dele).
     const GUIDES = {
         facebook: {
             title: 'Facebook (Página)',
@@ -397,6 +427,9 @@ if (isset($_GET['oauth'])) {
             creds: 'Client Key + Client Secret do seu app (developers.tiktok.com → app).'
         }
     };
+    <?php else: ?>
+    const GUIDES = {};
+    <?php endif; ?>
 
     // Resultado do OAuth: popup entrega via postMessage ao opener; mesmo fluxo
     // (aba original/popup bloqueado) mostra toast + recarrega conexões.
@@ -433,23 +466,22 @@ if (isset($_GET['oauth'])) {
         CONN_NET = n;
         const g = GUIDES[n] || { title: m.name, steps: [], token: 'Cole o token de acesso.', creds: '' };
 
-        document.getElementById('connTitle').textContent = 'Conectar — ' + (g.title || m.name);
-        document.getElementById('connNetIcon').innerHTML = '<i class="' + m.icon + '"></i>';
-        document.getElementById('connNetIcon').style.background = m.color + '1f';
-        document.getElementById('connNetIcon').style.color = m.color;
-        document.getElementById('connNetDesc').textContent = m.desc || '';
-        document.getElementById('connSteps').innerHTML = (g.steps || []).map(s => '<li>' + s + '</li>').join('');
-        document.querySelectorAll('#connModal .conn-uri').forEach(el => { el.textContent = REDIRECT_URI; });
-        document.getElementById('connTokenHint').textContent = g.token || '';
-        document.getElementById('connCredsHelp').textContent = g.creds || '';
-        document.getElementById('connToken').value = '';
-        document.getElementById('connAppSecret').value = '';
-        document.getElementById('connMsg').innerHTML = '';
-        document.getElementById('connCredsMsg').textContent = '';
-        const credsBox = document.getElementById('connCredsBox');
-        if (credsBox) credsBox.open = true;
-        document.getElementById('connAppId').value = m.app_id || '';
-        document.getElementById('connCredsDelBtn').style.display = m.oauth_source === 'user' ? '' : 'none';
+        const el = id => document.getElementById(id);
+        el('connTitle').textContent = 'Conectar — ' + (g.title || m.name);
+        el('connNetIcon').innerHTML = '<i class="' + m.icon + '"></i>';
+        el('connNetIcon').style.background = m.color + '1f';
+        el('connNetIcon').style.color = m.color;
+        el('connNetDesc').textContent = m.desc || '';
+        if (el('connSteps')) el('connSteps').innerHTML = (g.steps || []).map(s => '<li>' + s + '</li>').join('');
+        document.querySelectorAll('#connModal .conn-uri').forEach(x => { x.textContent = REDIRECT_URI; });
+        if (el('connTokenHint')) el('connTokenHint').textContent = g.token || '';
+        if (el('connCredsHelp')) el('connCredsHelp').textContent = g.creds || '';
+        if (el('connToken')) el('connToken').value = '';
+        if (el('connAppSecret')) el('connAppSecret').value = '';
+        el('connMsg').innerHTML = '';
+        if (el('connCredsMsg')) el('connCredsMsg').textContent = '';
+        if (el('connAppId')) el('connAppId').value = m.app_id || '';
+        if (el('connCredsDelBtn')) el('connCredsDelBtn').style.display = m.oauth_source === 'user' ? '' : 'none';
         updateConnOAuthState();
         document.getElementById('connModal').classList.add('active');
     }
@@ -458,16 +490,23 @@ if (isset($_GET['oauth'])) {
         const m = STATE.networks[CONN_NET] || {};
         document.getElementById('connOAuthLabel').textContent = 'Entrar com ' + (m.name || '');
         const hint = document.getElementById('connOAuthHint');
+        if (!IS_ADMIN) {
+            hint.innerHTML = m.oauth_configured
+                ? '<i class="fas fa-check" style="color:#28a745;"></i> Clique em <b>Entrar</b> e faça login com sua conta da rede — é só isso, nada para configurar.'
+                : '<i class="fas fa-circle-info"></i> Conexão não habilitada nesta plataforma — contate o suporte.';
+            return;
+        }
         hint.innerHTML = m.oauth_configured
             ? (m.oauth_source === 'user'
-                ? '<i class="fas fa-check" style="color:#28a745;"></i> Usa o app que você salvou acima — clique em <b>Entrar</b> e faça login na rede.'
-                : '<i class="fas fa-check" style="color:#28a745;"></i> Alternativa: conexão rápida da plataforma — clique em <b>Entrar</b> e faça login com usuário/senha da rede (como um SSO).')
-            : '<i class="fas fa-circle-info"></i> Conexão rápida não habilitada — salve o App ID e o App Secret do seu app acima.';
+                ? '<i class="fas fa-check" style="color:#28a745;"></i> Usa o app salvo na Configuração avançada — clique em <b>Entrar</b>.'
+                : '<i class="fas fa-check" style="color:#28a745;"></i> App da plataforma (.env) — clique em <b>Entrar</b> e faça login com usuário/senha da rede (como um SSO).')
+            : '<i class="fas fa-circle-info"></i> Sem credenciais — salve App ID/Secret na Configuração avançada abaixo ou preencha o <code>.env</code> da plataforma (veja o guia do dono).';
     }
 
-    // Sem credenciais: em vez de um botão morto, o clique no Entrar abre a
-    // seção de credenciais do app e foca o App ID — caminho guiado até o login.
+    // Sem credenciais (só admin): em vez de um botão morto, o clique no Entrar
+    // abre a Configuração avançada e foca o App ID — caminho guiado até o login.
     function promptAppCreds() {
+        if (!IS_ADMIN) return;
         const box = document.getElementById('connCredsBox');
         if (box) box.open = true;
         const appId = document.getElementById('connAppId');
@@ -494,8 +533,12 @@ if (isset($_GET['oauth'])) {
         }
         if (!j.url) {
             if (j.error === 'oauth_not_configured') promptAppCreds();
-            msg.innerHTML = '<span style="color:#dc3545;">' + esc(j.error === 'oauth_not_configured'
-                ? 'Sem credenciais — salve o App ID e o App Secret do seu app acima (guia do passo 1).' : (j.error || 'Não foi possível iniciar.')) + '</span>';
+            const notCfg = j.error === 'oauth_not_configured';
+            msg.innerHTML = '<span style="color:#dc3545;">' + esc(notCfg
+                ? (IS_ADMIN
+                    ? 'Sem credenciais — salve o App ID e o App Secret na Configuração avançada abaixo, ou preencha o .env da plataforma (guia do dono).'
+                    : 'Conexão não habilitada nesta plataforma — contate o suporte.')
+                : (j.error || 'Não foi possível iniciar.')) + '</span>';
             return;
         }
         try { localStorage.setItem('af_oauth_popup', '1'); } catch (e) {}

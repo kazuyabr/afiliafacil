@@ -678,19 +678,21 @@ ok('guias Meta/Instagram incluem cadastro do Redirect URI (3 locais do dashboard
     str_contains($ui, 'Valid OAuth Redirect URIs') && str_contains($ui, 'URL bloqueada')
     && str_contains($ui, 'Facebook Login for Business') && str_contains($ui, 'Add Product')
     && str_contains($ui, 'fb-login/settings/'));
-ok('modal: app do cliente como caminho principal + SSO como alternativa',
-    str_contains($ui, 'Seu app da rede (recomendado)')
-    && str_contains($ui, 'Alternativa: conexão rápida da plataforma')
+ok('modal (admin): avanco escondido de clientes + guia do dono + SSO do .env',
+    str_contains($ui, 'Configuração avançada (só admin)')
     && str_contains($ui, 'como um SSO')
-    && str_contains($ui, 'Conexão rápida não habilitada')
-    && !str_contains($ui, 'Avançado — usar meu próprio app'));
+    && str_contains($ui, 'App da plataforma (.env)')
+    && str_contains($ui, 'Guia do dono')
+    && str_contains($ui, '<span class="conn-step-n">2</span> Conectar')
+    && !str_contains($ui, 'Seu app da rede (recomendado)')
+    && !str_contains($ui, 'Conexão rápida não habilitada'));
 ok('guias avisam Development x Live + App Review para clientes',
     str_contains($ui, 'App Review'));
 ok('guias cobrem Invalid Scopes, Use Cases e App Domains (dashboard 2026)',
     str_contains($ui, 'Invalid Scopes') && str_contains($ui, 'Use Cases')
     && str_contains($ui, 'Ready for testing') && str_contains($ui, 'App Domains')
     && str_contains($ui, 'Something else') && !str_contains($ui, 'tipo Consumer'));
-ok('guia orienta o cliente a criar o proprio app (uma unica vez, sem App Review)',
+ok('guia do dono orienta a criar o proprio app (uma unica vez, sem App Review)',
     str_contains($ui, 'criar seu próprio app') && str_contains($ui, 'uma única vez')
     && str_contains($ui, 'testers') && str_contains($ui, 'sem App Review'));
 ok('guia Instagram inclui instagram_basic (dependencia do publish)',
@@ -698,6 +700,31 @@ ok('guia Instagram inclui instagram_basic (dependencia do publish)',
 ok('card expirado/erro oferece Reconectar + Desconectar (conexao nunca fica orfa)',
     str_contains($ui, 'Reconectar') && str_contains($ui, 'token expirado')
     && str_contains($ui, 'conexão com erro'));
+
+// --- visão do cliente: SÓ o botão Conectar (sem guia, IDs, tokens ou .env) ---
+$jarT = sys_get_temp_dir() . '/social-test-trial.cookie';
+@unlink($jarT);
+$http('POST', $BASE . '/login', ['email' => 'demo.trial@afiliafacil.com', 'password' => 'Trial.Demo@2026'], $jarT);
+$r = $http('GET', $BASE . '/admin/integrations.php', null, $jarT);
+$uiT = (string)$r['body'];
+ok('cliente: so o botao Conectar (GUIES={}, sem guia/IDs/redirect/token no HTML)',
+    $r['status'] === 200
+    && str_contains($uiT, 'openConnModal(') && str_contains($uiT, 'connOAuthBtn')
+    && str_contains($uiT, 'const GUIDES = {}')
+    && str_contains($uiT, '<span class="conn-step-n">1</span> Conectar')
+    && !str_contains($uiT, 'id="connCredsBox"') && !str_contains($uiT, 'id="connAppId"')
+    && !str_contains($uiT, 'id="connToken"') && !str_contains($uiT, 'Pré-requisitos')
+    && !str_contains($uiT, 'Valid OAuth Redirect URIs') && !str_contains($uiT, 'Guia do dono')
+    && !str_contains($uiT, 'fb-login/settings/'),
+    'status=' . $r['status']);
+@unlink($jarT);
+
+// --- guia didático do dono no repo (Meta 2026) ---
+$guide = @file_get_contents(__DIR__ . '/../../docs/guia-meta.md');
+ok('docs/guia-meta.md existe e cobre .env + menus do dashboard 2026',
+    is_string($guide) && str_contains($guide, 'META_APP_ID')
+    && str_contains($guide, 'Valid OAuth Redirect URIs') && str_contains($guide, 'Use Cases')
+    && str_contains($guide, 'force-recreate'));
 
 $r = $http('GET', $BASE . '/assets/css/app.css', null, $jar);
 ok('app.css estiliza botões disabled (estado óbvio)', $r['status'] === 200
