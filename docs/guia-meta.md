@@ -81,8 +81,10 @@ https://seusite.com/admin/api/social.php?action=callback          ← produção
 
 No layout **(c)** a mesma tela (**Client OAuth Settings**) tem mais dois toggles:
 
-- **"Forçar HTTPS" → `Não`** enquanto o painel roda em `http://localhost` — com ele ligado o Meta
-  exige URI `https://` e recusa a sua.
+- **"Forçar HTTPS" fica travado em `Sim`** — é regra da Meta desde 2018 e **não dá para
+  desmarcar** (nem precisa): em **modo Development** o redirect `http://localhost` é aceito
+  automaticamente (é o que o tooltip do próprio campo diz). Ou seja: **mantenha o app não
+  publicado** durante os testes locais; em produção o painel roda em `https://` e tudo bate.
 - **"Usar modo estrito para URIs de redirecionamento"** pode ficar **`Sim`**: ele exige match
   exato, e a sua URI bate caractere por caractere.
 - O **"Validador da URI"** no topo é só uma ferramenta de teste (o X vermelho sobre o exemplo
@@ -163,7 +165,7 @@ o criador do app é admin dele, então funciona **antes** da App Review.
 |---|---|---|
 | `Invalid Scopes: pages_manage_posts` (ou `instagram_*`) | Permissão sem "Ready for testing", ou app tipo Consumer | Passo 2 (Use Cases) e/ou trocar tipo para "Something else" |
 | `URL bloqueada` (URL Blocked) | Redirect URI não cadastrado | Passo 3 (os 3 locais + atalho da URL) |
-| URI já cadastrada, mas o redirect ainda é recusado | "Forçar HTTPS" ligado (exige `https://`, o localhost é `http://`) | Mesma tela → **"Forçar HTTPS" = Não** |
+| Redirect `http://localhost` recusado | App **publicado** (Live) — `http://localhost` só é aceito em Development | Deixe o app **não publicado** durante os testes locais (o toggle "Forçar HTTPS" fica travado em Sim, mas em Development o localhost é aceito mesmo assim) |
 | `Missing client_id parameter` | Parâmetros da troca de token não chegando ao Meta (versão antiga da plataforma enviava GET no corpo) — ou `META_APP_ID` vazio | Atualize a plataforma (corrigido) e confira `META_APP_ID`/`META_APP_SECRET` no `.env` + `--force-recreate` |
 | "o domínio não está incluído nos domínios do app" | Save de Settings ignorado (Categoria/Privacy vazios) | Passo 4 → preencher tudo e **Save Changes** |
 | Login abre e volta pedindo de novo (loop de consentimento) | Consentimento antigo revogado/resetado | <https://www.facebook.com/settings?tab=applications> → remova o app e repita o login |
