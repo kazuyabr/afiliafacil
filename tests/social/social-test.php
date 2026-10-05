@@ -708,6 +708,10 @@ ok('guia Instagram inclui instagram_basic (dependencia do publish)',
 ok('card expirado/erro oferece Reconectar + Desconectar (conexao nunca fica orfa)',
     str_contains($ui, 'Reconectar') && str_contains($ui, 'token expirado')
     && str_contains($ui, 'conexão com erro'));
+ok('admin: Conectar vai DIRETO pro popup quando ha credencial (modal so se faltar)',
+    str_contains($ui, 'if (!IS_ADMIN || m.oauth_configured) { startOAuth(); return; }')
+    && str_contains($ui, 'STATE.networks[n].oauth_configured = false;')
+    && str_contains($ui, "modal.classList.contains('active')"));
 
 // --- visão do cliente: SÓ o botão Conectar (sem guia, IDs, tokens ou .env) ---
 $jarT = sys_get_temp_dir() . '/social-test-trial.cookie';

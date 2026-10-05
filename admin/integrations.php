@@ -466,9 +466,11 @@ if (isset($_GET['oauth'])) {
         const c = (STATE.connections || []).find(x => x.network === n);
         if (c && c.status === 'connected') return;
         CONN_NET = n;
-        // Cliente: sem modal — o clique vai DIRETO para o login da mídia
-        // (o próprio popup da Meta mostra qual app está pedindo a conta).
-        if (!IS_ADMIN) { startOAuth(); return; }
+        // Clique feliz (credencial ok) → DIRETO para o login da mídia, admin e cliente
+        // (igual às outras plataformas; o próprio popup da Meta mostra qual app pede a conta).
+        // O modal só abre quando FALTA credencial (Configuração avançada + guia) —
+        // o passo a passo completo vive no card de guia desta tela e em docs/guia-meta.md.
+        if (!IS_ADMIN || m.oauth_configured) { startOAuth(); return; }
         const g = GUIDES[n] || { title: m.name, steps: [], token: 'Cole o token de acesso.', creds: '' };
 
         const el = id => document.getElementById(id);
@@ -524,9 +526,12 @@ if (isset($_GET['oauth'])) {
         CONN_NET = null;
     }
 
-    // Feedback do OAuth: admin vê dentro do modal; cliente (sem modal) leva toast.
+    // Feedback do OAuth: dentro do modal quando ele está aberto; caso contrário toast
+    // (caminho feliz do admin e do cliente não passam pelo modal).
     function connSay(html, text, kind) {
-        const msg = document.getElementById('connMsg');
+        const modal = document.getElementById('connModal');
+        const inside = modal && modal.classList.contains('active');
+        const msg = inside ? document.getElementById('connMsg') : null;
         if (msg) { msg.innerHTML = html; return; }
         try { showToast(text, kind || 'info'); } catch (e) {}
     }
@@ -544,8 +549,17 @@ if (isset($_GET['oauth'])) {
             if (btn) btn.disabled = false;
         }
         if (!j.url) {
-            if (j.error === 'oauth_not_configured') promptAppCreds();
             const notCfg = j.error === 'oauth_not_configured';
+            if (notCfg && IS_ADMIN) {
+                const modal = document.getElementById('connModal');
+                const active = modal && modal.classList.contains('active');
+                if (!active && STATE.networks[n]) {
+                    // credencial caiu depois do load → abre o modal direto na Configuração avançada
+                    STATE.networks[n].oauth_configured = false;
+                    openConnModal(n);
+                }
+                promptAppCreds();
+            }
             const text = notCfg
                 ? (IS_ADMIN
                     ? 'Sem credenciais — salve o App ID e o App Secret na Configuração avançada abaixo, ou preencha o .env da plataforma (guia do dono).'
@@ -663,7 +677,13 @@ if (isset($_GET['oauth'])) {
         if (j.ok || j.success) {
             m.textContent = 'Credenciais removidas.';
             await loadConnections();
-            if (CONN_NET) openConnModal(CONN_NET);
+            // re-render leve do modal — openConnModal agora iria DIRETO ao OAuth
+            // (fallback .env configurado) e apagaria esta mensagem
+            updateConnOAuthState();
+            const delBtn = document.getElementById('connCredsDelBtn');
+            if (delBtn) delBtn.style.display = 'none';
+            const appIdEl = document.getElementById('connAppId');
+            if (appIdEl) appIdEl.value = '';
         } else {
             m.textContent = j.error || 'Falha ao remover.';
         }

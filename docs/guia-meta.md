@@ -127,9 +127,11 @@ docker-compose up -d --force-recreate
 
 ## Passo 6 — Testar
 
-1. Painel → **Integrações** → em qualquer rede, clique em **Conectar** (você, admin, vê os
-   passos do guia + a Configuração avançada; o cliente vê só o botão).
-2. Clique em **Entrar** → janela oficial do Facebook → faça login → **Continuar**.
+1. Painel → **Integrações** → em qualquer rede, clique em **Conectar** → a janela oficial do
+   Facebook abre **direto** (o mesmo fluxo do cliente, sem etapa intermediária). O modal com os
+   pré-requisitos + **Configuração avançada** só aparece se faltar credencial — o guia completo
+   está no card **Guia do dono** nesta mesma tela.
+2. Faça login → **Continuar**.
 3. Pronto: a conta aparece conectada e já dá para publicar em **Criar → Publicações**.
 
 ### Quem pode conectar em modo Development?
