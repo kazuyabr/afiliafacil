@@ -99,7 +99,9 @@ No layout **(c)** a mesma tela (**Client OAuth Settings**) tem mais dois toggles
    (troque `SEU_APP_ID`).
 2. Copie o **App ID** e o **App Secret** (botão **Mostrar** ao lado do secret).
 3. Preencha também:
-   - **App Domains**: `localhost` (e o domínio de produção, quando existir)
+   - **App Domains**: **deixe vazio em desenvolvimento** — o campo exige domínio com TLD
+     (`.com`, `.org`) e **`localhost` não é aceito** (aparece erro vermelho). Ele **não afeta**
+     o login nem o redirect; preencha só quando tiver o domínio de produção (ex.: `seudominio.com`).
    - **Site URL**: `http://localhost:9876` — se não achar o campo, clique em
      **Add Platform** / **Adicionar plataforma** (fim da página) → **Website** e cadastre lá
    - **Categoria**: qualquer uma (ex.: *Business and pages*)
