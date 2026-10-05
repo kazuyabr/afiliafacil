@@ -109,6 +109,11 @@ No layout **(c)** a mesma tela (**Client OAuth Settings**) tem mais dois toggles
 4. Clique em **Save Changes**.
    - ⚠️ Sem **Categoria** e **Privacy Policy** o Meta **ignora o save em silêncio** e depois o
      login falha com *"o domínio não está incluído nos domínios do app"*.
+   - ⚠️ Se algum campo de URL **rejeitar `localhost`** (erro de "URL inválida"), **deixe esse
+     campo vazio** — nada ali é exigido para o login em Development (o redirect é validado
+     pela lista *Valid OAuth Redirect URIs*). Para preencher tudo com um endereço que o Meta
+     aceita, use o túnel: `bin/homol.ps1` → `https://….trycloudflare.com` (HTTPS real — e
+     cadastre também o redirect URI desse endereço no Passo 3).
 
 ## Passo 5 — Colar no `.env` e recriar o container
 
