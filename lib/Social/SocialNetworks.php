@@ -25,7 +25,7 @@ class SocialNetworks
                 'name' => 'Instagram',
                 'icon' => 'fab fa-instagram',
                 'color' => '#E1306C',
-                'desc' => 'Publica no feed — exige conta profissional ligada a uma Página do Facebook.',
+                'desc' => 'Publica no feed — a conexão usa o login do Facebook (conta profissional ligada a uma Página).',
                 'media' => 'image',
                 'media_required' => true,
                 'max_len' => 2200,

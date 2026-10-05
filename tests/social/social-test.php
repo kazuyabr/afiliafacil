@@ -210,6 +210,8 @@ $meta = SocialNetworks::meta();
 ok('5 redes no catálogo', count($meta) === 5 && array_keys($meta) === SocialNetworks::ALL);
 ok('label facebook = Facebook', SocialNetworks::label('facebook') === 'Facebook');
 ok('instagram exige mídia', $meta['instagram']['media_required'] === true);
+ok('instagram: card avisa que a conexao usa o login do Facebook',
+    stripos($meta['instagram']['desc'], 'login do Facebook') !== false);
 ok('tiktok é vídeo + beta', $meta['tiktok']['media'] === 'video' && $meta['tiktok']['beta'] === true);
 ok('custo X com link = 0.20', SocialNetworks::xCost('veja https://oferta.com') === 0.20);
 ok('custo X sem link = 0.015', SocialNetworks::xCost('só texto') === 0.015);

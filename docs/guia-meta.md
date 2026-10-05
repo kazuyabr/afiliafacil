@@ -132,6 +132,9 @@ docker-compose up -d --force-recreate
    pré-requisitos + **Configuração avançada** só aparece se faltar credencial — o guia completo
    está no card **Guia do dono** nesta mesma tela.
 2. Faça login → **Continuar**.
+   - **Instagram**: o popup é o do **Facebook mesmo** (é assim que a API do IG funciona —
+     o login autentica pelo Facebook e a sua conta profissional vem da Página ligada a ela).
+     Depois de conectar, a conta que aparece é a do Instagram.
 3. Pronto: a conta aparece conectada e já dá para publicar em **Criar → Publicações**.
 
 ### Quem pode conectar em modo Development?
