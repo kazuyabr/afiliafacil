@@ -63,18 +63,18 @@ try {
     exit(1);
 }
 
+try {
+    createAppRole();
+} catch (Throwable $e) {
+    echo "[migrate] ERRO role app: " . $e->getMessage() . "\n";
+    exit(1);
+}
+
 require_once __DIR__ . '/../lib/ImportJsonData.php';
 try {
     ImportJsonData::run();
 } catch (Throwable $e) {
     echo "[migrate] ERRO import: " . $e->getMessage() . "\n";
-    exit(1);
-}
-
-try {
-    createAppRole();
-} catch (Throwable $e) {
-    echo "[migrate] ERRO role app: " . $e->getMessage() . "\n";
     exit(1);
 }
 

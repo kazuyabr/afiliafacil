@@ -55,6 +55,20 @@ $results[] = stage('G1 lint php -l', static function (): int {
 });
 
 // ---------------------------------------------------- G2: suites PHP + smoke
+$results[] = stage('G2 ambiente (migrate+seed)', static function (): int {
+    $code = 0;
+    passthru('php bin/migrate.php', $code);
+    if ($code !== 0) {
+        return $code;
+    }
+    passthru('php bin/seed-demo.php', $code);
+    if ($code !== 0) {
+        return $code;
+    }
+    passthru('php bin/check-seed.php', $code);
+    return $code;
+});
+
 $suites = [
     ['G2 smoke', 'php bin/smoke.php'],
     ['G2 suite social', 'php tests/social/social-test.php'],

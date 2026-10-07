@@ -34,6 +34,10 @@ jobs:
       - name: G1+G2 - lint + suites + smoke (container)
         run: docker exec afiliafacil php bin/quality-gate.php
 
+      - name: Logs do stack (diagnostico em falha)
+        if: failure()
+        run: docker compose logs --tail 300
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22

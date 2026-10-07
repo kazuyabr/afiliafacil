@@ -237,6 +237,7 @@ function demo_create(): void
         $offer->save();
 
         $base = time() - count($ds['metrics']) * 86400;
+        \AfiliaFacil\Models\OfferMetric::where('offer_id', $offer->id)->delete();
         foreach ($ds['metrics'] as $i => $value) {
             \AfiliaFacil\Models\OfferMetric::create([
                 'offer_id' => $offer->id,

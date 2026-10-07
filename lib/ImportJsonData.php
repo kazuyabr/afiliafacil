@@ -18,11 +18,15 @@ class ImportJsonData
 
     public static function run(): void
     {
-        if (!Database::available()) return;
+        if (!Database::available()) {
+            echo "[import] AVISO: banco indisponivel para a role da app - seed de dados pulado\n";
+            return;
+        }
 
         self::seedRoles();
         self::seedPlans();
         self::importUsers();
+        self::ensureDefaultAdmin();
         self::importSettings();
         self::importPages();
         self::importPayments();
@@ -146,6 +150,32 @@ class ImportJsonData
                 'created_at' => $u['created_at'] ?? date('Y-m-d H:i:s'),
                 'updated_at' => $u['created_at'] ?? date('Y-m-d H:i:s'),
             ]);
+        }
+    }
+
+    public static function ensureDefaultAdmin(): void
+    {
+        try {
+            if (\AfiliaFacil\Models\User::query()->count() > 0) return;
+
+            $role = \AfiliaFacil\Models\Role::where('name', 'master')->first();
+            \AfiliaFacil\Models\User::create([
+                'id' => 1,
+                'name' => 'Administrador',
+                'email' => 'admin@afiliafacil.com',
+                'password' => password_hash('admin123', PASSWORD_DEFAULT),
+                'role_id' => $role->id ?? null,
+                'plan' => 'premium',
+                'trial_until' => null,
+                'active' => true,
+                'training_consent' => false,
+                'terms_accepted_at' => date('Y-m-d H:i:s'),
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+            echo "[import] admin padrao criado (instalacao nova)\n";
+        } catch (Throwable $e) {
+            echo "[import] ERRO admin padrao: " . $e->getMessage() . "\n";
         }
     }
 
