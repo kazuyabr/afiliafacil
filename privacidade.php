@@ -23,6 +23,7 @@ ob_start();
 </ul>
 
 <h2>2. Finalidades e bases legais</h2>
+<div class="table-wrapper">
 <table>
     <tr><th>Finalidade</th><th>Base legal (LGPD)</th></tr>
     <tr><td>Executar o serviço contratado (conta, ferramentas, suporte)</td><td>Execução de contrato (art. 7º, V)</td></tr>
@@ -31,6 +32,7 @@ ob_start();
     <tr><td>Comunicações sobre a conta e o serviço</td><td>Execução de contrato</td></tr>
     <tr><td>Atendimento a requisições de autoridades</td><td>Cumprimento de obrigação legal/regulatória (art. 7º, II)</td></tr>
 </table>
+</div>
 
 <h2>3. Dados sensíveis e moderação</h2>
 <p>Não solicitamos dados sensíveis (saúde, biometria, origem racial, convicções etc.). A plataforma aplica <strong>redação automática</strong> de informações pessoais identificáveis (CPF, CNPJ, telefone, e-mail, cartão, CEP) nos fluxos de IA e, no uso para treinamento, remove PII e dados de saúde.</p>

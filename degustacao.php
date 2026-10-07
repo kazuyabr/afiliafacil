@@ -36,6 +36,7 @@ ob_start();
 <p>O plano gratuito dura <strong><?= $trialDays ?> dias</strong> a partir da criação da conta. Ao final, os recursos de IA e de criação ficam bloqueados até a contratação de um plano pago (seus dados permanecem salvos).</p>
 
 <h2>2. Limites da degustação</h2>
+<div class="table-wrapper">
 <table>
     <tr>
         <th>Recurso</th>
@@ -52,6 +53,7 @@ ob_start();
     </tr>
     <?php endforeach; ?>
 </table>
+</div>
 <p style="font-size:.8rem;color:var(--text-secondary);">Valores vigentes na data desta página. Recursos e limites podem ser ajustados; a tabela atualizada está sempre em <a href="/#plans">Planos</a>.</p>
 
 <h2>3. O que NÃO está incluído na degustação</h2>

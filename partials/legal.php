@@ -44,6 +44,9 @@ $updatedAt = Settings::get('legal_updated_at', date('d/m/Y'));
         .legal-wrap p, .legal-wrap li { font-size: .9rem; line-height: 1.75; color: var(--text-primary); }
         .legal-wrap ul { padding-left: 22px; }
         .legal-wrap table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: 14px 0; }
+        /* tabela estreita demais para o viewport rola dentro do wrapper (G4) */
+        .legal-wrap .table-wrapper { margin: 14px 0; overflow-x: auto; }
+        .legal-wrap .table-wrapper table { margin: 0; }
         .legal-wrap th, .legal-wrap td { border: 1px solid var(--border-color); padding: 8px 10px; text-align: left; }
         .legal-wrap th { background: var(--bg-secondary); }
         .legal-footer { border-top: 1px solid var(--border-color); padding: 26px 24px; text-align: center; font-size: .82rem; color: var(--text-secondary); }

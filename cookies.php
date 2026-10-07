@@ -15,12 +15,14 @@ ob_start();
 <p>Cookies são pequenos arquivos armazenados no seu navegador que permitem reconhecer sua sessão e lembrar preferências. Também usamos armazenamento local (localStorage) para preferências de interface.</p>
 
 <h2>2. Cookies que utilizamos</h2>
+<div class="table-wrapper">
 <table>
     <tr><th>Nome/Tipo</th><th>Finalidade</th><th>Categoria</th><th>Duração</th></tr>
     <tr><td>PHPSESSID</td><td>Manter sua sessão autenticada</td><td>Estritamente necessário</td><td>Sessão</td></tr>
     <tr><td>localStorage (theme)</td><td>Lembrar tema claro/escuro e preferências do editor</td><td>Funcional</td><td>Persistente (navegador)</td></tr>
     <tr><td>localStorage (af_*)</td><td>Preferências de uso (ex.: filtros salvos)</td><td>Funcional</td><td>Persistente (navegador)</td></tr>
 </table>
+</div>
 <p>Não utilizamos cookies de publicidade nem rastreadores de terceiros para perfilamento.</p>
 
 <h2>3. Cookies de terceiros</h2>

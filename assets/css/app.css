@@ -76,6 +76,7 @@ a:hover { color: var(--accent-hover); }
 }
 .form-control {
     width: 100%;
+    max-width: 100%; /* select/input com width:auto nunca ultrapassa o pai (G4) */
     padding: 10px 14px;
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
@@ -222,6 +223,9 @@ a:hover { color: var(--accent-hover); }
     flex: 1;
     display: flex;
     flex-direction: column;
+    /* flex item do .layout: sem min-width:0 o min-content dos filhos
+       (tabelas, grids) estoura a página em telas estreitas (G4) */
+    min-width: 0;
 }
 .topbar {
     height: 64px;
@@ -291,13 +295,19 @@ a:hover { color: var(--accent-hover); }
     display: flex;
     align-items: center;
     justify-content: space-between;
+    /* quebra em várias linhas em telas estreitas (G4) em vez de estourar a página */
+    flex-wrap: wrap;
+    gap: 8px 12px;
 }
 .card-header h3 { font-size: 1rem; font-weight: 600; }
-.card-body { padding: 20px; }
+/* grupos (filtros, selects) dentro do header também quebram linha quando não cabem */
+.card-header > div { flex-wrap: wrap; }
+.card-body { padding: 20px; min-width: 0; }
 
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    /* min(220px,100%): em telas estreitas a coluna encolhe em vez de estourar o layout */
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
     gap: 16px;
     margin-bottom: 24px;
 }
@@ -326,6 +336,10 @@ a:hover { color: var(--accent-hover); }
 .stat-card .stat-label { font-size: .85rem; color: var(--text-secondary); margin-top: 4px; }
 
 .table-wrapper { overflow-x: auto; }
+/* tabelas dentro de cards nunca estouram a página: o card-body vira a área de rolagem */
+.card-body:has(table) { overflow-x: auto; }
+/* URIs/termos sem espaço (redirect do OAuth etc) precisam poder quebrar linha */
+code { overflow-wrap: anywhere; }
 .table {
     width: 100%;
     border-collapse: collapse;
@@ -500,5 +514,12 @@ a:hover { color: var(--accent-hover); }
     .main-content { margin-left: 0; }
     .login-left { display: none; }
     .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
-    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+    .page-content { padding: 16px; }
+    .topbar { padding: 0 16px; }
+    .stats-grid { grid-template-columns: 1fr; }
+    .stat-card { padding: 16px; }
 }
