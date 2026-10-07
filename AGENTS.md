@@ -9,6 +9,18 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 - **PostgreSQL 16** (container `afiliafacil-db`) — default; MySQL suportado via `DB_CONNECTION=mysql`. Sem banco configurado → fallback JSON em `data/` (compatibilidade)
 - Páginas geradas em `pages/` (HTML em arquivo, metadados no banco), uploads em `uploads/`
 
+## Ciclo de entrega (Definition of Done)
+
+Processo completo em **`docs/ciclo-entrega.md`** (gates S/I/T/Q/A). Regras duras:
+
+1. **Spec primeiro**: tarefa não-trivial sem spec completa (critérios de aceite testáveis) não começa — não implementar "depois a gente ajusta".
+2. **Visual atômico com backend**: UI só entrega junto com endpoint/contrato funcionando **na mesma entrega** (e vice-versa).
+3. **Responsividade**: toda tela nova/alterada passa em 360/768/1280 (estágio G4).
+4. **Testes verdes**: nenhum commit com suíte vermelha; bug exige teste "falha antes, passa depois".
+5. **Evidência > opinião**: afirmação sobre o sistema só com saída de comando/teste. **Sem invenção** de URLs, escopos, APIs ou comportamentos de terceiros — verificar na fonte ou perguntar.
+6. **Gate executável pré-commit**: `powershell -File bin\quality-gate.ps1` (full) — G0 sync working tree→container, G1 `php -l`, G2 suites+smoke, G3 JS servido, G4 responsividade+pageerror. `-Quick` é só para iteração interna (não serve para commit). **Sem gate verde não há entrega.**
+7. **Auditoria**: entrega não-trivial fecha com veredito do `supervisor` (APROVADO/RESSALVAS/REPROVADO, com evidência). CI (`.github/workflows/ci.yml`) re-executa o mesmo gate no push.
+
 ## Banco de dados (Eloquent + Phinx)
 
 - Config: `lib/Database.php` (env `DB_CONNECTION`/`DB_HOST`/... ou `DATABASE_URL`)
@@ -205,6 +217,7 @@ Plataforma completa para afiliados: clonador de páginas, pressel, player de ví
 
 ## Homologação e validação
 
+- **Gate único (obrigatório antes de commit/entrega)**: `powershell -File bin\quality-gate.ps1` — roda G0 (containers + sync working tree→container, evita validar código que não está no container) + G1 lint + G2 todas as suítes abaixo + G3 JS servido (`tests/e2e/served-check.js`) + G4 responsividade (`tests/e2e/responsive.js`). Exit 0 = apto a commit. Detalhes em `docs/ciclo-entrega.md`.
 - **`bin/smoke.php`** — smoke automatizado (login, todas as páginas, APIs, fluxos com limpeza): `docker exec afiliafacil php bin/smoke.php` → deve terminar com **SMOKE OK** (exit code 0/1)
 - **Suíte Ad Spy** (`tests/adspy/`, PHP): regressão do módulo de espionagem — `adspy-discover-test.php` (descoberta Trends/Top Ads multiredes), `adspy-api-test.php` (endpoints/quotas), `adspy-ui-test.php` (estáticos da tela) e `adspy-live-test.php` (opcional, consumo API real). Rodar: `docker exec afiliafacil php tests/adspy/<arquivo>.php` → deve terminar com `OK` (exit 0); rodar todos após qualquer mudança em `lib/AdSpy/` ou `admin/adspy.php`.
 - **Suíte Publicação Unificada** (`tests/social/social-test.php`, PHP): regressão do módulo de redes — catálogo, criptografia de token, quotas de conexão/posts, validações do composer, falha isolada por rede (HTTP fake), agendamento + `processDue`, histórico/exclusão, **métricas das 5 redes** (coleta, staleness, falha graciosa preservando dados), **fluxos** (validações, gatilho `post_published` com webhook + guard de cascata, `runDue` agendado sem repetição), **conexão guiada + BYOK de app (Fase 4)** (modal/jornadas na tela, dialogs Meta/Threads, callback Threads completo, `probe` com diagnóstico Meta/X/TikTok, API `app-save`/`app-delete` com `oauth_source`, **`connect-url` instagram sem credencial → `oauth_not_configured` e com credencial → URL do dialog Meta**, guia com Redirect URI, `promptAppCreds` na tela + CSS `button:disabled`, **visão do cliente (só o botão Conectar, `GUIDES={}`, sem guia/IDs/token no HTML)** e **`docs/guia-meta.md`** (guia didático do dono)) e a API/tela (401, connections, list, create, process, metrics, collect, flows CRUD/process, telas 200 — integrations sem composer + publicacoes com composer/Desempenho/Histórico). Rodar: `docker exec afiliafacil php tests/social/social-test.php` → deve terminar com `OK` (exit 0); rodar após qualquer mudança em `lib/Social/`, `lib/Flows/`, `admin/api/social.php`, `admin/api/flows.php`, `admin/integrations.php`, `admin/publicacoes.php` ou a tool `publicar_post`.

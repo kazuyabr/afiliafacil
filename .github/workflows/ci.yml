@@ -1,0 +1,51 @@
+name: CI
+
+# Re-executa o mesmo gate local (bin/quality-gate) a cada push/PR.
+# Sem CI verde nao ha entrega — mesmos estagios: lint, suites, smoke, JS servido, responsividade.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepara .env de CI (nunca chaves reais)
+        run: |
+          cp .env.sample .env
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci-local/' .env
+          sed -i 's/^DB_APP_PASSWORD=.*/DB_APP_PASSWORD=ci-local/' .env
+
+      - name: Sobe a stack
+        run: docker compose up -d --build
+
+      - name: Aguarda o app responder
+        run: |
+          for i in $(seq 1 90); do
+            if curl -fsS http://localhost:9876/login >/dev/null 2>&1; then echo "app up"; exit 0; fi
+            sleep 2
+          done
+          echo "APP NAO RESPONDEU"; docker compose logs --tail 200; exit 1
+
+      - name: G1+G2 - lint + suites + smoke (container)
+        run: docker exec afiliafacil php bin/quality-gate.php
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Dependencias e2e (Playwright)
+        working-directory: tests/e2e
+        run: |
+          npm install --no-fund --no-audit
+          npx playwright install --with-deps chromium
+
+      - name: G3 - JS servido (sintaxe dos scripts inline)
+        run: node tests/e2e/served-check.js
+
+      - name: G4 - responsividade 360/768/1280 + pageerror
+        run: node tests/e2e/responsive.js
