@@ -214,6 +214,7 @@ switch ($action) {
             'caption' => (string)($_POST['caption'] ?? ''),
             'media_url' => (string)($_POST['media_url'] ?? ''),
             'media_kind' => (string)($_POST['media_kind'] ?? ''),
+            'media_urls' => (string)($_POST['media_urls'] ?? ''),
             'networks' => array_values($networks),
             'scheduled_at' => trim((string)($_POST['scheduled_at'] ?? '')) ?: null,
             'source' => (string)($_POST['source'] ?? 'manual'),
@@ -252,8 +253,11 @@ switch ($action) {
     }
 
     case 'process': {
-        // Polling da tela: publica agendamentos vencidos (o cron faz o mesmo)
-        echo json_encode(['success' => true, 'due' => SocialPublisher::processDue(5)],
+        // Polling da tela: publica agendamentos vencidos + retoma targets do
+        // Instagram que ainda estão processando a mídia (o cron faz o mesmo).
+        echo json_encode(['success' => true,
+            'due' => SocialPublisher::processDue(5),
+            'resume' => SocialPublisher::resumePending(5)],
             JSON_UNESCAPED_UNICODE);
         break;
     }

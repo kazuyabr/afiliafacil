@@ -87,9 +87,10 @@ $hasFeature = Plans::hasFeature($plan, 'social');
 
                         <div class="grid-2">
                             <div class="form-group">
-                                <label for="mediaFile">Mídia (imagem ou vídeo)</label>
-                                <input type="file" id="mediaFile" class="form-control" accept="image/*,video/mp4">
+                                <label for="mediaFile">Mídia (imagem ou vídeo — até 10 para carrossel)</label>
+                                <input type="file" id="mediaFile" class="form-control" accept="image/*,video/mp4" multiple>
                                 <input type="url" id="mediaUrl" class="form-control" style="margin-top:8px;" placeholder="…ou cole uma URL de mídia">
+                                <div id="mediaList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
                                 <img id="mediaPreview" class="media-preview" style="display:none;" alt="">
                                 <video id="mediaPreviewVid" class="media-preview" style="display:none;" controls muted></video>
                             </div>
@@ -166,7 +167,7 @@ $hasFeature = Plans::hasFeature($plan, 'social');
     const HAS_FEATURE = <?= $hasFeature ? 'true' : 'false' ?>;
     const API = '/admin/api/social.php';
     const POST_PT = { draft: 'rascunho', scheduled: 'agendado', publishing: 'publicando…', published: 'publicado', partial: 'parcial', failed: 'falhou' };
-    let STATE = { networks: {}, connections: [], selected: [], media: { url: '', kind: '' }, posts: [], metrics: {} };
+    let STATE = { networks: {}, connections: [], selected: [], media: { url: '', kind: '' }, mediaList: [], posts: [], metrics: {} };
 
     async function api(action, data) {
         const fd = new FormData();
@@ -230,27 +231,68 @@ $hasFeature = Plans::hasFeature($plan, 'social');
     }
 
     document.getElementById('mediaFile').addEventListener('change', async (e) => {
-        const f = e.target.files[0];
-        if (!f) return;
-        const fd = new FormData();
-        fd.append('action', 'upload');
-        fd.append('media', f);
-        const r = await fetch(API, { method: 'POST', body: fd, credentials: 'same-origin' });
-        const j = await r.json();
-        if (j.error) { alert(j.error); e.target.value = ''; return; }
-        STATE.media = { url: j.url, kind: j.kind };
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+        if (STATE.mediaList.length + files.length > 10) {
+            alert('Carrossel aceita no máximo 10 mídias.');
+            e.target.value = ''; return;
+        }
+        for (const f of files) {
+            const fd = new FormData();
+            fd.append('action', 'upload');
+            fd.append('media', f);
+            const r = await fetch(API, { method: 'POST', body: fd, credentials: 'same-origin' });
+            const j = await r.json();
+            if (j.error) { alert(j.error); continue; }
+            addMedia(j.url, j.kind);
+        }
+        e.target.value = '';
         document.getElementById('mediaUrl').value = '';
-        showPreview(j.url, j.kind);
-        updateCost();
+        renderMedia();
     });
 
     document.getElementById('mediaUrl').addEventListener('input', (e) => {
         const url = e.target.value.trim();
         const kind = /\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'video' : (url ? 'image' : '');
-        STATE.media = url ? { url, kind } : { url: '', kind: '' };
-        showPreview(STATE.media.url, kind);
-        updateCost();
+        showPreview(url, kind);
     });
+
+    document.getElementById('mediaUrl').addEventListener('change', (e) => {
+        const url = e.target.value.trim();
+        if (!url) return;
+        const kind = /\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'video' : 'image';
+        addMedia(url, kind);
+        e.target.value = '';
+        renderMedia();
+    });
+
+    function addMedia(url, kind) {
+        if (STATE.mediaList.some(m => m.url === url)) return;
+        if (STATE.mediaList.length >= 10) { alert('Carrossel aceita no máximo 10 mídias.'); return; }
+        STATE.mediaList.push({ url, kind });
+        STATE.media = { url, kind };
+    }
+
+    function removeMedia(i) {
+        STATE.mediaList.splice(i, 1);
+        STATE.media = STATE.mediaList.length
+            ? STATE.mediaList[STATE.mediaList.length - 1]
+            : { url: '', kind: '' };
+        renderMedia();
+    }
+
+    function renderMedia() {
+        const box = document.getElementById('mediaList');
+        box.innerHTML = STATE.mediaList.map((m, i) => `
+            <span class="media-chip" style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:.78rem;">
+                <i class="fas fa-${m.kind === 'video' ? 'video' : 'image'}" style="color:var(--text-secondary);"></i>
+                ${esc(m.url.split('/').pop().slice(0, 24))}
+                <a href="javascript:void(0)" onclick="removeMedia(${i})" title="Remover" style="color:#dc3545;font-weight:bold;">×</a>
+            </span>`).join('');
+        const first = STATE.mediaList[0];
+        showPreview(first ? first.url : '', first ? first.kind : '');
+        updateCost();
+    }
 
     function showPreview(url, kind) {
         const img = document.getElementById('mediaPreview');
@@ -281,9 +323,19 @@ $hasFeature = Plans::hasFeature($plan, 'social');
         const msg = document.getElementById('composerMsg');
         msg.textContent = '';
         if (!STATE.selected.length) { msg.textContent = 'Selecione ao menos uma rede conectada.'; return; }
-        if (!caption && !STATE.media.url) { msg.textContent = 'Escreva uma legenda ou envie uma mídia.'; return; }
 
-        const mediaUrl = document.getElementById('mediaUrl').value.trim() || STATE.media.url;
+        const pendingUrl = document.getElementById('mediaUrl').value.trim();
+        if (pendingUrl) {
+            addMedia(pendingUrl, /\.(mp4|webm|mov)(\?|$)/i.test(pendingUrl) ? 'video' : 'image');
+            document.getElementById('mediaUrl').value = '';
+            renderMedia();
+        }
+        const list = STATE.mediaList.slice();
+        if (!caption && !list.length) { msg.textContent = 'Escreva uma legenda ou envie uma mídia.'; return; }
+        if (list.length > 1 && !STATE.selected.includes('instagram')) {
+            msg.textContent = 'Carrossel (múltiplas mídias) só é publicado no Instagram — selecione o Instagram ou remova mídias.';
+            return;
+        }
         const sched = document.getElementById('scheduledAt').value;
         if (sched) {
             const ts = new Date(sched).getTime();
@@ -296,8 +348,9 @@ $hasFeature = Plans::hasFeature($plan, 'social');
         try {
             const j = await api('create', {
                 caption,
-                media_url: mediaUrl,
-                media_kind: STATE.media.kind || '',
+                media_url: list.length ? list[0].url : '',
+                media_kind: list.length ? list[0].kind : '',
+                media_urls: list.length ? JSON.stringify(list) : '',
                 networks: STATE.selected.join(','),
                 scheduled_at: sched ? new Date(sched).toISOString().slice(0, 19).replace('T', ' ') : '',
             });
@@ -314,9 +367,10 @@ $hasFeature = Plans::hasFeature($plan, 'social');
             if (j.status !== 'scheduled') {
                 document.getElementById('caption').value = '';
                 STATE.media = { url: '', kind: '' };
+                STATE.mediaList = [];
                 document.getElementById('mediaFile').value = '';
                 document.getElementById('mediaUrl').value = '';
-                showPreview('', '');
+                renderMedia();
             }
             document.getElementById('scheduledAt').value = '';
             document.getElementById('publishLabel').textContent = 'Publicar agora';
@@ -341,7 +395,7 @@ $hasFeature = Plans::hasFeature($plan, 'social');
         body.innerHTML = posts.map(p => `
             <tr class="hist-row" style="border-bottom:1px solid var(--border,#eee);">
                 <td style="padding:11px 14px;max-width:340px;">
-                    ${p.media_url ? '<i class="fas fa-' + (p.media_kind === 'video' ? 'video' : 'image') + '" style="color:var(--text-secondary);"></i> ' : ''}
+                    ${(() => { let n = 0; try { const mu = p.media_urls ? JSON.parse(p.media_urls) : []; n = Array.isArray(mu) ? mu.length : 0; } catch (e) { } if (!p.media_url && !n) return ''; const icon = p.media_kind === 'video' ? 'video' : 'image'; return '<i class="fas fa-' + icon + '" style="color:var(--text-secondary);"></i>' + (n > 1 ? ' <span class="pill" title="Carrossel">×' + n + '</span>' : '') + ' '; })()}
                     ${esc((p.caption || '(sem legenda)').slice(0, 120))}${(p.caption || '').length > 120 ? '…' : ''}
                 </td>
                 <td style="padding:8px 14px;">${p.targets.map(t =>

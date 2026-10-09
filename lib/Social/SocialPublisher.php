@@ -26,7 +26,22 @@ class SocialPublisher
 
         $caption = trim((string)($input['caption'] ?? ''));
         $mediaUrl = trim((string)($input['media_url'] ?? ''));
-        $mediaKind = $mediaUrl === '' ? '' : (string)($input['media_kind'] ?? 'image');
+        $mediaUrlsRaw = $input['media_urls'] ?? '';
+        $mediaUrls = [];
+        if (is_array($mediaUrlsRaw)) {
+            $mediaUrls = $mediaUrlsRaw;
+        } elseif (is_string($mediaUrlsRaw) && trim($mediaUrlsRaw) !== '') {
+            $decoded = json_decode($mediaUrlsRaw, true);
+            if (is_array($decoded)) $mediaUrls = $decoded;
+        }
+        $mediaUrls = array_values(array_filter(array_map(function ($u) {
+            $url = trim((string)($u['url'] ?? ''));
+            if ($url === '') return null;
+            $kind = (string)($u['kind'] ?? 'image');
+            return ['url' => $url, 'kind' => in_array($kind, ['image', 'video'], true) ? $kind : 'image'];
+        }, $mediaUrls)));
+        $mediaKind = $mediaUrl === '' && $mediaUrls !== [] ? (string)($mediaUrls[0]['kind'] ?? 'image')
+            : ($mediaUrl === '' ? '' : (string)($input['media_kind'] ?? 'image'));
         $networks = array_values(array_unique(array_filter((array)($input['networks'] ?? []))));
         $source = ($input['source'] ?? 'agent') === 'agent' ? 'agent' : 'manual';
 
@@ -58,17 +73,34 @@ class SocialPublisher
         $errs = [];
         foreach ($networks as $n) {
             $m = SocialNetworks::meta()[$n];
-            if ($m['media_required'] && $mediaUrl === '') {
+            if ($m['media_required'] && $mediaUrl === '' && $mediaUrls === []) {
                 $errs[] = SocialNetworks::label($n) . ' exige mídia (' . ($m['media'] === 'video' ? 'vídeo' : 'imagem') . ')';
             }
-            if ($mediaUrl !== '' && $mediaKind !== $m['media']) {
-                $errs[] = SocialNetworks::label($n) . ' aceita apenas ' . ($m['media'] === 'video' ? 'vídeo' : 'imagem');
+            $kinds = $m['media_kinds'] ?? [$m['media']];
+            if (($mediaUrl !== '' || $mediaUrls !== []) && !in_array($mediaKind, $kinds, true)) {
+                $pretty = array_map(fn ($k) => $k === 'video' ? 'vídeo' : ($k === 'image' ? 'imagem' : $k), $kinds);
+                $errs[] = SocialNetworks::label($n) . ' aceita apenas ' . implode('/', $pretty);
             }
             if ($caption !== '' && mb_strlen($caption) > $m['max_len']) {
                 $errs[] = SocialNetworks::label($n) . ': legenda excede ' . $m['max_len'] . ' caracteres (atual ' . mb_strlen($caption) . ')';
             }
         }
         if ($errs !== []) return ['ok' => false, 'errors' => $errs, 'error' => implode(' · ', $errs)];
+
+        // Carrossel: só Instagram aceita mais de 1 mídia (2 a 10).
+        if (count($mediaUrls) > 1) {
+            foreach ($networks as $n) {
+                if ($n !== 'instagram') {
+                    return ['ok' => false, 'error' => 'Carrossel (múltiplas mídias) só é suportado no Instagram.'];
+                }
+            }
+            if (count($mediaUrls) < 2) {
+                return ['ok' => false, 'error' => 'Instagram: carrossel precisa de entre 2 e 10 mídias.'];
+            }
+            if (count($mediaUrls) > 10) {
+                return ['ok' => false, 'error' => 'Instagram: carrossel suporta no máximo 10 mídias (recebeu ' . count($mediaUrls) . ').'];
+            }
+        }
 
         // Agendamento
         $scheduledAt = null;
@@ -88,6 +120,7 @@ class SocialPublisher
                 'caption' => $caption,
                 'media_url' => mb_substr($mediaUrl, 0, 500),
                 'media_kind' => $mediaKind,
+                'media_urls' => $mediaUrls !== [] ? json_encode($mediaUrls, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
                 'status' => $scheduledAt !== null ? 'scheduled' : 'publishing',
                 'scheduled_at' => $scheduledAt,
                 'source' => $source,
@@ -152,6 +185,7 @@ class SocialPublisher
                 'caption' => (string)$post->caption,
                 'media_url' => (string)$post->media_url,
                 'media_kind' => (string)$post->media_kind,
+                'media_urls' => (string)($post->media_urls ?? ''),
             ];
 
             $now = date('Y-m-d H:i:s');
@@ -177,7 +211,14 @@ class SocialPublisher
                 } else {
                     // Recarrega após possível refresh
                     $conn = \AfiliaFacil\Models\SocialConnection::find($t->connection_id) ?: $conn;
-                    $res = SocialPublishers::publish($conn, $postInput);
+                    // Retomada: Instagram salva o estado em pending_data quando a
+                    // mídia ainda está processando — não recria os containers.
+                    $resume = null;
+                    if (!empty($t->pending_data)) {
+                        $pd = json_decode((string)$t->pending_data, true);
+                        if (is_array($pd) && !empty($pd['pending'])) $resume = $pd;
+                    }
+                    $res = SocialPublishers::publish($conn, $postInput, $resume);
                 }
 
                 $t->refresh();
@@ -185,11 +226,22 @@ class SocialPublisher
                     $t->status = 'failed';
                     $t->error = mb_substr((string)$res['error'], 0, 500);
                     $t->published_at = null;
+                    $t->pending_data = null;
+                } elseif (!empty($res['pending'])) {
+                    // Instagram: mídia ainda processando — salva o estado e
+                    // deixa 'publishing'; o próximo polling retoma (sem recriar).
+                    $t->pending_data = json_encode(['pending' => $res['pending']],
+                        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    $t->updated_at = date('Y-m-d H:i:s');
+                    $t->save();
+                    $summary['pending'] = true;
+                    continue;
                 } else {
                     $t->status = 'published';
                     $t->remote_id = mb_substr((string)($res['remote_id'] ?? ''), 0, 190);
                     $t->error = '';
                     $t->published_at = date('Y-m-d H:i:s');
+                    $t->pending_data = null;
                 }
                 $t->updated_at = date('Y-m-d H:i:s');
                 $t->save();
@@ -252,7 +304,7 @@ class SocialPublisher
     /** Publica posts agendados cujo horario ja passou (chamado pelo cron e pelo polling da tela). */
     public static function processDue(int $limit = 5): array
     {
-        $summary = ['processed' => 0, 'published' => 0, 'failed' => 0];
+        $summary = ['processed' => 0, 'published' => 0, 'failed' => 0, 'pending' => false];
         if (!Database::available()) return $summary;
 
         try {
@@ -274,7 +326,92 @@ class SocialPublisher
         return $summary;
     }
 
-    /** Historico de posts do usuario (com targets). */
+    /**
+     * Retoma targets 'publishing' que ficaram com pending_data (Instagram:
+     * midia ainda processando). Nunca recria os containers — só rechama o
+     * publisher com o estado salvo. Chamado pelo polling da tela e pelo cron.
+     * @return array{processed:int, published:int, failed:int, pending:bool}
+     */
+    public static function resumePending(int $limit = 5): array
+    {
+        $summary = ['processed' => 0, 'published' => 0, 'failed' => 0, 'pending' => false];
+        if (!Database::available()) return $summary;
+
+        try {
+            $targets = \AfiliaFacil\Models\SocialPostTarget::where('status', 'publishing')
+                ->whereNotNull('pending_data')->orderBy('id')->limit($limit)->get();
+
+            foreach ($targets as $t) {
+                $summary['processed']++;
+                $pd = json_decode((string)$t->pending_data, true);
+                if (!is_array($pd) || empty($pd['pending'])) {
+                    $t->status = 'failed';
+                    $t->error = 'Estado de publicação corrompido. Refaça o post.';
+                    $t->pending_data = null;
+                    $t->updated_at = date('Y-m-d H:i:s');
+                    $t->save();
+                    $summary['failed']++;
+                    continue;
+                }
+
+                $conn = \AfiliaFacil\Models\SocialConnection::find($t->connection_id);
+                $res = null;
+                if (!$conn || $conn->status !== 'connected') {
+                    $res = ['error' => 'Conexão indisponível.'];
+                } elseif (!SocialOAuth::refreshIfExpired($conn)) {
+                    $res = ['error' => 'Token expirado sem renovação. Reconecte a conta.'];
+                } else {
+                    $conn = \AfiliaFacil\Models\SocialConnection::find($t->connection_id) ?: $conn;
+                    $post = \AfiliaFacil\Models\SocialPost::find($t->post_id);
+                    $postInput = $post ? [
+                        'caption' => (string)$post->caption,
+                        'media_url' => (string)$post->media_url,
+                        'media_kind' => (string)$post->media_kind,
+                        'media_urls' => (string)($post->media_urls ?? ''),
+                    ] : ['caption' => '', 'media_url' => '', 'media_kind' => ''];
+                    $res = SocialPublishers::publish($conn, $postInput, $pd);
+                }
+
+                if (!empty($res['error'])) {
+                    $t->status = 'failed';
+                    $t->error = mb_substr((string)$res['error'], 0, 500);
+                    $t->pending_data = null;
+                    $t->published_at = null;
+                } elseif (!empty($res['pending'])) {
+                    $t->pending_data = json_encode(['pending' => $res['pending']],
+                        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    $summary['pending'] = true;
+                } else {
+                    $t->status = 'published';
+                    $t->remote_id = mb_substr((string)($res['remote_id'] ?? ''), 0, 190);
+                    $t->error = '';
+                    $t->published_at = date('Y-m-d H:i:s');
+                    $t->pending_data = null;
+                }
+                $t->updated_at = date('Y-m-d H:i:s');
+                $t->save();
+            }
+
+            if ($summary['published'] > 0 || $summary['failed'] > 0) {
+                $postIds = \AfiliaFacil\Models\SocialPostTarget::whereIn('id',
+                    $targets->pluck('id')->all())->pluck('post_id')->unique()->all();
+                foreach ($postIds as $pid) {
+                    $r = self::finalize((int)$pid);
+                    if (!empty($r['ok'])) {
+                        try {
+                            require_once __DIR__ . '/../Flows/FlowRunner.php';
+                            FlowRunner::onPostPublished((int)\AfiliaFacil\Models\SocialPost::find($pid)->user_id, (int)$pid);
+                        } catch (Throwable $e) {}
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            $summary['error'] = $e->getMessage();
+        }
+        return $summary;
+    }
+
+    /** Historico do usuario (com targets). */
     public static function list(int $userId, int $limit = 20): array
     {
         if (!Database::available()) return [];

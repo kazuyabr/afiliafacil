@@ -193,7 +193,28 @@ SocialHttp::$handler = function (string $method, string $url, array $opts = []):
     // --- publicacao ---
     if (str_contains($url, 'graph.facebook.com') && str_contains($url, '/photos')) return $j(['id' => 'fb_photo_1']);
     if (str_contains($url, 'graph.facebook.com') && str_contains($url, '/feed')) return $j(['id' => 'fb_feed_1']);
-    if (str_contains($url, 'graph.facebook.com') && str_ends_with($url, '/media')) return $j(['id' => 'ig_container_1']);
+
+    // Instagram (media_publish ANTES de /media — o prefixo casa nos dois)
+    if (str_contains($url, 'graph.facebook.com') && str_contains($url, '/media_publish')) return $j(['id' => 'ig_pub_1']);
+
+    // Containers (state-machine): /media cria, /{id} consulta status
+    if (str_contains($url, 'graph.facebook.com') && str_contains($url, '/media')) {
+        if (str_contains($url, 'media_type=CAROUSEL')) {
+            return $j(['id' => 'ig_carousel_1']);
+        }
+        $n = ((int)($GLOBALS['IG_CONTAINER_N'] ?? 0)) + 1;
+        $GLOBALS['IG_CONTAINER_N'] = $n;
+        return $j(['id' => "ig_container_{$n}"]);
+    }
+    if (preg_match('#graph\.facebook\.com/v26\.0/ig_container_\d+$#', $url)
+        || preg_match('#graph\.facebook\.com/v26\.0/ig_carousel_1$#', $url)) {
+        if (!empty($GLOBALS['IG_PENDING'])) {
+            return $j(['id' => preg_replace('#.*/#', '', $url), 'status_code' => 'IN_PROGRESS',
+                'status' => 'processing']);
+        }
+        return $j(['id' => preg_replace('#.*/#', '', $url), 'status_code' => 'FINISHED',
+            'status' => 'ready']);
+    }
     if (str_contains($url, 'graph.facebook.com') && str_contains($url, '/media_publish')) return $j(['id' => 'ig_pub_1']);
     if (str_contains($url, 'graph.threads.net') && str_ends_with($url, '/threads')) return $j(['id' => 'th_container_1']);
     if (str_contains($url, 'graph.threads.net') && str_contains($url, '/threads_publish')) {
@@ -441,7 +462,91 @@ SocialConnections::upsert($adminId, 'x', [
 ]);
 
 // ------------------------------------------------------ 9. API HTTP
-section('9. API HTTP (/admin/api/social.php + tela)');
+// --------------------------------- 8b. Instagram: carrossel / Reel / state-machine
+    section('8b. Instagram (imagem / Reel / carrossel 2-10)');
+    $igConn = SocialConnections::find($adminId, 'instagram');
+    $igPost = [
+        'caption' => 'SOCIALTEST ig imagem unica',
+        'media_url' => 'https://example.com/ig1.jpg', 'media_kind' => 'image',
+        'media_urls' => '',
+    ];
+    $r = SocialPublishers::publish($igConn, $igPost);
+    ok('Instagram imagem unica -> remote_id ig_pub_1',
+        ($r['remote_id'] ?? '') === 'ig_pub_1', 'res=' . json_encode($r));
+
+    $igPostVid = [
+        'caption' => 'SOCIALTEST ig reel',
+        'media_url' => 'https://example.com/ig1.mp4', 'media_kind' => 'video',
+        'media_urls' => '',
+    ];
+    $r = SocialPublishers::publish($igConn, $igPostVid);
+    ok('Instagram video unico -> Reel (media_type=REELS, remote ig_pub_1)',
+        ($r['remote_id'] ?? '') === 'ig_pub_1', 'res=' . json_encode($r));
+
+    $igPostCar = [
+        'caption' => 'SOCIALTEST ig carrossel',
+        'media_url' => '', 'media_kind' => 'image',
+        'media_urls' => json_encode([
+            ['url' => 'https://example.com/c1.jpg', 'kind' => 'image'],
+            ['url' => 'https://example.com/c2.png', 'kind' => 'image'],
+            ['url' => 'https://example.com/c3.mp4', 'kind' => 'video'],
+        ]),
+    ];
+    $r = SocialPublishers::publish($igConn, $igPostCar);
+    ok('Instagram carrossel 3 midias -> remote ig_pub_1',
+        ($r['remote_id'] ?? '') === 'ig_pub_1', 'res=' . json_encode($r));
+
+    // Carrossel com 11 midias -> erro claro (limite 10)
+    $eleven = [];
+    for ($i = 0; $i < 11; $i++) $eleven[] = ['url' => "https://example.com/e{$i}.jpg", 'kind' => 'image'];
+    $r = SocialPublisher::create($adminId, 'premium', [
+        'caption' => 'SOCIALTEST carrossel 11', 'networks' => ['instagram'],
+        'media_urls' => json_encode($eleven),
+    ]);
+    ok('carrossel com 11 midias -> erro "no maximo 10"',
+        !$r['ok'] && stripos((string)($r['error'] ?? ''), '10') !== false, 'err=' . ($r['error'] ?? ''));
+
+    // Carrossel em rede que nao e Instagram -> erro
+    $r = SocialPublisher::create($adminId, 'premium', [
+        'caption' => 'SOCIALTEST carrossel no facebook', 'networks' => ['facebook'],
+        'media_urls' => json_encode([
+            ['url' => 'https://example.com/c1.jpg', 'kind' => 'image'],
+            ['url' => 'https://example.com/c2.jpg', 'kind' => 'image'],
+        ]),
+    ]);
+    ok('carrossel em nao-Instagram -> erro claro',
+        !$r['ok'] && stripos((string)($r['error'] ?? ''), 'carrossel') !== false, 'err=' . ($r['error'] ?? ''));
+
+    // State-machine: a Meta devolve IN_PROGRESS -> o publisher devolve 'pending'
+    // e o orquestrador salva em pending_data (sem recriar os containers).
+    $GLOBALS['IG_PENDING'] = true;
+    $igPostPend = [
+        'caption' => 'SOCIALTEST ig pendente',
+        'media_url' => 'https://example.com/pend.jpg', 'media_kind' => 'image',
+        'media_urls' => '',
+    ];
+    $r = SocialPublishers::publish($igConn, $igPostPend);
+    ok('Instagram em IN_PROGRESS -> devolve pending (nao publica ainda)',
+        !empty($r['pending']) && empty($r['remote_id']) && empty($r['error']),
+        'res=' . json_encode($r));
+    $pendingState = $r['pending'] ?? null;
+    ok('estado pendente tem containers + message',
+        is_array($pendingState) && !empty($pendingState['containers'])
+        && array_key_exists('message', $pendingState));
+
+    // Retomada: mesmo estado, containers ja existem na Meta -> publica
+    $GLOBALS['IG_PENDING'] = false;
+    $r2 = SocialPublishers::publish($igConn, $igPostPend, ['pending' => $pendingState]);
+    ok('retomada com estado salvo -> publica sem recriar containers',
+        ($r2['remote_id'] ?? '') === 'ig_pub_1', 'res=' . json_encode($r2));
+    unset($GLOBALS['IG_PENDING']);
+
+    // Politica: Instagram aceita imagem E video (nao mais so imagem)
+    $meta = SocialNetworks::meta();
+    ok('Instagram media_kinds = image,video', in_array('image', $meta['instagram']['media_kinds'])
+        && in_array('video', $meta['instagram']['media_kinds']));
+
+    section('9. API HTTP (/admin/api/social.php + tela)');
 $BASE = 'http://localhost:9876';
 
 // GET com form tem de ir na QUERY string — corpos de GET são ignorados pelos
@@ -534,6 +639,50 @@ ok('tela tem seção Desempenho + métricas', str_contains($r['body'], 'Desempen
 ok('tela tem seção Histórico', str_contains($r['body'], 'Histórico')
     && str_contains($r['body'], 'histBody') && str_contains($r['body'], 'loadHistory'));
 ok('sidebar do composer linka Publicações (grupo Criar)', str_contains($r['body'], '/admin/publicacoes.php'));
+ok('composer aceita multipla midia (input multiple + lista + media_urls)',
+    str_contains($r['body'], 'id="mediaFile" class="form-control" accept="image/*,video/mp4" multiple')
+    && str_contains($r['body'], 'id="mediaList"')
+    && str_contains($r['body'], 'media_urls: list.length')
+    && str_contains($r['body'], 'function removeMedia')
+    && str_contains($r['body'], 'Carrossel (múltiplas mídias) só é publicado no Instagram'),
+    'len=' . strlen($r['body']));
+
+// create via HTTP com media_urls (carrossel agendado — sem publicar de verdade)
+$carrossel = json_encode([
+    ['url' => 'https://example.com/a.jpg', 'kind' => 'image'],
+    ['url' => 'https://example.com/b.jpg', 'kind' => 'image'],
+]);
+$r = $http('POST', $BASE . '/admin/api/social.php', [
+    'action' => 'create', 'caption' => 'SOCIALTEST carrossel via http',
+    'media_url' => 'https://example.com/a.jpg', 'media_kind' => 'image',
+    'media_urls' => $carrossel, 'networks' => 'instagram',
+    'scheduled_at' => date('Y-m-d H:i:s', time() + 3600),
+], $jar);
+$jh = json_decode($r['body'], true) ?: [];
+$carPostId = (int)($jh['post_id'] ?? 0);
+ok('create via HTTP com media_urls → agendado (sem publicar agora)',
+    $r['status'] === 200 && !empty($jh['ok']) && ($jh['status'] ?? '') === 'scheduled',
+    'status=' . $r['status'] . ' body=' . substr($r['body'], 0, 200));
+$carRow = $carPostId ? \AfiliaFacil\Models\SocialPost::find($carPostId) : null;
+ok('post agendado grava media_urls (2 midias persistidas)',
+    $carRow && str_contains((string)$carRow->media_urls, 'a.jpg')
+    && str_contains((string)$carRow->media_urls, 'b.jpg'),
+    'media_urls=' . substr((string)($carRow->media_urls ?? ''), 0, 120));
+ok('alvo instagram do carrossel fica pending (aguardando o horário)',
+    $carPostId && \AfiliaFacil\Models\SocialPostTarget::where('post_id', $carPostId)->where('status', 'pending')->count() === 1);
+
+$r = $http('POST', $BASE . '/admin/api/social.php', [
+    'action' => 'create', 'caption' => 'SOCIALTEST carrossel sem instagram',
+    'media_urls' => $carrossel, 'networks' => 'facebook',
+    'scheduled_at' => date('Y-m-d H:i:s', time() + 3600),
+], $jar);
+$jh2 = json_decode($r['body'], true) ?: [];
+ok('carrossel via HTTP sem Instagram → 400 com erro claro',
+    $r['status'] === 400 && stripos((string)($jh2['error'] ?? ''), 'instagram') !== false,
+    'status=' . $r['status'] . ' error=' . ($jh2['error'] ?? ''));
+$cleanupIds = array_filter(array_map('intval', [$carPostId, (int)($jh2['post_id'] ?? 0)]));
+foreach ($cleanupIds as $cid) { if ($cid) SocialPublisher::delete($adminId, $cid); }
+ok('posts de teste do carrossel removidos', !$carPostId || !\AfiliaFacil\Models\SocialPost::find($carPostId));
 
 // ------------------------------------------------- 10. Fluxos (Fase 3)
 section('10. Fluxos de automação (Fase 3)');

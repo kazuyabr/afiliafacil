@@ -25,6 +25,7 @@ try {
     require_once Config::getLibDir() . '/Social/SocialMetrics.php';
     require_once Config::getLibDir() . '/Flows/FlowRunner.php';
     $result['social_posts'] = SocialPublisher::processDue(5);
+    $result['social_resume'] = SocialPublisher::resumePending(5);
     $result['social_metrics'] = SocialMetrics::collectDue(20);
     $result['flows'] = FlowRunner::runDue(10);
 } catch (Throwable $e) {
