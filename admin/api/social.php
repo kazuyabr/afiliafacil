@@ -81,8 +81,22 @@ switch ($action) {
     }
 
     case 'callback': {
-        // Sem JSON: redireciona de volta para a tela com o resultado
+        // Sem JSON: redireciona de volta para a tela com o resultado.
+        // error_log de diagnostico — o server embutido nao guarda access log,
+        // entao o motivo real do "erro no final" so aparece aqui (docker logs).
+        error_log('[oauth-callback] GET=' . json_encode([
+            'error' => $_GET['error'] ?? null,
+            'error_reason' => $_GET['error_reason'] ?? null,
+            'error_description' => $_GET['error_description'] ?? null,
+            'code' => isset($_GET['code']) ? substr((string)$_GET['code'], 0, 12) . '…' : null,
+            'state' => isset($_GET['state']) ? substr((string)$_GET['state'], 0, 24) . '…' : null,
+        ], JSON_UNESCAPED_SLASHES));
         $res = SocialOAuth::handleCallback($_GET);
+        error_log('[oauth-callback] result=' . json_encode([
+            'ok' => $res['ok'] ?? false,
+            'network' => $res['network'] ?? null,
+            'error' => $res['error'] ?? null,
+        ], JSON_UNESCAPED_UNICODE));
         $q = !empty($res['ok'])
             ? 'oauth=ok&network=' . rawurlencode($res['network'] ?? '')
             : 'oauth=err&network=' . rawurlencode($res['network'] ?? '') . '&msg=' . rawurlencode($res['error'] ?? 'Falha');

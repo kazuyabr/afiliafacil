@@ -13,7 +13,7 @@ require_once __DIR__ . '/../Crypto.php';
  */
 class SocialAppCredentials
 {
-    private const PROVIDERS = ['meta', 'threads', 'x', 'tiktok'];
+    private const PROVIDERS = ['meta', 'instagram', 'threads', 'x', 'tiktok'];
 
     /** @return array{app_id:string, secret:string}|null */
     public static function get(int $userId, string $provider): ?array

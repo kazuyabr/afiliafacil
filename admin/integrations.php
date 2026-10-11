@@ -98,14 +98,16 @@ if (isset($_GET['oauth'])) {
                         Guia do dono — configurar o app Meta uma vez (só você vê — o cliente nunca vê nada disto)
                     </summary>
                     <div class="card-body" style="border-top:1px solid var(--border,#ddd);">
-                        <p class="conn-hint" style="margin-top:0;">As credenciais ficam no <code>.env</code> da plataforma (<code>META_APP_ID</code> / <code>META_APP_SECRET</code>) — o cliente só clica <b>Conectar</b>. Guia completo e mais detalhado: <code>docs/guia-meta.md</code> no repositório.</p>
+                        <p class="conn-hint" style="margin-top:0;">Facebook usa <code>META_APP_ID</code>/<code>META_APP_SECRET</code>; Instagram usa <code>INSTAGRAM_APP_ID</code>/<code>INSTAGRAM_APP_SECRET</code> (produto <b>Instagram Login</b>) — o cliente só clica <b>Conectar</b>. Guia completo: <code>docs/guia-meta.md</code>.</p>
                         <ol class="conn-steps">
-                            <li><b>Criar o app:</b> <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a> → <b>Criar app</b> → caso de uso <b>"Manage everything on your Page"</b> (Gerenciar tudo da sua Página) e, se perguntar o tipo, <b>Something else</b> — nunca Consumer (bloqueia os escopos <code>pages_*</code> com "Invalid Scopes").</li>
-                            <li><b>Permissões:</b> menu lateral <b>Use Cases</b> → no caso de uso → <b>Customize</b> → <b>Permissions and features</b> → garanta <b>"Ready for testing"</b> em <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>instagram_basic</code> e <code>instagram_content_publish</code> (adicione via <b>Actions</b> se aparecer outro status) + produto <b>Instagram Graph API</b>.</li>
-                            <li><b>Redirect URI:</b> cadastre <code><?= htmlspecialchars(SocialOAuth::redirectUri()) ?></code> em <b>Valid OAuth Redirect URIs</b> — o campo fica em UM destes lugares: <b>Use Cases → Customize → Settings</b> (apps por use case <b>não têm "Add Product"</b>) · <b>Facebook Login for Business → Settings</b> · <b>Add Product → Facebook Login → Settings</b> (layout antigo). Atalho: <code>developers.facebook.com/apps/SEU_APP_ID/fb-login/settings/</code>. A URL precisa bater <b>exatamente</b> com o domínio que você usa no painel (também aparece nos passos do modal "Conectar"). No layout antigo (Client OAuth Settings) o toggle <b>"Forçar HTTPS"</b> fica travado em <b>Sim</b> — não precisa mudar: em modo Development o redirect <code>http://localhost</code> é aceito automaticamente (mantenha o app não publicado nos testes locais).</li>
-                            <li><b>Credenciais:</b> <b>Settings → Basic</b> (menu lateral: <b>Configurações do app → Básico</b> — a seção própria do app, lá embaixo; <b>não</b> é o "Configurações" do submenu "Login do Facebook"; atalho <code>developers.facebook.com/apps/SEU_APP_ID/settings/basic/</code>) → copie o <b>App ID</b> e o <b>App Secret</b> (botão Mostrar) + preencha <b>Categoria</b> e <b>Privacy Policy URL</b>=<code>http://localhost:9876/privacidade</code> → <b>Save Changes</b> (sem Categoria/Privacy o save é ignorado). <b>App Domains</b>: deixe <b>vazio</b> em dev — o campo exige domínio com TLD e <code>localhost</code> é rejeitado (não afeta o login; domínio real só em produção). <b>Site URL</b>=<code>http://localhost:9876</code> (se não aparecer: <b>Add Platform → Website</b>). Se algum campo de URL <b>rejeitar <code>localhost</code></b>, deixe-o <b>vazio</b> — em dev nada ali é exigido pro login (o redirect é validado pela lista do Valid OAuth Redirect URIs); o túnel <code>bin/homol.ps1</code> → <code>https://….trycloudflare.com</code> resolve se quiser preencher tudo.</li>
-                            <li><b>.env:</b> cole como <code>META_APP_ID=...</code> e <code>META_APP_SECRET=...</code> e <b>recrie o container</b>: <code>docker-compose up -d --force-recreate</code> — um simples restart não recarrega o .env.</li>
-                            <li><b>Modo Development</b> só conecta contas com papel no app (você, quem criou) — clientes em geral só após o app <b>Live + App Review</b> (próximo épico). Teste agora clicando em <b>Conectar</b> numa rede.</li>
+                            <li><b>Criar o app:</b> <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a> → <b>Criar app</b> → tipo <b>Something else</b> (nunca Consumer).</li>
+                            <li><b>Facebook:</b> caso de uso <b>"Manage everything on your Page"</b> → <b>Customize</b> → <b>"Ready for testing"</b> em <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>.</li>
+                            <li><b>Instagram:</b> adicione o produto <b>Instagram</b> → <b>API setup with Instagram Login</b> (não o antigo Graph API) → garanta <code>instagram_business_basic</code>, <code>instagram_business_content_publish</code>, <code>instagram_business_manage_comments</code>.</li>
+                            <li><b>Redirect URI (Instagram):</b> em <b>Business login settings</b> cadastre <code><?= htmlspecialchars(SocialOAuth::redirectUri()) ?></code> — necessário para o login com o Instagram.</li>
+                            <li><b>Redirect URI (Facebook):</b> cadastre a mesma URI em <b>Valid OAuth Redirect URIs</b> (Use Cases → Customize → Settings · Facebook Login for Business → Settings · ou Atalho <code>…/fb-login/settings/</code>). Em Development o <code>http://localhost</code> é aceito.</li>
+                            <li><b>Credenciais:</b> Facebook → <b>Settings → Basic</b> copie <b>App ID/Secret</b>; Instagram → copie o <b>Instagram App ID/Secret</b> da aba do produto Instagram.</li>
+                            <li><b>.env:</b> cole <code>META_APP_ID</code>/<code>META_APP_SECRET</code> e <code>INSTAGRAM_APP_ID</code>/<code>INSTAGRAM_APP_SECRET</code> e <b>recrie o container</b>: <code>docker-compose up -d</code> — um restart simples não recarrega o .env.</li>
+                            <li><b>Modo Development</b> só conecta contas com papel no app (você, quem criou) — clientes em geral só após o app <b>Live + App Review</b>. Conta Instagram precisa ser <b>profissional</b> (Creator/Business).</li>
                         </ol>
                     </div>
                 </details>
@@ -344,7 +346,7 @@ if (isset($_GET['oauth'])) {
                                    </div>`)
                             : `<div class="net-actions">
                                  <button class="btn btn-sm btn-primary" onclick="openConnModal('${n}')"><i class="fas fa-plug"></i> Conectar</button>
-                                 <span class="conn-hint">${m.oauth_configured ? (IS_ADMIN ? (m.oauth_source === 'user' ? 'app próprio salvo' : 'app da plataforma (.env)') : '') : (IS_ADMIN ? 'configure o app (guia do dono)' : 'contate o suporte')}</span>
+                                 <span class="conn-hint">${m.oauth_configured ? (IS_ADMIN ? (m.oauth_source === 'user' ? 'app próprio salvo' : 'pronto para conectar') : '') : (IS_ADMIN ? 'configure o app (guia do dono)' : 'contate o suporte')}</span>
                                </div>`}
                     </div>
                 </div>`;
@@ -382,15 +384,16 @@ if (isset($_GET['oauth'])) {
             title: 'Instagram (conta profissional)',
             steps: [
                 '<b>Usando o mesmo app Meta criado no Facebook (guia do Facebook)</b> — configure uma única vez, salve o App ID/Secret no passo 2 e clique em <b>Entrar</b>.',
-                'Siga os passos 2–5 do Facebook no mesmo app Meta: tipo <b>Something else</b> (nunca Consumer), <b>Use Cases → Customize → Permissions and features</b> com <b>"Ready for testing"</b> em <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <b><code>instagram_basic</code></b> e <b><code>instagram_content_publish</code></b> — sem eles o popup recusa com <b>"Invalid Scopes: instagram_basic, instagram_content_publish"</b> (o <code>instagram_basic</code> é dependência obrigatória do publish).',
-                'Adicione o produto <b>Instagram Graph API</b> (Add Products/Use Cases) no app — sem ele os escopos do IG não são aceitos.',
-                'No app do Instagram: Configurações → Conta → <b>Conta profissional</b> (Creator/Business) → conecte à sua Página do Facebook. <b>Obs.:</b> o popup de conexão é o do <b>Facebook mesmo</b> — é assim que a API do Instagram funciona: o login autentica pelo Facebook e a conta profissional vem da Página ligada a ela.',
-                'Cadastre o mesmo <b>Valid OAuth Redirect URIs</b> do passo 4 do Facebook (Use Cases → Settings, Facebook Login for Business → Settings ou Add Product → Facebook Login → Settings): <code class="conn-uri"></code> — e Settings → Basic com <b>Categoria/Privacy Policy</b> → Save Changes (App Domains fica <b>vazio</b> em dev: o campo exige TLD e <code>localhost</code> é rejeitado — não afeta o login).',
+                'Em <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a> → seu app → produto <b>Instagram</b> → <b>API setup with Instagram Login</b> (não confundir com o antigo "Facebook Login").',
+                'Em <b>Business login settings</b> cadastre o Redirect URI exato: <code class="conn-uri"></code> — sem isso o popup é recusado.',
+                'Na aba <b>Permissions</b> (ou Use Cases → Customize) garanta <b>"Ready for testing"</b> nos escopos <code>instagram_business_basic</code>, <code>instagram_business_content_publish</code> e <code>instagram_business_manage_comments</code>.',
+                'Sua conta Instagram precisa ser <b>profissional</b> (Creator ou Business): no app do Instagram → Configurações → Conta → <b>Conta profissional</b> — <b>não</b> precisa de Página do Facebook nem de Business Suite.',
+                'Salve o <b>Instagram App ID</b> + <b>Instagram App Secret</b> abaixo (o popup de login é o do próprio Instagram — sem envolver o Facebook).',
                 'Publicação no feed exige <b>imagem</b> (vídeo só via Reels — fora do escopo desta API).',
                 'Modo <b>Development</b> conecta você (papel no app) sem App Review; outras contas precisam ser <b>testers</b> no app ou o app precisa ir <b>Live + App Review</b> (Meta, verificação de negócio).'
             ],
-            token: 'Cole o token long-lived do Meta (mesmo app e Página do Facebook).',
-            creds: 'App ID + App Secret do seu app Meta (o mesmo do Facebook).'
+            token: 'Cole o token long-lived do Instagram Login (60 dias, renovável).',
+            creds: 'Instagram App ID + Instagram App Secret (produto Instagram → API setup with Instagram Login).'
         },
         threads: {
             title: 'Threads',
@@ -506,8 +509,8 @@ if (isset($_GET['oauth'])) {
         hint.innerHTML = m.oauth_configured
             ? (m.oauth_source === 'user'
                 ? '<i class="fas fa-check" style="color:#28a745;"></i> Usa o app salvo na Configuração avançada — clique em <b>Entrar</b>.'
-                : '<i class="fas fa-check" style="color:#28a745;"></i> App da plataforma (.env) — clique em <b>Entrar</b> e faça login com usuário/senha da rede (como um SSO).')
-            : '<i class="fas fa-circle-info"></i> Sem credenciais — salve App ID/Secret na Configuração avançada abaixo ou preencha o <code>.env</code> da plataforma (veja o guia do dono).';
+                : '<i class="fas fa-check" style="color:#28a745;"></i> Pronto para conectar — clique em <b>Entrar</b> e faça login com sua conta.')
+            : '<i class="fas fa-circle-info"></i> Sem credenciais — salve App ID/Secret na Configuração avançada abaixo (veja o guia do dono).';
     }
 
     // Sem credenciais (só admin): em vez de um botão morto, o clique no Entrar
@@ -562,7 +565,7 @@ if (isset($_GET['oauth'])) {
             }
             const text = notCfg
                 ? (IS_ADMIN
-                    ? 'Sem credenciais — salve o App ID e o App Secret na Configuração avançada abaixo, ou preencha o .env da plataforma (guia do dono).'
+                    ? 'Sem credenciais — salve o App ID e o App Secret na Configuração avançada abaixo (guia do dono).'
                     : 'Conexão não habilitada nesta plataforma — contate o suporte.')
                 : (j.error || 'Não foi possível iniciar.');
             connSay('<span style="color:#dc3545;">' + esc(text) + '</span>', text, 'error');

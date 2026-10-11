@@ -253,7 +253,7 @@ class SocialPublishers
         if ($isCarouselItem) {
             $params['is_carousel_item'] = 'true';
         }
-        $r = SocialHttp::json('POST', "https://graph.facebook.com/v26.0/{$igId}/media", ['form' => $params]);
+        $r = SocialHttp::json('POST', "https://graph.instagram.com/v26.0/{$igId}/media", ['form' => $params]);
         if (empty($r['id'])) {
             return ['error' => SocialHttp::errorMsg($r, 'Falha ao criar a mídia no Instagram.')];
         }
@@ -275,7 +275,7 @@ class SocialPublishers
 
         if ($type === 'carousel' && !isset($pending['carouselId'])) {
             $children = implode(',', $containers);
-            $r = SocialHttp::json('POST', "https://graph.facebook.com/v26.0/{$igId}/media", [
+            $r = SocialHttp::json('POST', "https://graph.instagram.com/v26.0/{$igId}/media", [
                 'form' => [
                     'media_type' => 'CAROUSEL', 'children' => $children,
                     'caption' => (string)($pending['message'] ?? ''), 'access_token' => $token,
@@ -290,7 +290,7 @@ class SocialPublishers
         $checkId = $type === 'carousel' ? (string)($pending['carouselId'] ?? '') : (string)($containers[0] ?? '');
         if ($checkId === '') return ['error' => 'Container do Instagram ausente.'];
 
-        $st = SocialHttp::json('GET', "https://graph.facebook.com/v26.0/{$checkId}", [
+        $st = SocialHttp::json('GET', "https://graph.instagram.com/v26.0/{$checkId}", [
             'form' => ['fields' => 'status_code,status', 'access_token' => $token],
         ]);
         $code = (string)($st['status_code'] ?? '');
@@ -308,7 +308,7 @@ class SocialPublishers
         }
 
         $creationId = $type === 'carousel' ? (string)$pending['carouselId'] : (string)$containers[0];
-        $pub = SocialHttp::json('POST', "https://graph.facebook.com/v26.0/{$igId}/media_publish", [
+        $pub = SocialHttp::json('POST', "https://graph.instagram.com/v26.0/{$igId}/media_publish", [
             'form' => ['creation_id' => $creationId, 'access_token' => $token],
         ]);
         if (!empty($pub['id'])) return ['remote_id' => (string)$pub['id']];

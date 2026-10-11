@@ -25,7 +25,7 @@ class SocialNetworks
                 'name' => 'Instagram',
                 'icon' => 'fab fa-instagram',
                 'color' => '#E1306C',
-                'desc' => 'Publica no feed — a conexão usa o login do Facebook (conta profissional ligada a uma Página). Imagem, vídeo (Reel) ou carrossel (2 a 10 mídias).',
+                'desc' => 'Publica no feed — conecte com o login da sua conta profissional do Instagram. Imagem, vídeo (Reel) ou carrossel (2 a 10 mídias).',
                 'media' => 'image',
                 'media_kinds' => ['image', 'video'],
                 'media_required' => true,

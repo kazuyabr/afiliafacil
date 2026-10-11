@@ -110,6 +110,21 @@ SocialHttp::$handler = function (string $method, string $url, array $opts = []):
     }
 
     // --- conexao/probe OAuth (Fase 4) ---
+    // Instagram Login: exchange curto + long-lived + /me proprio (sem Página)
+    if (str_contains($url, 'api.instagram.com/oauth/access_token')) {
+        return $j(['access_token' => 'ig_short_1', 'user_id' => 'ig_1', 'token_type' => 'bearer']);
+    }
+    if (str_contains($url, 'graph.instagram.com/access_token')) {
+        return $j(['access_token' => 'ig_long_60d', 'token_type' => 'bearer',
+            'expires_in' => 60 * 86400]);
+    }
+    if (str_contains($url, 'graph.instagram.com') && str_ends_with($url, '/me')) {
+        return $j(['user_id' => 'ig_probe_1', 'username' => 'ig_probe_1']);
+    }
+    if (str_contains($url, 'graph.instagram.com/refresh_access_token')) {
+        return $j(['access_token' => 'ig_long_renovado', 'token_type' => 'bearer',
+            'expires_in' => 60 * 86400]);
+    }
     if (str_contains($url, 'graph.threads.net/oauth/access_token')) {
         return $j(['access_token' => 'th_short_1', 'token_type' => 'Bearer',
             'expires_in' => 3600, 'refresh_token' => 'th_refresh_1']);
@@ -194,11 +209,9 @@ SocialHttp::$handler = function (string $method, string $url, array $opts = []):
     if (str_contains($url, 'graph.facebook.com') && str_contains($url, '/photos')) return $j(['id' => 'fb_photo_1']);
     if (str_contains($url, 'graph.facebook.com') && str_contains($url, '/feed')) return $j(['id' => 'fb_feed_1']);
 
-    // Instagram (media_publish ANTES de /media — o prefixo casa nos dois)
-    if (str_contains($url, 'graph.facebook.com') && str_contains($url, '/media_publish')) return $j(['id' => 'ig_pub_1']);
-
-    // Containers (state-machine): /media cria, /{id} consulta status
-    if (str_contains($url, 'graph.facebook.com') && str_contains($url, '/media')) {
+    // Instagram (graph.instagram.com — Instagram Login nativo; media_publish ANTES de /media)
+    if (str_contains($url, 'graph.instagram.com') && str_contains($url, '/media_publish')) return $j(['id' => 'ig_pub_1']);
+    if (str_contains($url, 'graph.instagram.com') && str_contains($url, '/media')) {
         if (str_contains($url, 'media_type=CAROUSEL')) {
             return $j(['id' => 'ig_carousel_1']);
         }
@@ -206,8 +219,8 @@ SocialHttp::$handler = function (string $method, string $url, array $opts = []):
         $GLOBALS['IG_CONTAINER_N'] = $n;
         return $j(['id' => "ig_container_{$n}"]);
     }
-    if (preg_match('#graph\.facebook\.com/v26\.0/ig_container_\d+$#', $url)
-        || preg_match('#graph\.facebook\.com/v26\.0/ig_carousel_1$#', $url)) {
+    if (preg_match('#graph\.instagram\.com/v26\.0/ig_container_\d+$#', $url)
+        || preg_match('#graph\.instagram\.com/v26\.0/ig_carousel_1$#', $url)) {
         if (!empty($GLOBALS['IG_PENDING'])) {
             return $j(['id' => preg_replace('#.*/#', '', $url), 'status_code' => 'IN_PROGRESS',
                 'status' => 'processing']);
@@ -215,7 +228,6 @@ SocialHttp::$handler = function (string $method, string $url, array $opts = []):
         return $j(['id' => preg_replace('#.*/#', '', $url), 'status_code' => 'FINISHED',
             'status' => 'ready']);
     }
-    if (str_contains($url, 'graph.facebook.com') && str_contains($url, '/media_publish')) return $j(['id' => 'ig_pub_1']);
     if (str_contains($url, 'graph.threads.net') && str_ends_with($url, '/threads')) return $j(['id' => 'th_container_1']);
     if (str_contains($url, 'graph.threads.net') && str_contains($url, '/threads_publish')) {
         return $j(['error' => ['message' => 'threads exploded']], 400);
@@ -231,8 +243,8 @@ $meta = SocialNetworks::meta();
 ok('5 redes no catálogo', count($meta) === 5 && array_keys($meta) === SocialNetworks::ALL);
 ok('label facebook = Facebook', SocialNetworks::label('facebook') === 'Facebook');
 ok('instagram exige mídia', $meta['instagram']['media_required'] === true);
-ok('instagram: card avisa que a conexao usa o login do Facebook',
-    stripos($meta['instagram']['desc'], 'login do Facebook') !== false);
+ok('instagram: card nao menciona login do Facebook (Instagram Login nativo)',
+    stripos($meta['instagram']['desc'], 'login do Facebook') === false);
 ok('tiktok é vídeo + beta', $meta['tiktok']['media'] === 'video' && $meta['tiktok']['beta'] === true);
 ok('custo X com link = 0.20', SocialNetworks::xCost('veja https://oferta.com') === 0.20);
 ok('custo X sem link = 0.015', SocialNetworks::xCost('só texto') === 0.015);
@@ -837,14 +849,14 @@ ok('guias Meta/Instagram incluem cadastro do Redirect URI (3 locais do dashboard
     str_contains($ui, 'Valid OAuth Redirect URIs') && str_contains($ui, 'URL bloqueada')
     && str_contains($ui, 'Facebook Login for Business') && str_contains($ui, 'Add Product')
     && str_contains($ui, 'fb-login/settings/'));
-ok('modal (admin): avanco escondido de clientes + guia do dono + SSO do .env',
+ok('modal (admin): avanco escondido de clientes + guia do dono + SSO da plataforma',
     str_contains($ui, 'Configuração avançada (só admin)')
-    && str_contains($ui, 'como um SSO')
-    && str_contains($ui, 'App da plataforma (.env)')
+    && str_contains($ui, 'Pronto para conectar')
     && str_contains($ui, 'Guia do dono')
     && str_contains($ui, '<span class="conn-step-n">2</span> Conectar')
     && !str_contains($ui, 'Seu app da rede (recomendado)')
-    && !str_contains($ui, 'Conexão rápida não habilitada'));
+    && !str_contains($ui, 'Conexão rápida não habilitada')
+    && !str_contains($ui, 'App da plataforma (.env)'));
 ok('guias avisam Development x Live + App Review para clientes',
     str_contains($ui, 'App Review'));
 ok('guias cobrem Invalid Scopes, Use Cases e App Domains (dashboard 2026)',
@@ -854,8 +866,11 @@ ok('guias cobrem Invalid Scopes, Use Cases e App Domains (dashboard 2026)',
 ok('guia do dono orienta a criar o proprio app (uma unica vez, sem App Review)',
     str_contains($ui, 'criar seu próprio app') && str_contains($ui, 'uma única vez')
     && str_contains($ui, 'testers') && str_contains($ui, 'sem App Review'));
-ok('guia Instagram inclui instagram_basic (dependencia do publish)',
-    str_contains($ui, 'instagram_basic'));
+ok('guia Instagram cobre o produto Instagram Login (API setup with Instagram Login)',
+    str_contains($ui, 'API setup with Instagram Login')
+    && str_contains($ui, 'instagram_business_basic')
+    && str_contains($ui, 'Business login settings')
+    && !str_contains($ui, 'instagram_basic,'));
 ok('card expirado/erro oferece Reconectar + Desconectar (conexao nunca fica orfa)',
     str_contains($ui, 'Reconectar') && str_contains($ui, 'token expirado')
     && str_contains($ui, 'conexão com erro'));
@@ -895,28 +910,35 @@ ok('app.css estiliza botões disabled (estado óbvio)', $r['status'] === 200
 
 // --- credenciais de app (BYOK): usuário > env + dialogs corretos ---
 // instagram sem NENHUMA credencial (env removido + sem BYOK) → oauth_not_configured
-$envMid = getenv('META_APP_ID');
-$envMsec = getenv('META_APP_SECRET');
-putenv('META_APP_ID');
-putenv('META_APP_SECRET');
-SocialAppCredentials::delete($adminId, 'meta');
+$envIid = getenv('INSTAGRAM_APP_ID');
+$envIsec = getenv('INSTAGRAM_APP_SECRET');
+putenv('INSTAGRAM_APP_ID');
+putenv('INSTAGRAM_APP_SECRET');
+SocialAppCredentials::delete($adminId, 'instagram');
 $resIg = SocialOAuth::authorizeUrl('instagram', $adminId);
 $igNotCfg = !$resIg['ok'] && ($resIg['error'] ?? '') === 'oauth_not_configured';
-if ($envMid !== false) putenv('META_APP_ID=' . $envMid);
-if ($envMsec !== false) putenv('META_APP_SECRET=' . $envMsec);
+if ($envIid !== false) putenv('INSTAGRAM_APP_ID=' . $envIid);
+if ($envIsec !== false) putenv('INSTAGRAM_APP_SECRET=' . $envIsec);
 ok('instagram sem credencial → oauth_not_configured', $igNotCfg,
     'error=' . ($resIg['error'] ?? '?'));
 
 // env da plataforma (SSO): sem nenhuma credencial de usuário, o app DO
 // PROJETO habilita o "Entrar" — cliente nunca vê App ID/Secret.
-putenv('META_APP_ID=env_meta_9');
-putenv('META_APP_SECRET=env_secret_9');
+putenv('INSTAGRAM_APP_ID=ig_env_9');
+putenv('INSTAGRAM_APP_SECRET=ig_secret_9');
 $credEnv = SocialOAuth::credentials('instagram', $adminId);
 $resEnv = SocialOAuth::authorizeUrl('instagram', $adminId);
-ok('env da plataforma → SSO configurado (source=env + dialog com client_id)',
+ok('env Instagram → Authorization Window própria (instagram.com + enable_fb_login=0)',
     !empty($credEnv['configured']) && ($credEnv['source'] ?? '') === 'env'
-    && !empty($resEnv['ok']) && str_contains((string)($resEnv['url'] ?? ''), 'client_id=env_meta_9'),
+    && !empty($resEnv['ok'])
+    && str_starts_with((string)($resEnv['url'] ?? ''), 'https://www.instagram.com/oauth/authorize?')
+    && str_contains((string)($resEnv['url'] ?? ''), 'enable_fb_login=0')
+    && str_contains((string)($resEnv['url'] ?? ''), 'client_id=ig_env_9')
+    && str_contains((string)($resEnv['url'] ?? ''), 'instagram_business_basic')
+    && !str_contains((string)($resEnv['url'] ?? ''), 'facebook.com'),
     'cred=' . json_encode($credEnv) . ' err=' . ($resEnv['error'] ?? ''));
+putenv('INSTAGRAM_APP_ID');
+putenv('INSTAGRAM_APP_SECRET');
 
 ok('salva credencial BYOK do Meta', SocialAppCredentials::save($adminId, 'meta', 'meta_app_1', 'meta_secret_1'));
 $res = SocialOAuth::authorizeUrl('facebook', $adminId);
@@ -928,21 +950,33 @@ $cred = SocialOAuth::credentials('facebook', $adminId);
 ok('credencial do usuário vence o env (source=user)', !empty($cred['configured'])
     && ($cred['source'] ?? '') === 'user' && ($cred['id'] ?? '') === 'meta_app_1',
     'source=' . ($cred['source'] ?? ''));
-putenv('META_APP_ID');   // devolve o ambiente real (sem env da plataforma)
-putenv('META_APP_SECRET');
 
-// connect-url HTTP (endpoint) com credencial → URL oficial do dialog Meta
+// BYOK do Instagram (provider proprio, separado do Meta)
+ok('salva credencial BYOK do Instagram', SocialAppCredentials::save($adminId, 'instagram', 'ig_app_1', 'ig_secret_1'));
+$credIg = SocialOAuth::credentials('instagram', $adminId);
+$resIg = SocialOAuth::authorizeUrl('instagram', $adminId);
+ok('instagram BYOK → instagram.com/oauth/authorize com enable_fb_login=0',
+    !empty($credIg['configured']) && ($credIg['source'] ?? '') === 'user'
+    && ($credIg['id'] ?? '') === 'ig_app_1'
+    && str_starts_with((string)($resIg['url'] ?? ''), 'https://www.instagram.com/oauth/authorize?')
+    && str_contains((string)($resIg['url'] ?? ''), 'client_id=ig_app_1')
+    && str_contains((string)($resIg['url'] ?? ''), 'enable_fb_login=0')
+    && str_contains((string)($resIg['url'] ?? ''), 'instagram_business_content_publish'),
+    'cred=' . json_encode($credIg) . ' url=' . substr((string)($resIg['url'] ?? ''), 0, 100));
+
+// connect-url HTTP (endpoint) com credencial → URL da Authorization Window do Instagram
 $r = $http('POST', $BASE . '/admin/api/social.php',
     ['action' => 'connect-url', 'network' => 'instagram'], $jar);
 $jc = json_decode($r['body'], true) ?: [];
 $urlIg = (string)($jc['url'] ?? '');
-ok('connect-url instagram → dialog Meta com client_id/redirect/state', $r['status'] === 200
-    && !empty($jc['ok']) && str_contains($urlIg, 'facebook.com/v26.0/dialog/oauth')
-    && str_contains($urlIg, 'client_id=meta_app_1')
+ok('connect-url instagram → dialog Instagram (sem facebook.com)', $r['status'] === 200
+    && !empty($jc['ok']) && str_starts_with($urlIg, 'https://www.instagram.com/oauth/authorize?')
+    && str_contains($urlIg, 'client_id=ig_app_1')
+    && str_contains($urlIg, 'enable_fb_login=0')
     && str_contains($urlIg, 'redirect_uri=') && str_contains($urlIg, 'state='),
     'body=' . $r['body']);
-ok('dialog instagram pede instagram_basic (dependencia de instagram_content_publish)',
-    str_contains($urlIg, 'instagram_basic') && str_contains($urlIg, 'instagram_content_publish'),
+ok('dialog instagram pede instagram_business_basic + content_publish',
+    str_contains($urlIg, 'instagram_business_basic') && str_contains($urlIg, 'instagram_business_content_publish'),
     'url=' . substr($urlIg, 0, 160));
 
 // Threads: sem credencial → oauth_not_configured (env removido do processo)
@@ -1037,8 +1071,11 @@ ok('probe Meta: token de outro app → sem diagnóstico (sem falso negativo)',
 unset($GLOBALS['FB_DEBUG']);
 
 $p = SocialOAuth::probe('instagram', 'tok-ig-1', $adminId);
-ok('probe instagram descobre conta profissional ligada à Página', !empty($p['ok'])
-    && ($p['account_name'] ?? '') === 'ig_probe_1', 'account=' . ($p['account_name'] ?? ''));
+ok('probe instagram via graph.instagram.com/me (Instagram Login, sem Página)', !empty($p['ok'])
+    && ($p['account_name'] ?? '') === 'ig_probe_1'
+    && (($p['meta']['ig_user_id'] ?? '') === 'ig_probe_1')
+    && (($p['meta']['via'] ?? '') === 'manual'),
+    'account=' . ($p['account_name'] ?? '') . ' meta=' . json_encode($p['meta'] ?? null));
 
 // --- probe X: billing x permissão ---
 $GLOBALS['X_ME_ERROR'] = ['status' => 403, 'body' => ['title' => 'Forbidden',

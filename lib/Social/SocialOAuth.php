@@ -20,6 +20,7 @@ class SocialOAuth
 {
     public const ENV_KEYS = [
         'meta' => ['META_APP_ID', 'META_APP_SECRET'],
+        'instagram' => ['INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET'],
         'threads' => ['THREADS_APP_ID', 'THREADS_APP_SECRET'],
         'x' => ['X_CLIENT_ID', 'X_CLIENT_SECRET'],
         'tiktok' => ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET'],
@@ -33,11 +34,12 @@ class SocialOAuth
             'id' => $vals[0] ?? '', 'secret' => $vals[1] ?? ''];
     }
 
-    /** Provider de credenciais da rede (threads usa app ID proprio da Threads). Aceita a rede ou o proprio nome do provider ('meta'). */
+    /** Provider de credenciais da rede (threads usa app ID proprio da Threads, instagram usa Instagram App ID proprio). Aceita a rede ou o proprio nome do provider. */
     public static function providerFor(string $network): string
     {
         return match ($network) {
-            'facebook', 'instagram', 'meta' => 'meta',
+            'facebook', 'meta' => 'meta',
+            'instagram' => 'instagram',
             'threads' => 'threads',
             'x' => 'x',
             'tiktok' => 'tiktok',
@@ -77,7 +79,8 @@ class SocialOAuth
     {
         return match ($network) {
             'facebook' => 'pages_show_list,pages_read_engagement,pages_manage_posts',
-            'instagram' => 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish',
+            // Instagram API with Instagram Login — sem Página Facebook; escopos business_* substituem os antigos (descontinuados em jan/2025)
+            'instagram' => 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_comments',
             'threads' => 'threads_basic,threads_content_publish',
             'x' => 'tweet.read,tweet.write,users.read,offline.access',
             'tiktok' => 'video.publish,user.info.basic',
@@ -115,9 +118,20 @@ class SocialOAuth
             return ['ok' => true, 'url' => $url];
         }
 
-        if (in_array($network, ['facebook', 'instagram'], true)) {
+        if ($network === 'facebook') {
             $url = 'https://www.facebook.com/v26.0/dialog/oauth?client_id=' . rawurlencode($cred['id'])
                 . '&redirect_uri=' . $redirect
+                . '&scope=' . rawurlencode(self::scopes($network))
+                . '&state=' . rawurlencode($state);
+            return ['ok' => true, 'url' => $url];
+        }
+
+        // Instagram API with Instagram Login: Authorization Window propria do
+        // Instagram (enable_fb_login=0 esconde o login com Facebook).
+        if ($network === 'instagram') {
+            $url = 'https://www.instagram.com/oauth/authorize?enable_fb_login=0&client_id=' . rawurlencode($cred['id'])
+                . '&redirect_uri=' . $redirect
+                . '&response_type=code'
                 . '&scope=' . rawurlencode(self::scopes($network))
                 . '&state=' . rawurlencode($state);
             return ['ok' => true, 'url' => $url];
@@ -178,7 +192,8 @@ class SocialOAuth
 
         try {
             $result = match ($network) {
-                'facebook', 'instagram' => self::exchangeMeta($network, $code, $userId),
+                'facebook' => self::exchangeMeta($network, $code, $userId),
+                'instagram' => self::exchangeInstagram($code, $userId),
                 'threads' => self::exchangeThreads($code, $userId),
                 'x' => self::exchangeX($code, $userId),
                 'tiktok' => self::exchangeTiktok($code, $userId),
@@ -249,20 +264,56 @@ class SocialOAuth
                 'meta' => ['page_id' => (string)$page['id'], 'via' => 'oauth']];
         }
 
-        if ($network === 'instagram') {
-            foreach ($pageList as $page) {
-                $ig = $page['instagram_business_account'] ?? null;
-                if (!empty($ig['id'])) {
-                    return ['ok' => true, 'token' => (string)($page['access_token'] ?? $userToken),
-                        'expires_at' => null,
-                        'account_id' => (string)$ig['id'], 'account_name' => (string)($ig['username'] ?? ''),
-                        'meta' => ['ig_user_id' => (string)$ig['id'], 'page_id' => (string)$page['id'], 'via' => 'oauth']];
-                }
-            }
-            return ['ok' => false, 'error' => 'Nenhuma conta profissional do Instagram ligada a uma Página. Ligue a conta em Configurações do Instagram e tente novamente.'];
+        return ['ok' => false, 'error' => 'Rede desconhecida no Meta.'];
+    }
+
+    /**
+     * Instagram API with Instagram Login: code trocado em api.instagram.com
+     * (curto, 1h) + long-lived em graph.instagram.com (ig_exchange_token,
+     * 60d, renovável via ig_refresh_token). Sem Página Facebook — o user_id
+     * JA é o IG user id, direto do /me.
+     */
+    private static function exchangeInstagram(string $code, int $userId): array
+    {
+        $cred = self::credentials('instagram', $userId);
+        $tok = SocialHttp::json('POST', 'https://api.instagram.com/oauth/access_token', [
+            'form' => [
+                'client_id' => $cred['id'],
+                'client_secret' => $cred['secret'],
+                'grant_type' => 'authorization_code',
+                'redirect_uri' => self::redirectUri(),
+                'code' => $code,
+            ],
+        ]);
+        if (empty($tok['access_token'])) {
+            return ['ok' => false, 'error' => SocialHttp::errorMsg($tok, 'Falha ao autorizar no Instagram.')];
+        }
+        $short = (string)$tok['access_token'];
+
+        // Long-lived (60 dias) — sem ela o agendamento morreria em 1h.
+        $long = SocialHttp::json('GET', 'https://graph.instagram.com/access_token', [
+            'form' => [
+                'grant_type' => 'ig_exchange_token',
+                'client_id' => $cred['id'],
+                'client_secret' => $cred['secret'],
+                'access_token' => $short,
+            ],
+        ]);
+        $userToken = (string)($long['access_token'] ?? $short);
+
+        $me = SocialHttp::json('GET', 'https://graph.instagram.com/v26.0/me', [
+            'form' => ['fields' => 'user_id,username,name,profile_picture_url', 'access_token' => $userToken],
+        ]);
+        $igId = (string)($me['user_id'] ?? '');
+        if ($igId === '') {
+            return ['ok' => false, 'error' => SocialHttp::errorMsg($me, 'Não foi possível identificar a conta do Instagram.')];
         }
 
-        return ['ok' => false, 'error' => 'Rede desconhecida no Meta.'];
+        return ['ok' => true, 'token' => $userToken,
+            'refresh_token' => $userToken,
+            'expires_at' => date('Y-m-d H:i:s', time() + 60 * 86400),
+            'account_id' => $igId, 'account_name' => (string)($me['username'] ?? ''),
+            'meta' => ['ig_user_id' => $igId, 'via' => 'oauth_ig']];
     }
 
     /**
@@ -416,23 +467,16 @@ class SocialOAuth
             }
 
             case 'instagram': {
-                $pages = SocialHttp::json('GET', 'https://graph.facebook.com/v26.0/me/accounts', [
-                    'form' => ['access_token' => $token,
-                        'fields' => 'id,name,access_token,instagram_business_account{id,username}'],
+                $me = SocialHttp::json('GET', 'https://graph.instagram.com/v26.0/me', [
+                    'form' => ['fields' => 'user_id,username', 'access_token' => $token],
                 ]);
-                if (isset($pages['error'])) {
-                    return ['ok' => false, 'error' => SocialHttp::errorMsg($pages, 'Token inválido no Meta.')];
+                $igId = (string)($me['user_id'] ?? '');
+                if ($igId === '') {
+                    return ['ok' => false, 'error' => SocialHttp::errorMsg($me, 'Token inválido no Instagram. Use um token do Instagram Login.')];
                 }
-                foreach (($pages['data'] ?? []) as $page) {
-                    $ig = $page['instagram_business_account'] ?? null;
-                    if (!empty($ig['id'])) {
-                        return self::metaDiag($userId, (string)($page['access_token'] ?? $token), 'instagram', [
-                            'ok' => true, 'token' => (string)($page['access_token'] ?? $token),
-                            'account_id' => (string)$ig['id'], 'account_name' => (string)($ig['username'] ?? ''),
-                            'meta' => ['ig_user_id' => (string)$ig['id'], 'page_id' => (string)$page['id'], 'via' => 'manual']]);
-                    }
-                }
-                return ['ok' => false, 'error' => 'Nenhuma conta profissional do Instagram ligada a uma Página do Facebook neste token.'];
+                return ['ok' => true, 'token' => $token,
+                    'account_id' => $igId, 'account_name' => (string)($me['username'] ?? ''),
+                    'meta' => ['ig_user_id' => $igId, 'via' => 'manual']];
             }
 
             case 'threads': {
@@ -623,6 +667,18 @@ class SocialOAuth
                     'refresh_token' => $r['refresh_token'] ?? $refresh,
                     'expires_at' => !empty($r['expires_in'])
                         ? date('Y-m-d H:i:s', time() + (int)$r['expires_in']) : null];
+            }
+        } elseif ($conn->network === 'instagram') {
+            // ig_refresh_token: long-lived 60d renovado antes de expirar (sem secret)
+            $r = SocialHttp::json('GET', 'https://graph.instagram.com/refresh_access_token', [
+                'form' => ['grant_type' => 'ig_refresh_token', 'access_token' => $refresh],
+            ]);
+            if (!empty($r['access_token'])) {
+                $new = ['token' => (string)$r['access_token'],
+                    'refresh_token' => (string)$r['access_token'],
+                    'expires_at' => !empty($r['expires_in'])
+                        ? date('Y-m-d H:i:s', time() + (int)$r['expires_in'])
+                        : date('Y-m-d H:i:s', time() + 60 * 86400)];
             }
         }
 
